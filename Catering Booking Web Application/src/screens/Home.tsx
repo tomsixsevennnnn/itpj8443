@@ -67,20 +67,6 @@ export default function Home({ navigate, user }: HomeProps) {
                     ดูตัวอย่างงาน
                   </button>
                 </div>
-
-                {/* Stats */}
-                <div className="flex gap-8 mt-10">
-                  {[
-                    { value: '500+', label: 'งานสำเร็จ' },
-                    { value: '98%', label: 'ความพึงพอใจ' },
-                    { value: '5 ★', label: 'คะแนนรีวิว' },
-                  ].map(({ value, label }) => (
-                    <div key={label}>
-                      <p className="text-white font-bold text-xl">{value}</p>
-                      <p className="text-gray-400 text-sm">{label}</p>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </div>

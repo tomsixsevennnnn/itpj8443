@@ -58,6 +58,8 @@ export default function SelectMenu({ navigate, user, packages, packageId, select
   const chosenIn = (course: PackageCourse) => course.items.find(i => selectedIds.has(i.id)) ?? null
 
   const required = requiredCourses(pkg)
+  /** ข้อที่แพ็กเกจแถมมาให้ ไม่ต้องเลือก แต่นับรวมเป็นอาหารบนโต๊ะด้วย */
+  const includedCount = pkg.courses.length - required.length
   const doneCount = required.filter(c => chosenIn(c) !== null).length
   const progress = required.length > 0 ? (doneCount / required.length) * 100 : 100
   const allDone = doneCount === required.length
@@ -89,14 +91,16 @@ export default function SelectMenu({ navigate, user, packages, packageId, select
               <p className="text-orange-500 font-semibold text-sm">ขั้นตอนที่ 5</p>
               <h1 className="text-xl font-bold text-gray-900">เลือกเมนูอาหาร</h1>
               <p className="text-xs text-gray-400 mt-0.5">
-                {pkg.name} · อาหาร {pkg.courses.length} อย่าง · เลือกเองได้ {required.length} ข้อ (ข้อละ 1 อย่าง)
+                {pkg.name} · เลือกเอง {required.length} ข้อ (ข้อละ 1 อย่าง)
+                {includedCount > 0 && ` + แถมให้อีก ${includedCount} อย่าง`}
+                {' = อาหาร '}{pkg.courses.length} อย่าง/โต๊ะ
               </p>
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold text-orange-500">
                 {doneCount}/{required.length}
               </p>
-              <p className="text-xs text-gray-400">ข้อที่เลือกแล้ว</p>
+              <p className="text-xs text-gray-400">ข้อที่ต้องเลือกเอง</p>
             </div>
           </div>
 
@@ -232,7 +236,9 @@ export default function SelectMenu({ navigate, user, packages, packageId, select
             disabled={!allDone}
             className="flex-2 flex-grow flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl py-3.5 font-semibold transition-all shadow-lg shadow-orange-200 disabled:shadow-none"
           >
-            {allDone ? `บันทึก (${selectedMenus.length} เมนู)` : `เลือกอีก ${required.length - doneCount} ข้อ`}
+            {allDone
+              ? `บันทึก · อาหาร ${selectedMenus.length} อย่าง`
+              : `เลือกอีก ${required.length - doneCount} ข้อ`}
           </button>
         </div>
       </div>

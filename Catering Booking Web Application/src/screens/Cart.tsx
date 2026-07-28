@@ -140,8 +140,8 @@ export default function Cart({ navigate, user, packages, booking, onConfirm }: C
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span>🍽️</span>
-                รายการอาหารที่เลือก
-                <span className="text-sm font-normal text-gray-400">({booking.selectedMenus.length} อย่าง)</span>
+                รายการอาหาร
+                <span className="text-sm font-normal text-gray-400">({booking.selectedMenus.length} อย่าง/โต๊ะ)</span>
               </h2>
 
               {booking.selectedMenus.length === 0 ? (
@@ -158,6 +158,9 @@ export default function Cart({ navigate, user, packages, booking, onConfirm }: C
                         <div className="min-w-0">
                           <p className="text-[10px] text-gray-400 leading-none mb-1">
                             {course ? `ข้อ ${course.no} · ${course.title}` : 'เมนูเพิ่มเติม'}
+                            {course?.choose === 0 && (
+                              <span className="text-blue-500 font-medium"> · แถม</span>
+                            )}
                           </p>
                           <p className="text-xs font-semibold text-gray-800 truncate">{menu.name}</p>
                           {menu.extraPrice && (
