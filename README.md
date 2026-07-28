@@ -42,7 +42,11 @@ npm run dev
 
 เปิดเบราว์เซอร์ที่ URL ที่ขึ้นในเทอร์มินัล (ปกติคือ `http://localhost:5173`)
 
-> ถ้าใช้ Windows PowerShell ให้ใช้ `cd '.\Catering Booking Web Application'`
+> **สำหรับ Windows PowerShell**
+> - เข้าโฟลเดอร์ด้วย `cd '.\Catering Booking Web Application'`
+> - ถ้า `npm install` ขึ้น `npm.ps1 cannot be loaded because running scripts is disabled`
+>   ให้ใช้ `npm.cmd install` และ `npm.cmd run dev` แทน (หรือดูวิธีแก้ถาวรที่หัวข้อ
+>   [แก้ปัญหาที่พบบ่อย](#แก้ปัญหาที่พบบ่อย))
 
 ### คำสั่งอื่น ๆ
 
@@ -128,6 +132,41 @@ Catering Booking Web Application/
 ---
 
 ## แก้ปัญหาที่พบบ่อย
+
+### (Windows) `npm : File ...\npm.ps1 cannot be loaded because running scripts is disabled on this system`
+
+```
+npm : File C:\Program Files\nodejs\npm.ps1 cannot be loaded because running scripts
+is disabled on this system.
+    + FullyQualifiedErrorId : UnauthorizedAccess
+```
+
+**สาเหตุ:** Windows PowerShell ตั้งค่าห้ามรันสคริปต์ (`.ps1`) ไว้ตั้งแต่แรก ไม่เกี่ยวกับ Node หรือโปรเจกต์นี้ — เลือกวิธีแก้ได้ 3 แบบ
+
+**วิธีที่ 1 — เติม `.cmd` ต่อท้าย (ง่ายสุด ไม่ต้องแก้ตั้งค่าอะไรเลย)**
+
+```powershell
+npm.cmd install
+npm.cmd run dev
+```
+
+**วิธีที่ 2 — เปิด Command Prompt (cmd) แทน PowerShell**
+
+กด `Win + R` พิมพ์ `cmd` กด Enter แล้ว `cd` เข้าโฟลเดอร์โปรเจกต์ ใช้ `npm install` ได้ตามปกติ
+
+**วิธีที่ 3 — อนุญาตให้ PowerShell รันสคริปต์ได้ถาวร (แนะนำถ้าต้องใช้บ่อย)**
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+พิมพ์ `Y` แล้ว Enter จากนั้น **ปิดเทอร์มินัลแล้วเปิดใหม่**
+
+- ใช้กับบัญชีผู้ใช้ของตัวเองเท่านั้น (`CurrentUser`) **ไม่ต้องเปิดสิทธิ์ Administrator**
+- `RemoteSigned` คือค่าที่ Microsoft แนะนำสำหรับเครื่องทำงาน — รันสคริปต์ที่อยู่ในเครื่องได้ ส่วนสคริปต์ที่โหลดมาจากอินเทอร์เน็ตยังต้องมีลายเซ็นกำกับ
+- ถ้าอยากให้มีผลแค่หน้าต่างนี้หน้าต่างเดียว ไม่แก้ค่าถาวร ใช้ `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` แทน (ปิดหน้าต่างแล้วค่าหายไปเอง)
+
+เช็กค่าปัจจุบันได้ด้วย `Get-ExecutionPolicy -List`
 
 ### รันแล้วขึ้น `SyntaxError: ... does not provide an export named 'styleText'`
 
