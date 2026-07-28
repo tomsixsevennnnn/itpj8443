@@ -1,23 +1,27 @@
 import { useState } from 'react'
-import { Calendar, ChevronLeft, Clock, MapPin, Package, ShoppingBag, Users, X } from 'lucide-react'
+import { Calendar, ChevronLeft, Clock, MapPin, Package, Pencil, ShoppingBag, Users, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { BookingData, Screen, UserProfile } from '../types'
+import DishTile from '../components/DishTile'
+import LocationMap from '../components/LocationMap'
+import type { BookingData, Package as PackageType, Screen, UserProfile } from '../types'
+import { FREE_DELIVERY_MIN_TABLES, HOME_PROVINCE, ZONE_LABEL, deliveryFeeFor, formatFullAddress } from '../geo'
 
 interface CartProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  packages: PackageType[]
   booking: BookingData
   onConfirm: () => void
 }
 
-export default function Cart({ navigate, user, booking, onConfirm }: CartProps) {
+export default function Cart({ navigate, user, packages, booking, onConfirm }: CartProps) {
   const [showConfirm, setShowConfirm] = useState(false)
+  const pkg = packages.find(p => p.id === booking.packageId) ?? null
+  /** จับคู่เมนูที่เลือกกับ "ข้อ" ของแพ็กเกจ เพื่อแสดงตามลำดับเสิร์ฟ */
+  const courseOf = (menuId: string) => pkg?.courses.find(c => c.items.some(i => i.id === menuId)) ?? null
   const subtotal = booking.packagePrice * booking.tables
-  const serviceCharge = Math.round(subtotal * 0.07)
-  const deliveryFee = booking.tables < 30 && booking.location && /กรุงเทพ|กทม|bangkok|นนทบุรี|สมุทรปราการ|สมุทรสาคร|ปทุมธานี/i.test(booking.location.address)
-    ? 2000
-    : 0
-  const total = subtotal + serviceCharge + deliveryFee
+  const deliveryFee = deliveryFeeFor(booking.tables, booking.location)
+  const total = subtotal + deliveryFee
 
   const handleConfirm = () => {
     setShowConfirm(false)
@@ -56,11 +60,10 @@ export default function Cart({ navigate, user, booking, onConfirm }: CartProps) 
                       })
                     : '-' },
                   { icon: Clock, label: 'ช่วงเวลา', value: booking.timeSlot || '-' },
-                  { icon: MapPin, label: 'สถานที่จัดงาน', value: booking.location?.address || '-' },
+                  { icon: MapPin, label: 'สถานที่จัดงาน', value: booking.location ? booking.location.name : '-' },
                   { icon: Users, label: 'จำนวนโต๊ะ', value: `${booking.tables} โต๊ะ (${booking.tables * 10} ที่นั่ง)` },
-                  { icon: Users, label: 'จำนวนคนที่ใช้สำหรับงาน', value: `${booking.guestCount} คน` },
+                  { icon: Users, label: 'จำนวนคนที่ร่วมงาน', value: `${booking.guestCount} คน` },
                   { icon: Package, label: 'แพ็กเกจ', value: booking.packageName || '-' },
-                  { icon: Package, label: 'เครื่องดื่ม', value: booking.drinkOption === 'provided' ? 'ให้ร้านเตรียมให้' : booking.drinkOption === 'self' ? 'ลูกค้านำมาเอง' : 'ยังไม่เลือก' },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
                     <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -75,33 +78,95 @@ export default function Cart({ navigate, user, booking, onConfirm }: CartProps) 
               </div>
             </div>
 
+            {/* Event location */}
+            {booking.location && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between p-6 pb-4">
+                  <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                    <MapPin size={18} className="text-orange-500" />
+                    สถานที่จัดงาน
+                  </h2>
+                  <button
+                    onClick={() => navigate('select-location')}
+                    className="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-200 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Pencil size={12} />
+                    แก้ไข
+                  </button>
+                </div>
+
+                <LocationMap
+                  key={`${booking.location.lat},${booking.location.lng}`}
+                  position={{ lat: booking.location.lat, lng: booking.location.lng }}
+                  interactive={false}
+                  className="h-40 w-full"
+                />
+
+                <div className="p-6 pt-4 space-y-3">
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">{booking.location.name}</p>
+                    <p className="text-xs text-gray-500 leading-relaxed mt-0.5">{formatFullAddress(booking.location)}</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-[11px]">
+                    <span className="bg-gray-100 text-gray-600 font-mono px-2.5 py-1 rounded-lg">
+                      {booking.location.lat.toFixed(6)}, {booking.location.lng.toFixed(6)}
+                    </span>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg font-medium ${
+                        booking.location.zone === 'home'
+                          ? 'bg-green-100 text-green-700'
+                          : booking.location.zone === 'metro'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {booking.location.province ? `${booking.location.province} · ` : ''}
+                      {ZONE_LABEL[booking.location.zone]}
+                    </span>
+                  </div>
+
+                  {booking.location.detail.accessNote && (
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-[10px] text-gray-400 mb-0.5">รายละเอียดการเข้าถึงสถานที่</p>
+                      <p className="text-xs text-gray-700 leading-relaxed">{booking.location.detail.accessNote}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Selected menus */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span>🍽️</span>
                 รายการอาหารที่เลือก
-                <span className="text-sm font-normal text-gray-400">({booking.selectedMenus.length} เมนู)</span>
+                <span className="text-sm font-normal text-gray-400">({booking.selectedMenus.length} อย่าง)</span>
               </h2>
 
               {booking.selectedMenus.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-8">ยังไม่ได้เลือกเมนู</p>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {booking.selectedMenus.map((menu) => (
-                    <div key={menu.id} className="flex items-center gap-2 bg-orange-50 rounded-xl p-2.5">
-                      <img
-                        src={menu.image}
-                        alt={menu.name}
-                        className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-gray-800 truncate">{menu.name}</p>
-                        {menu.extraPrice && (
-                          <p className="text-[10px] text-orange-500">+{menu.extraPrice} บาท</p>
-                        )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {booking.selectedMenus.map((menu) => {
+                    const course = courseOf(menu.id)
+                    return (
+                      <div key={menu.id} className="flex items-center gap-3 bg-orange-50 rounded-xl p-2.5">
+                        <div className="w-11 h-11 rounded-lg overflow-hidden flex-shrink-0">
+                          <DishTile item={menu} category={course?.category} emojiClass="text-xl" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] text-gray-400 leading-none mb-1">
+                            {course ? `ข้อ ${course.no} · ${course.title}` : 'เมนูเพิ่มเติม'}
+                          </p>
+                          <p className="text-xs font-semibold text-gray-800 truncate">{menu.name}</p>
+                          {menu.extraPrice && (
+                            <p className="text-[10px] text-orange-500">+{menu.extraPrice} บาท</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -121,13 +186,11 @@ export default function Cart({ navigate, user, booking, onConfirm }: CartProps) 
                   <span className="text-gray-500">จำนวนโต๊ะ</span>
                   <span className="text-gray-700">× {booking.tables}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">ค่าบริการ (7%)</span>
-                  <span className="text-gray-700">{serviceCharge.toLocaleString()} ฿</span>
-                </div>
                 {deliveryFee > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">ค่าขนส่ง (กรุงเทพและปริมณฑล หากไม่ถึง 30 โต๊ะ)</span>
+                    <span className="text-gray-500">
+                      ค่าขนส่ง (นอก{HOME_PROVINCE} ไม่ถึง {FREE_DELIVERY_MIN_TABLES} โต๊ะ)
+                    </span>
                     <span className="text-gray-700">{deliveryFee.toLocaleString()} ฿</span>
                   </div>
                 )}
@@ -182,10 +245,10 @@ export default function Cart({ navigate, user, booking, onConfirm }: CartProps) 
                 {[
                   { label: 'วันที่', value: booking.date ? new Date(booking.date + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : '-' },
                   { label: 'เวลา', value: booking.timeSlot || '-' },
-                  { label: 'สถานที่', value: booking.location?.address?.slice(0, 40) + (booking.location?.address && booking.location.address.length > 40 ? '...' : '') || '-' },
+                  { label: 'สถานที่', value: booking.location?.name || '-' },
                   { label: 'จำนวนโต๊ะ', value: `${booking.tables} โต๊ะ` },
                   { label: 'แพ็กเกจ', value: booking.packageName || '-' },
-                  { label: 'จำนวนเมนู', value: `${booking.selectedMenus.length} รายการ` },
+                  { label: 'จำนวนอาหาร', value: `${booking.selectedMenus.length} อย่าง / โต๊ะ` },
                 ].map(({ label, value }) => (
                   <div key={label} className="flex justify-between text-sm">
                     <span className="text-gray-400">{label}</span>

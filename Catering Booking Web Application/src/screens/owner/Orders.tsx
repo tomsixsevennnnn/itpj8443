@@ -1,7 +1,15 @@
 import { useState } from 'react'
-import { Check, MapPin, Search, X } from 'lucide-react'
-import type { Booking } from '../../types'
-import { MOCK_BOOKINGS } from '../../data'
+import { Check, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
+import LocationMap from '../../components/LocationMap'
+import type { Booking, StaffPlan } from '../../types'
+import {
+  STAFF_ROLES,
+  TABLES_PER_SERVER_MIN,
+  calculateStaff,
+  isSamePlan,
+  sumStaff,
+  toPlan,
+} from '../../staffing'
 
 const STATUS_CONFIG = {
   pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
@@ -10,19 +18,57 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-export default function Orders() {
+interface OrdersProps {
+  bookings: Booking[]
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+}
+
+export default function Orders({ bookings, onUpdateBooking }: OrdersProps) {
   const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<Booking | null>(null)
-  const [_drawerStatus, setDrawerStatus] = useState<Booking['status'] | null>(null)
-  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [staffDraft, setStaffDraft] = useState<StaffPlan | null>(null)
+  const [noteDraft, setNoteDraft] = useState('')
+
+  // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
+  const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
 
   const filtered = bookings.filter(b =>
     b.customerName.includes(search) || b.id.includes(search) || search === ''
   )
 
   const updateStatus = (id: string, status: Booking['status']) => {
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status } : b))
-    if (selected?.id === id) setSelected(prev => prev ? { ...prev, status } : null)
+    onUpdateBooking(id, { status })
+  }
+
+  /* --- แผนกำลังคน ------------------------------------------------- */
+
+  /** จำนวนพนักงานรวมของงาน (ใช้ตัวที่ปรับแก้ไว้ ถ้ายังไม่ปรับใช้ผลที่ระบบคำนวณ) */
+  const staffTotalOf = (b: Booking) => sumStaff(b.staffActual ?? toPlan(calculateStaff(b.tables)))
+
+  const openBooking = (booking: Booking) => {
+    setSelectedId(booking.id)
+    setStaffDraft(booking.staffActual ?? toPlan(calculateStaff(booking.tables)))
+    setNoteDraft(booking.staffNote ?? '')
+  }
+
+  const adjustStaff = (key: keyof StaffPlan, delta: number) => {
+    setStaffDraft(prev => (prev ? { ...prev, [key]: Math.max(0, prev[key] + delta) } : prev))
+  }
+
+  /** คำนวณใหม่จากจำนวนโต๊ะปัจจุบัน (ล้างค่าที่ปรับแก้ไว้) */
+  const recalcStaff = () => {
+    if (selected) setStaffDraft(toPlan(calculateStaff(selected.tables)))
+  }
+
+  /** บันทึกทั้งจำนวนที่ระบบคำนวณและจำนวนที่ปรับแก้จริง ไว้อ้างอิงภายหลัง */
+  const saveStaff = () => {
+    if (!selected || !staffDraft) return
+    onUpdateBooking(selected.id, {
+      staffAuto: toPlan(calculateStaff(selected.tables)),
+      staffActual: staffDraft,
+      staffNote: noteDraft.trim(),
+      staffSavedAt: new Date().toISOString(),
+    })
   }
 
   return (
@@ -47,7 +93,7 @@ export default function Orders() {
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                {['ชื่อลูกค้า', 'วันที่', 'ช่วงเวลา', 'โต๊ะ', 'แพ็กเกจ', 'ราคารวม', 'สถานะ', ''].map(col => (
+                {['ชื่อลูกค้า', 'วันที่', 'ช่วงเวลา', 'โต๊ะ', 'พนักงาน', 'แพ็กเกจ', 'ราคารวม', 'สถานะ', ''].map(col => (
                   <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500">{col}</th>
                 ))}
               </tr>
@@ -59,7 +105,7 @@ export default function Orders() {
                   <tr
                     key={booking.id}
                     className={`hover:bg-orange-50/30 transition-colors cursor-pointer ${selected?.id === booking.id ? 'bg-orange-50' : ''}`}
-                    onClick={() => { setSelected(booking); setDrawerStatus(booking.status) }}
+                    onClick={() => openBooking(booking)}
                   >
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
@@ -77,6 +123,15 @@ export default function Orders() {
                     </td>
                     <td className="px-4 py-3.5 text-sm text-gray-600">{booking.timeSlot}</td>
                     <td className="px-4 py-3.5 text-sm text-gray-700">{booking.tables}</td>
+                    <td className="px-4 py-3.5">
+                      <span className="inline-flex items-center gap-1 text-sm text-gray-700">
+                        <Users size={13} className="text-gray-400" />
+                        {staffTotalOf(booking)}
+                      </span>
+                      {booking.staffActual && (
+                        <span className="block text-[10px] text-blue-500 leading-tight">ปรับแก้แล้ว</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3.5 text-sm text-gray-700">{booking.packageName}</td>
                     <td className="px-4 py-3.5">
                       <span className="font-bold text-orange-600">{booking.totalPrice.toLocaleString()}</span>
@@ -108,7 +163,7 @@ export default function Orders() {
                 <p className="text-orange-100 text-xs">{selected.id}</p>
               </div>
               <button
-                onClick={() => setSelected(null)}
+                onClick={() => setSelectedId(null)}
                 className="w-7 h-7 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white transition-colors"
               >
                 <X size={14} />
@@ -125,8 +180,7 @@ export default function Orders() {
                     { label: 'วันที่', value: new Date(selected.date + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) },
                     { label: 'ช่วงเวลา', value: selected.timeSlot },
                     { label: 'จำนวนโต๊ะ', value: `${selected.tables} โต๊ะ` },
-                    { label: 'จำนวนคนที่ใช้สำหรับงาน', value: `${selected.guestCount ?? selected.tables * 10} คน` },
-                    { label: 'พนักงานที่ต้องใช้', value: `${Math.max(1, Math.ceil(selected.tables / 2))} คน` },
+                    { label: 'จำนวนคนที่ร่วมงาน', value: `${selected.guestCount ?? selected.tables * 10} คน` },
                     { label: 'แพ็กเกจ', value: selected.packageName },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex justify-between text-sm">
@@ -144,19 +198,41 @@ export default function Orders() {
                   <MapPin size={14} className="text-orange-500 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-gray-700">{selected.location}</p>
                 </div>
-                {/* Mini map preview */}
-                <div className="mt-2 h-24 rounded-xl overflow-hidden bg-gray-200 relative">
-                  <img
-                    src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=400&h=200&fit=crop&auto=format"
-                    alt="map"
-                    className="w-full h-full object-cover opacity-70"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-7 h-7 bg-orange-500 rounded-full flex items-center justify-center shadow-lg">
-                      <MapPin size={14} className="text-white" />
+                {/* รายละเอียดการเข้าถึง + พิกัดจริงจากแผนที่ */}
+                {selected.locationDetail && (
+                  <>
+                    {selected.locationDetail.detail.accessNote && (
+                      <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl p-3">
+                        <p className="text-[10px] text-amber-600 mb-0.5">การเข้าถึงสถานที่</p>
+                        <p className="text-xs text-amber-800 leading-relaxed">
+                          {selected.locationDetail.detail.accessNote}
+                        </p>
+                      </div>
+                    )}
+
+                    <LocationMap
+                      key={selected.id}
+                      position={{ lat: selected.locationDetail.lat, lng: selected.locationDetail.lng }}
+                      interactive={false}
+                      className="mt-2 h-28 rounded-xl overflow-hidden"
+                    />
+
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {selected.locationDetail.lat.toFixed(6)}, {selected.locationDetail.lng.toFixed(6)}
+                      </span>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${selected.locationDetail.lat},${selected.locationDetail.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-medium text-orange-600 hover:text-orange-700"
+                      >
+                        <Navigation size={11} />
+                        นำทาง
+                      </a>
                     </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
 
               {/* Menu list */}
@@ -168,6 +244,137 @@ export default function Orders() {
                   ))}
                 </div>
               </div>
+
+              {/* Staff plan */}
+              {staffDraft && (() => {
+                const calc = calculateStaff(selected.tables)
+                const autoPlan = toPlan(calc)
+                const draftTotal = sumStaff(staffDraft)
+                const adjusted = !isSamePlan(staffDraft, autoPlan)
+                const savedPlan = selected.staffActual
+                const dirty =
+                  !savedPlan ||
+                  !isSamePlan(savedPlan, staffDraft) ||
+                  (selected.staffNote ?? '') !== noteDraft.trim()
+
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">แผนกำลังคน</p>
+                      <button
+                        onClick={recalcStaff}
+                        className="flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-orange-600 transition-colors"
+                      >
+                        <RotateCcw size={11} />
+                        คำนวณใหม่
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-gray-400 mb-2.5">
+                      คำนวณอัตโนมัติจาก {selected.tables} โต๊ะ · ปรับแก้ได้ก่อนบันทึก
+                    </p>
+
+                    <div className="space-y-2">
+                      {STAFF_ROLES.map(role => {
+                        const value = staffDraft[role.key]
+                        const auto = autoPlan[role.key]
+                        return (
+                          <div key={role.key} className="flex items-center gap-2.5 bg-gray-50 rounded-xl p-2.5">
+                            <span className="text-base leading-none">{role.icon}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-gray-800 leading-tight">{role.label}</p>
+                              <p className="text-[10px] text-gray-400 leading-tight">{role.rule}</p>
+                              {value !== auto && (
+                                <p className="text-[10px] text-blue-500 leading-tight mt-0.5">
+                                  ระบบคำนวณ {auto} คน
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => adjustStaff(role.key, -1)}
+                                disabled={value === 0}
+                                className="w-6 h-6 rounded-lg bg-white border border-gray-200 text-gray-500 flex items-center justify-center hover:border-orange-300 hover:text-orange-600 disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-500 transition-colors"
+                              >
+                                <Minus size={11} />
+                              </button>
+                              <span className="w-7 text-center text-sm font-bold text-gray-900">{value}</span>
+                              <button
+                                onClick={() => adjustStaff(role.key, 1)}
+                                className="w-6 h-6 rounded-lg bg-white border border-gray-200 text-gray-500 flex items-center justify-center hover:border-orange-300 hover:text-orange-600 transition-colors"
+                              >
+                                <Plus size={11} />
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* คำแนะนำช่วงพนักงานเสิร์ฟ 5–8 โต๊ะ/คน */}
+                    {calc.serversMax > calc.serversMin && (
+                      <button
+                        onClick={() => setStaffDraft(prev => (prev ? { ...prev, servers: calc.serversMax } : prev))}
+                        className="w-full mt-2 text-left text-[11px] text-gray-500 hover:text-orange-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 transition-colors"
+                      >
+                        💡 เสิร์ฟเต็มอัตรา ({TABLES_PER_SERVER_MIN} โต๊ะ/คน) ใช้ {calc.serversMax} คน — กดเพื่อใช้ค่านี้
+                      </button>
+                    )}
+
+                    {/* รวมทั้งหมด */}
+                    <div className="mt-2.5 bg-gray-900 rounded-xl p-3.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-orange-400" />
+                        <span className="text-sm font-semibold text-white">พนักงานรวมทั้งหมด</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-white leading-none">{draftTotal} คน</p>
+                        {adjusted && (
+                          <p className="text-[10px] text-gray-400 mt-1">ระบบคำนวณ {calc.total} คน</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* หมายเหตุ */}
+                    <div className="mt-3">
+                      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
+                        หมายเหตุ
+                      </label>
+                      <textarea
+                        value={noteDraft}
+                        onChange={e => setNoteDraft(e.target.value)}
+                        rows={2}
+                        placeholder="เช่น งาน VIP, งานนอกสถานที่, ข้อกำหนดพิเศษของลูกค้า"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 placeholder:text-gray-300"
+                      />
+                    </div>
+
+                    <button
+                      onClick={saveStaff}
+                      disabled={!dirty}
+                      className="w-full mt-2 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-100 disabled:text-gray-400 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
+                    >
+                      <Save size={14} />
+                      {dirty ? 'บันทึกแผนกำลังคน' : 'บันทึกแล้ว'}
+                    </button>
+
+                    {selected.staffSavedAt && (
+                      <p className="text-[10px] text-gray-400 text-center mt-1.5">
+                        บันทึกล่าสุด{' '}
+                        {new Date(selected.staffSavedAt).toLocaleString('th-TH', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {selected.staffAuto && selected.staffActual && !isSamePlan(selected.staffAuto, selected.staffActual) && (
+                          <> · ปรับจาก {sumStaff(selected.staffAuto)} เป็น {sumStaff(selected.staffActual)} คน</>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Price */}
               <div className="bg-orange-50 rounded-xl p-4 flex justify-between items-center">

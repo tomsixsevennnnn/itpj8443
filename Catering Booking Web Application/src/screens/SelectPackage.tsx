@@ -1,11 +1,12 @@
 import { Check, ChevronLeft, ChevronRight, Crown, Sparkles, Star } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import type { Package, Screen, UserProfile } from '../types'
-import { PACKAGES } from '../data'
+import { CATEGORY_MAP, requiredCourses } from '../data'
 
 interface SelectPackageProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  packages: Package[]
   tables: number
   selectedPackageId: string | null
   onSelectPackage: (pkg: Package) => void
@@ -18,7 +19,7 @@ const PKG_COLORS = [
   { bg: 'bg-purple-50', border: 'border-purple-100', accent: 'text-purple-600', badge: 'bg-purple-100 text-purple-600', btn: 'bg-purple-600 hover:bg-purple-700' },
 ]
 
-export default function SelectPackage({ navigate, user, tables, selectedPackageId, onSelectPackage }: SelectPackageProps) {
+export default function SelectPackage({ navigate, user, packages, tables, selectedPackageId, onSelectPackage }: SelectPackageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar navigate={navigate} currentScreen="select-package" user={user} />
@@ -31,9 +32,9 @@ export default function SelectPackage({ navigate, user, tables, selectedPackageI
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          {PACKAGES.map((pkg, i) => {
-            const colors = PKG_COLORS[i]
-            const Icon = PKG_ICONS[i]
+          {packages.map((pkg, i) => {
+            const colors = PKG_COLORS[i % PKG_COLORS.length]
+            const Icon = PKG_ICONS[i % PKG_ICONS.length]
             const isSelected = selectedPackageId === pkg.id
             const totalPrice = pkg.pricePerTable * tables
 
@@ -78,7 +79,7 @@ export default function SelectPackage({ navigate, user, tables, selectedPackageI
                     </p>
                   </div>
 
-                  <div className="space-y-2.5 mb-6">
+                  <div className="space-y-2 mb-5">
                     {pkg.features.map((feat) => (
                       <div key={feat} className="flex items-start gap-2.5">
                         <div className="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -89,10 +90,34 @@ export default function SelectPackage({ navigate, user, tables, selectedPackageI
                     ))}
                   </div>
 
+                  {/* รายการอาหาร 9 ข้อ */}
+                  <div className="border-t border-gray-100 pt-4 mb-4">
+                    <p className="text-xs font-semibold text-gray-500 mb-2.5">รายการอาหาร {pkg.courses.length} อย่าง</p>
+                    <div className="space-y-1.5">
+                      {pkg.courses.map((course) => (
+                        <div key={course.no} className="flex items-start gap-2">
+                          <span className="w-4 h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">
+                            {course.no}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-gray-700 leading-tight">
+                              {CATEGORY_MAP[course.category]?.icon} {course.title}
+                            </p>
+                            <p className="text-[10px] text-gray-400 leading-tight truncate">
+                              {course.choose === 0
+                                ? course.items.map(i => i.name).join(', ')
+                                : `เลือก 1 จาก ${course.items.length} อย่าง`}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="pt-4 border-t border-gray-100">
                     <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-gray-500">จำนวนเมนูที่เลือกได้</span>
-                      <span className="font-bold text-gray-900">{pkg.menuLimit} เมนู</span>
+                      <span className="text-gray-500">เลือกเมนูเองได้</span>
+                      <span className="font-bold text-gray-900">{requiredCourses(pkg).length} ข้อ</span>
                     </div>
                   </div>
 

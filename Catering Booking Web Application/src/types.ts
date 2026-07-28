@@ -16,13 +16,33 @@ export type Screen =
   | 'owner-menus'
   | 'owner-documents'
 
+export interface Category {
+  id: string
+  label: string
+  labelEn: string
+  icon: string
+  gradient: string
+}
+
 export interface MenuItem {
   id: string
   name: string
   category: string
   description: string
-  image: string
+  image?: string
   extraPrice?: number
+  /** เปิด/ปิดการแสดงในคลังเมนูของร้าน (ไม่ตั้งค่า = เปิด) */
+  active?: boolean
+}
+
+/** หนึ่ง "ข้อ" ในเมนูโต๊ะจีน — เลือกได้ 1 อย่าง หรือเป็นรายการที่รวมมาให้แล้ว */
+export interface PackageCourse {
+  no: number
+  title: string
+  category: string
+  /** จำนวนที่ลูกค้าเลือกได้ในข้อนี้ (0 = รวมในแพ็กเกจ ไม่ต้องเลือก) */
+  choose: number
+  items: MenuItem[]
 }
 
 export interface Package {
@@ -33,6 +53,33 @@ export interface Package {
   description: string
   features: string[]
   badge?: string
+  courses: PackageCourse[]
+}
+
+/** รายละเอียดเพิ่มเติมของสถานที่จัดงานที่ลูกค้ากรอกเอง */
+export interface LocationDetail {
+  houseNo: string
+  building: string
+  village: string
+  landmark: string
+  accessNote: string
+}
+
+/** โซนบริการของร้าน — home = นครปฐม, metro = กรุงเทพและปริมณฑล */
+export type ServiceZone = 'home' | 'metro' | 'outside'
+
+/** สถานที่จัดงาน — พิกัดจากแผนที่ + รายละเอียดที่ลูกค้ากรอก */
+export interface EventLocation {
+  lat: number
+  lng: number
+  /** ชื่อสถานที่ เช่น โรงแรม Centara Grand */
+  name: string
+  /** ที่อยู่เต็มจากแผนที่ */
+  address: string
+  province: string
+  /** โซนบริการ: นครปฐม (พื้นที่ร้าน) / กรุงเทพและปริมณฑล / นอกพื้นที่ — ใช้คิดค่าขนส่ง */
+  zone: ServiceZone
+  detail: LocationDetail
 }
 
 export interface BookingData {
@@ -40,13 +87,27 @@ export interface BookingData {
   timeSlot: string | null
   tables: number
   guestCount: number
-  location: { lat: number; lng: number; address: string } | null
+  location: EventLocation | null
   packageId: string | null
   packageName: string | null
   packagePrice: number
   menuLimit: number
   selectedMenus: MenuItem[]
-  drinkOption?: 'provided' | 'self' | null
+}
+
+/** จำนวนพนักงานแยกตามตำแหน่ง */
+export interface StaffPlan {
+  servers: number
+  chefs: number
+  assistants: number
+  dishwashers: number
+}
+
+/** ผลลัพธ์ที่ระบบคำนวณ พร้อมช่วงพนักงานเสิร์ฟตามเกณฑ์ 5–8 โต๊ะ/คน */
+export interface StaffCalculation extends StaffPlan {
+  total: number
+  serversMin: number
+  serversMax: number
 }
 
 export interface Booking {
@@ -58,10 +119,23 @@ export interface Booking {
   guestCount: number
   packageName: string
   totalPrice: number
+  /** แยกยอดไว้ออกเอกสาร — ยอดค่าอาหาร + ค่าขนส่ง = totalPrice */
+  pricePerTable?: number
+  deliveryFee?: number
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled'
   location: string
+  /** พิกัดและรายละเอียดสถานที่จากแผนที่ (ใช้วางแผนการเดินทาง) */
+  locationDetail?: EventLocation
   menus: string[]
   phone: string
+  /** จำนวนพนักงานที่ระบบคำนวณได้ ณ ตอนบันทึก (เก็บไว้อ้างอิง) */
+  staffAuto?: StaffPlan
+  /** จำนวนพนักงานที่เจ้าของร้านปรับแก้และใช้จริง */
+  staffActual?: StaffPlan
+  /** หมายเหตุของงาน เช่น งาน VIP, งานนอกสถานที่ */
+  staffNote?: string
+  /** เวลาที่บันทึกแผนกำลังคนล่าสุด */
+  staffSavedAt?: string
 }
 
 export interface UserProfile {

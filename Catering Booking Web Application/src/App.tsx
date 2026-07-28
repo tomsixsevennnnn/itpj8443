@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import type { BookingData, Screen, UserProfile, Booking, MenuItem, Package } from './types'
+import type { BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package } from './types'
+import { MENU_ITEMS, MOCK_BOOKINGS, PACKAGES, includedItems } from './data'
+import { deliveryFeeFor, formatFullAddress } from './geo'
 import Login from './screens/Login'
 import Home from './screens/Home'
 import BookingCalendar from './screens/BookingCalendar'
@@ -31,16 +33,46 @@ const initialBooking: BookingData = {
   packageId: null,
   packageName: null,
   packagePrice: 0,
-  menuLimit: 7,
+  menuLimit: 9,
   selectedMenus: [],
-  drinkOption: null,
 }
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('login')
   const [user, setUser] = useState<UserProfile | null>(null)
   const [booking, setBooking] = useState<BookingData>(initialBooking)
-  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null)
+  // รายการจองทั้งหมด — ใช้ร่วมกันทั้งปฏิทินลูกค้า ปฏิทินร้าน ประวัติ และเอกสาร
+  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS)
+  // แพ็กเกจและคลังเมนูอยู่ที่นี่ เพื่อให้เจ้าของร้านแก้แล้วฝั่งลูกค้าเห็นผลทันที
+  const [packages, setPackages] = useState<Package[]>(PACKAGES)
+  const [menus, setMenus] = useState<MenuItem[]>(MENU_ITEMS)
+
+  /** เพิ่มหรือแก้ไขเมนู — ถ้าแก้ของเดิม ให้ซิงก์เข้าไปในแพ็กเกจที่ใช้เมนูนี้อยู่ด้วย */
+  const handleSaveMenu = (item: MenuItem) => {
+    setMenus(prev =>
+      prev.some(m => m.id === item.id) ? prev.map(m => (m.id === item.id ? item : m)) : [...prev, item]
+    )
+    setPackages(prev =>
+      prev.map(p => ({
+        ...p,
+        courses: p.courses.map(c => ({
+          ...c,
+          items: c.items.map(i => (i.id === item.id ? item : i)),
+        })),
+      }))
+    )
+  }
+
+  /** ลบเมนูออกจากคลัง พร้อมถอดออกจากทุกแพ็กเกจที่ใช้อยู่ */
+  const handleDeleteMenu = (id: string) => {
+    setMenus(prev => prev.filter(m => m.id !== id))
+    setPackages(prev =>
+      prev.map(p => ({
+        ...p,
+        courses: p.courses.map(c => ({ ...c, items: c.items.filter(i => i.id !== id) })),
+      }))
+    )
+  }
 
   const navigate = (s: Screen) => setScreen(s)
 
@@ -60,7 +92,7 @@ export default function App() {
     setBooking(b => ({ ...b, guestCount: n }))
   }
 
-  const handleSetLocation = (loc: { lat: number; lng: number; address: string }) => {
+  const handleSetLocation = (loc: EventLocation) => {
     setBooking(b => ({ ...b, location: loc }))
   }
 
@@ -71,7 +103,8 @@ export default function App() {
       packageName: pkg.name,
       packagePrice: pkg.pricePerTable,
       menuLimit: pkg.menuLimit,
-      selectedMenus: b.selectedMenus.slice(0, pkg.menuLimit),
+      // เปลี่ยนแพ็กเกจ = เริ่มเลือกเมนูใหม่ (ใส่ข้อที่รวมมาให้แล้วอัตโนมัติ)
+      selectedMenus: b.packageId === pkg.id ? b.selectedMenus : includedItems(pkg),
     }))
   }
 
@@ -79,11 +112,11 @@ export default function App() {
     setBooking(b => ({ ...b, selectedMenus: menus }))
   }
 
-  const handleSetDrinkOption = (option: 'provided' | 'self') => {
-    setBooking(b => ({ ...b, drinkOption: option }))
-  }
-
   const handleConfirm = () => {
+    // คิดยอดแบบเดียวกับหน้าตะกร้า เพื่อให้ใบเสนอราคา/ใบจองตรงกัน
+    const subtotal = booking.packagePrice * booking.tables
+    const deliveryFee = deliveryFeeFor(booking.tables, booking.location)
+
     const newBooking: Booking = {
       id: `BK-2025-${String(Math.floor(Math.random() * 900 + 100))}`,
       customerName: user ? `${user.name} ${user.surname}` : 'ลูกค้า',
@@ -92,26 +125,47 @@ export default function App() {
       tables: booking.tables,
       guestCount: booking.guestCount,
       packageName: booking.packageName || 'Standard',
-      totalPrice: booking.packagePrice * booking.tables * 1.07,
+      totalPrice: subtotal + deliveryFee,
+      pricePerTable: booking.packagePrice,
+      deliveryFee,
       status: 'pending',
-      location: booking.location?.address || 'ไม่ระบุ',
+      location: booking.location ? formatFullAddress(booking.location) : 'ไม่ระบุ',
+      locationDetail: booking.location ?? undefined,
       menus: booking.selectedMenus.map(m => m.name),
       phone: user?.phone || '—',
     }
-    setConfirmedBooking(newBooking)
+    setBookings(prev => [newBooking, ...prev])
     setBooking(initialBooking)
+  }
+
+  /** แก้ไขใบจอง (เปลี่ยนสถานะ / บันทึกแผนกำลังคน) */
+  const handleUpdateBooking = (id: string, patch: Partial<Booking>) => {
+    setBookings(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)))
   }
 
   // Owner screens
   if (OWNER_SCREENS.includes(screen)) {
     return (
       <OwnerLayout navigate={navigate} currentScreen={screen}>
-        {screen === 'owner-dashboard' && <Dashboard />}
-        {screen === 'owner-orders' && <Orders />}
-        {screen === 'owner-calendar' && <CalendarView />}
-        {screen === 'owner-packages' && <Packages />}
-        {screen === 'owner-menus' && <Menus />}
-        {screen === 'owner-documents' && <Documents />}
+        {screen === 'owner-dashboard' && <Dashboard bookings={bookings} />}
+        {screen === 'owner-orders' && (
+          <Orders bookings={bookings} onUpdateBooking={handleUpdateBooking} />
+        )}
+        {screen === 'owner-calendar' && (
+          <CalendarView bookings={bookings} onUpdateBooking={handleUpdateBooking} />
+        )}
+        {screen === 'owner-packages' && (
+          <Packages packages={packages} menus={menus} onUpdate={setPackages} />
+        )}
+        {screen === 'owner-menus' && (
+          <Menus
+            menus={menus}
+            packages={packages}
+            onSaveMenu={handleSaveMenu}
+            onDeleteMenu={handleDeleteMenu}
+          />
+        )}
+        {screen === 'owner-documents' && <Documents bookings={bookings} />}
       </OwnerLayout>
     )
   }
@@ -126,7 +180,12 @@ export default function App() {
         <Home navigate={navigate} user={user} />
       )}
       {screen === 'booking-calendar' && (
-        <BookingCalendar navigate={navigate} user={user} onSelectDateTime={handleSelectDateTime} />
+        <BookingCalendar
+          navigate={navigate}
+          user={user}
+          bookings={bookings}
+          onSelectDateTime={handleSelectDateTime}
+        />
       )}
       {screen === 'select-table' && (
         <SelectTable
@@ -141,12 +200,19 @@ export default function App() {
         />
       )}
       {screen === 'select-location' && (
-        <SelectLocation navigate={navigate} user={user} onSetLocation={handleSetLocation} />
+        <SelectLocation
+          navigate={navigate}
+          user={user}
+          tables={booking.tables}
+          location={booking.location}
+          onSetLocation={handleSetLocation}
+        />
       )}
       {screen === 'select-package' && (
         <SelectPackage
           navigate={navigate}
           user={user}
+          packages={packages}
           tables={booking.tables}
           selectedPackageId={booking.packageId}
           onSelectPackage={handleSelectPackage}
@@ -156,18 +222,17 @@ export default function App() {
         <SelectMenu
           navigate={navigate}
           user={user}
-          menuLimit={booking.menuLimit}
+          packages={packages}
+          packageId={booking.packageId}
           selectedMenus={booking.selectedMenus}
           onSetMenus={handleSetMenus}
-          drinkOption={booking.drinkOption}
-          onSetDrinkOption={handleSetDrinkOption}
         />
       )}
       {screen === 'cart' && (
-        <Cart navigate={navigate} user={user} booking={booking} onConfirm={handleConfirm} />
+        <Cart navigate={navigate} user={user} packages={packages} booking={booking} onConfirm={handleConfirm} />
       )}
       {screen === 'history' && (
-        <BookingHistory navigate={navigate} user={user} newBooking={confirmedBooking} />
+        <BookingHistory navigate={navigate} user={user} bookings={bookings} />
       )}
       {screen === 'notifications' && (
         <Notifications navigate={navigate} user={user} />

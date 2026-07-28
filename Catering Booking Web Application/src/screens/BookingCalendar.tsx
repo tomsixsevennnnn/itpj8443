@@ -1,21 +1,22 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Screen, UserProfile } from '../types'
-import { DATE_AVAILABILITY } from '../data'
+import type { Booking, Screen, UserProfile } from '../types'
+import {
+  DAY_STATUS_INFO,
+  SLOT_CAPACITY,
+  TIME_SLOTS,
+  dayStatus,
+  remainingFor,
+  toDateKey,
+} from '../availability'
 
 interface BookingCalendarProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  bookings: Booking[]
   onSelectDateTime: (date: string, timeSlot: string) => void
 }
-
-const TIME_SLOTS = [
-  { id: 'morning', label: 'ช่วงเช้า', time: '07:00 - 10:00', icon: '🌅' },
-  { id: 'noon', label: 'ช่วงกลางวัน', time: '12:00 - 15:00', icon: '☀️' },
-  { id: 'evening', label: 'ช่วงเย็น', time: '18:00 - 21:00', icon: '🌆' },
-  { id: 'allday', label: 'ทั้งวัน', time: '07:00 - 21:00', icon: '📆' },
-]
 
 const DAYS_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
 const MONTHS_TH = [
@@ -23,11 +24,7 @@ const MONTHS_TH = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ]
 
-function formatDate(year: number, month: number, day: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
-export default function BookingCalendar({ navigate, user, onSelectDateTime }: BookingCalendarProps) {
+export default function BookingCalendar({ navigate, user, bookings, onSelectDateTime }: BookingCalendarProps) {
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
@@ -49,10 +46,7 @@ export default function BookingCalendar({ navigate, user, onSelectDateTime }: Bo
     else setViewMonth(m => m + 1)
   }
 
-  const getAvail = (day: number) => {
-    const key = formatDate(viewYear, viewMonth, day)
-    return DATE_AVAILABILITY[key]
-  }
+  const getAvail = (day: number) => dayStatus(bookings, toDateKey(viewYear, viewMonth, day))
 
   const isPast = (day: number) => {
     const d = new Date(viewYear, viewMonth, day)
@@ -61,17 +55,9 @@ export default function BookingCalendar({ navigate, user, onSelectDateTime }: Bo
     return d < t
   }
 
-  const getSlotAvail = (slotId: string) => {
-    if (!selectedDate) return 'available'
-    const avail = DATE_AVAILABILITY[selectedDate]
-    if (avail === 'full') return 'full'
-    if (avail === 'partial') {
-      if (slotId === 'allday') return 'full'
-      if (slotId === 'morning') return 'full'
-      return 'available'
-    }
-    return 'available'
-  }
+  /** จำนวนโต๊ะที่ยังรับได้ในช่วงเวลานั้นของวันที่เลือก */
+  const slotRemaining = (slotId: (typeof TIME_SLOTS)[number]['id']) =>
+    selectedDate ? remainingFor(bookings, selectedDate, slotId) : SLOT_CAPACITY
 
   const handleNext = () => {
     if (!selectedDate || !selectedSlot) return
@@ -120,16 +106,12 @@ export default function BookingCalendar({ navigate, user, onSelectDateTime }: Bo
             <div className="grid grid-cols-7 gap-1">
               {cells.map((day, idx) => {
                 if (!day) return <div key={idx} />
-                const dateKey = formatDate(viewYear, viewMonth, day)
+                const dateKey = toDateKey(viewYear, viewMonth, day)
                 const past = isPast(day)
                 const avail = getAvail(day)
                 const isSelected = selectedDate === dateKey
                 const dow = idx % 7
-
-                let dotColor = ''
-                if (!past && avail === 'available') dotColor = 'bg-green-400'
-                else if (!past && avail === 'partial') dotColor = 'bg-yellow-400'
-                else if (!past && avail === 'full') dotColor = 'bg-red-400'
+                const dotColor = past ? '' : DAY_STATUS_INFO[avail].dot
 
                 return (
                   <button
@@ -160,17 +142,14 @@ export default function BookingCalendar({ navigate, user, onSelectDateTime }: Bo
             </div>
 
             {/* Legend */}
-            <div className="flex items-center gap-5 mt-6 pt-5 border-t border-gray-100">
-              {[
-                { color: 'bg-green-400', label: 'ว่าง' },
-                { color: 'bg-yellow-400', label: 'เหลือบางช่วง' },
-                { color: 'bg-red-400', label: 'เต็ม' },
-              ].map(({ color, label }) => (
-                <div key={label} className="flex items-center gap-1.5">
-                  <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
-                  <span className="text-xs text-gray-500">{label}</span>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 pt-5 border-t border-gray-100">
+              {(['available', 'partial', 'full'] as const).map(s => (
+                <div key={s} className="flex items-center gap-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-full ${DAY_STATUS_INFO[s].dot}`} />
+                  <span className="text-xs text-gray-500">{DAY_STATUS_INFO[s].label}</span>
                 </div>
               ))}
+              <span className="text-xs text-gray-400 ml-auto">รับได้ช่วงละ {SLOT_CAPACITY} โต๊ะ</span>
             </div>
           </div>
 
@@ -185,18 +164,29 @@ export default function BookingCalendar({ navigate, user, onSelectDateTime }: Bo
               </div>
 
               {selectedDate && (
-                <p className="text-xs text-gray-400 mb-4 bg-orange-50 rounded-xl px-3 py-2 text-center font-medium text-orange-700">
-                  {new Date(selectedDate + 'T00:00:00').toLocaleDateString('th-TH', {
-                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-                  })}
-                </p>
+                <div className="mb-4 bg-orange-50 rounded-xl px-3 py-2.5 text-center">
+                  <p className="text-xs font-medium text-orange-700">
+                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('th-TH', {
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                    })}
+                  </p>
+                  <span
+                    className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      DAY_STATUS_INFO[dayStatus(bookings, selectedDate)].chip
+                    }`}
+                  >
+                    {DAY_STATUS_INFO[dayStatus(bookings, selectedDate)].label}
+                  </span>
+                </div>
               )}
 
               <div className="space-y-3">
                 {TIME_SLOTS.map((slot) => {
-                  const slotAvail = getSlotAvail(slot.id)
-                  const disabled = !selectedDate || slotAvail === 'full'
+                  const remaining = slotRemaining(slot.id)
+                  const isFull = selectedDate != null && remaining === 0
+                  const disabled = !selectedDate || isFull
                   const isSlotSelected = selectedSlot === slot.id
+                  const almostFull = remaining > 0 && remaining < SLOT_CAPACITY
 
                   return (
                     <button
@@ -210,19 +200,24 @@ export default function BookingCalendar({ navigate, user, onSelectDateTime }: Bo
                       `}
                     >
                       <span className="text-xl">{slot.icon}</span>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <p className={`font-semibold text-sm ${isSlotSelected ? 'text-orange-700' : 'text-gray-800'}`}>
                           {slot.label}
                         </p>
                         <p className={`text-xs ${isSlotSelected ? 'text-orange-500' : 'text-gray-400'}`}>
                           {slot.time}
                         </p>
+                        {selectedDate && !isFull && (
+                          <p className={`text-[10px] mt-0.5 ${almostFull ? 'text-yellow-600' : 'text-green-600'}`}>
+                            {almostFull ? `เหลือ ${remaining} โต๊ะ` : 'ว่างทั้งช่วง'}
+                          </p>
+                        )}
                       </div>
-                      {slotAvail === 'full' && (
-                        <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full font-medium">เต็ม</span>
+                      {isFull && (
+                        <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full font-medium flex-shrink-0">เต็ม</span>
                       )}
                       {isSlotSelected && (
-                        <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center">
+                        <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-white text-xs">✓</span>
                         </div>
                       )}

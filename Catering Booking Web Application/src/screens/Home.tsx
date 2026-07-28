@@ -1,7 +1,6 @@
-import { ArrowRight, CheckCircle, ChevronRight, Clock, MapPin, Star, Users } from 'lucide-react'
+import { ArrowRight, CheckCircle, ChevronRight, Clock, MapPin, Users } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import type { Screen, UserProfile } from '../types'
-import { REVIEWS } from '../data'
 
 interface HomeProps {
   navigate: (s: Screen) => void
@@ -131,36 +130,6 @@ export default function Home({ navigate, user }: HomeProps) {
                 {i < STEPS.length - 1 && (
                   <ChevronRight className="hidden md:block absolute top-1/2 -right-3 -translate-y-1/2 text-gray-300 z-10" size={20} />
                 )}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Reviews */}
-        <section>
-          <div className="text-center mb-12">
-            <p className="text-orange-500 font-semibold text-sm mb-2">ลูกค้าพูดถึงเรา</p>
-            <h2 className="text-3xl font-bold text-gray-900">รีวิวจากลูกค้า</h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {REVIEWS.map((review, i) => (
-              <div
-                key={i}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-all"
-              >
-                <div className="flex gap-0.5 mb-4">
-                  {[...Array(review.rating)].map((_, j) => (
-                    <Star key={j} size={14} fill="#F97316" className="text-orange-500" />
-                  ))}
-                </div>
-                <p className="text-gray-700 text-sm leading-relaxed mb-5">"{review.text}"</p>
-                <div className="flex items-center gap-3">
-                  <img src={review.avatar} alt={review.name} className="w-10 h-10 rounded-full object-cover" />
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{review.name}</p>
-                    <p className="text-xs text-orange-500">{review.event}</p>
-                  </div>
-                </div>
               </div>
             ))}
           </div>

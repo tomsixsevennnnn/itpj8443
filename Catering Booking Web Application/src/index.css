@@ -40,3 +40,35 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* พิมพ์เอกสาร: แสดงเฉพาะกระดาษที่ครอบด้วย .print-area */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  /* กันไม่ให้กรอบเลื่อนของโมดัลตัดเนื้อหาตอนพิมพ์ */
+  .print-area,
+  .print-area * {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

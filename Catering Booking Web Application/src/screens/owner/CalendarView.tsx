@@ -1,7 +1,23 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { MOCK_BOOKINGS } from '../../data'
+import { Check, ChevronLeft, ChevronRight, Users, X } from 'lucide-react'
 import type { Booking } from '../../types'
+import {
+  BASE_SLOTS,
+  BOOKING_STATUS_INFO,
+  DAY_STATUS_INFO,
+  SLOT_CAPACITY,
+  TIME_SLOTS,
+  bookingsOn,
+  dayStatus,
+  slotIdOf,
+  slotUsage,
+  toDateKey,
+} from '../../availability'
+
+interface CalendarViewProps {
+  bookings: Booking[]
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+}
 
 const MONTHS_TH = [
   'มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
@@ -9,48 +25,68 @@ const MONTHS_TH = [
 ]
 const DAYS_TH = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์']
 
-const STATUS_COLORS = {
-  confirmed: 'bg-green-100 text-green-700 border-green-200',
-  pending: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  completed: 'bg-gray-100 text-gray-500 border-gray-200',
-  cancelled: 'bg-red-100 text-red-600 border-red-200',
-}
+const SLOT_LABEL = Object.fromEntries(TIME_SLOTS.map(s => [s.id, s.label])) as Record<string, string>
 
-function formatDate(y: number, m: number, d: number) {
-  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
-
-export default function CalendarView() {
+export default function CalendarView({ bookings, onUpdateBooking }: CalendarViewProps) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
-  const [popup, setPopup] = useState<Booking | null>(null)
+  const [popupId, setPopupId] = useState<string | null>(null)
+
+  const popup = popupId ? bookings.find(b => b.id === popupId) ?? null : null
 
   const firstDay = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
   while (cells.length % 7 !== 0) cells.push(null)
 
-  const getEvents = (day: number) => {
-    const key = formatDate(year, month, day)
-    return MOCK_BOOKINGS.filter(b => b.date === key)
-  }
-
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11) } else setMonth(m => m - 1) }
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0) } else setMonth(m => m + 1) }
+  const goToday = () => { setYear(today.getFullYear()); setMonth(today.getMonth()) }
+
+  /* สรุปทั้งเดือน */
+  const monthBookings = bookings.filter(b => {
+    const [y, m] = b.date.split('-').map(Number)
+    return y === year && m === month + 1
+  })
+  const countBy = (s: Booking['status']) => monthBookings.filter(b => b.status === s).length
+  const monthTables = monthBookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + b.tables, 0)
+  const monthRevenue = monthBookings
+    .filter(b => b.status !== 'cancelled')
+    .reduce((sum, b) => sum + b.totalPrice, 0)
 
   return (
     <div>
-      {/* Legend */}
-      <div className="flex items-center gap-4 mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+      {/* สรุปเดือนนี้ */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         {[
-          { label: 'ยืนยันแล้ว', color: 'bg-green-400' },
-          { label: 'รอยืนยัน', color: 'bg-yellow-400' },
-          { label: 'เสร็จสิ้น', color: 'bg-gray-300' },
-        ].map(({ label, color }) => (
-          <div key={label} className="flex items-center gap-2">
-            <span className={`w-3 h-3 rounded-full ${color}`} />
-            <span className="text-sm text-gray-600">{label}</span>
+          { label: 'งานทั้งเดือน', value: `${monthBookings.length} งาน`, tone: 'text-gray-900' },
+          { label: 'รอยืนยัน', value: `${countBy('pending')} งาน`, tone: 'text-yellow-600' },
+          { label: 'ยืนยันแล้ว', value: `${countBy('confirmed')} งาน`, tone: 'text-green-600' },
+          { label: 'โต๊ะรวม', value: `${monthTables} โต๊ะ`, tone: 'text-gray-900' },
+          { label: 'ยอดรวม', value: `฿${monthRevenue.toLocaleString()}`, tone: 'text-orange-600' },
+        ].map(({ label, value, tone }) => (
+          <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <p className="text-xs text-gray-400">{label}</p>
+            <p className={`text-lg font-bold mt-0.5 ${tone}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* คำอธิบายสี */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+        <span className="text-xs font-semibold text-gray-400">สถานะงาน</span>
+        {(['pending', 'confirmed', 'completed', 'cancelled'] as const).map(s => (
+          <div key={s} className="flex items-center gap-2">
+            <span className={`w-3 h-3 rounded-full ${BOOKING_STATUS_INFO[s].dot}`} />
+            <span className="text-sm text-gray-600">{BOOKING_STATUS_INFO[s].label}</span>
+          </div>
+        ))}
+        <span className="text-xs font-semibold text-gray-400 ml-auto">คิวรับงาน</span>
+        {(['available', 'partial', 'full'] as const).map(s => (
+          <div key={s} className="flex items-center gap-2">
+            <span className={`w-3 h-3 rounded-sm ${DAY_STATUS_INFO[s].dot}`} />
+            <span className="text-sm text-gray-600">{DAY_STATUS_INFO[s].label}</span>
           </div>
         ))}
       </div>
@@ -61,7 +97,15 @@ export default function CalendarView() {
           <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors">
             <ChevronLeft size={20} className="text-gray-600" />
           </button>
-          <h2 className="font-bold text-gray-900 text-lg">{MONTHS_TH[month]} {year + 543}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-bold text-gray-900 text-lg">{MONTHS_TH[month]} {year + 543}</h2>
+            <button
+              onClick={goToday}
+              className="text-xs text-orange-600 hover:text-orange-700 border border-orange-200 hover:bg-orange-50 px-2.5 py-1 rounded-lg transition-colors"
+            >
+              วันนี้
+            </button>
+          </div>
           <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors">
             <ChevronRight size={20} className="text-gray-600" />
           </button>
@@ -79,41 +123,60 @@ export default function CalendarView() {
         {/* Calendar grid */}
         <div className="grid grid-cols-7">
           {cells.map((day, idx) => {
-            const events = day ? getEvents(day) : []
+            const dateKey = day ? toDateKey(year, month, day) : ''
+            const events = day ? bookingsOn(bookings, dateKey) : []
+            const status = day ? dayStatus(bookings, dateKey) : 'available'
+            const usage = day ? slotUsage(bookings, dateKey) : null
             const isToday = day && year === today.getFullYear() && month === today.getMonth() && day === today.getDate()
             const dow = idx % 7
 
             return (
               <div
                 key={idx}
-                className={`min-h-[110px] p-2 border-b border-r border-gray-50 ${
+                className={`min-h-[118px] p-2 border-b border-r border-gray-50 ${
                   !day ? 'bg-gray-50/50' : 'hover:bg-orange-50/20 transition-colors'
                 }`}
               >
                 {day && (
                   <>
-                    <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium mb-1 ${
-                      isToday ? 'bg-orange-500 text-white' :
-                      dow === 0 ? 'text-red-500' :
-                      dow === 6 ? 'text-blue-500' : 'text-gray-700'
-                    }`}>
-                      {day}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
+                        isToday ? 'bg-orange-500 text-white' :
+                        dow === 0 ? 'text-red-500' :
+                        dow === 6 ? 'text-blue-500' : 'text-gray-700'
+                      }`}>
+                        {day}
+                      </div>
+                      {events.length > 0 && (
+                        <span
+                          className={`w-2.5 h-2.5 rounded-sm ${DAY_STATUS_INFO[status].dot}`}
+                          title={`คิวรับงาน: ${DAY_STATUS_INFO[status].label}`}
+                        />
+                      )}
                     </div>
+
                     <div className="space-y-1">
-                      {events.map(ev => {
-                        const colorClass = ev.status === 'confirmed' ? 'bg-green-100 text-green-700 border-green-200' :
-                          ev.status === 'pending' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                          'bg-gray-100 text-gray-500 border-gray-200'
+                      {events.slice(0, 3).map(ev => {
+                        const info = BOOKING_STATUS_INFO[ev.status]
                         return (
                           <button
                             key={ev.id}
-                            onClick={() => setPopup(ev)}
-                            className={`w-full text-left text-[10px] font-medium px-1.5 py-1 rounded-lg border truncate transition-all hover:opacity-80 ${colorClass}`}
+                            onClick={() => setPopupId(ev.id)}
+                            className={`w-full text-left text-[10px] font-medium px-1.5 py-1 rounded-lg border truncate transition-all hover:opacity-80 ${info.chip} ${info.border}`}
+                            title={`${ev.customerName} · ${SLOT_LABEL[slotIdOf(ev.timeSlot)]} · ${ev.tables} โต๊ะ · ${info.label}`}
                           >
-                            {ev.customerName}
+                            {ev.customerName} · {ev.tables} โต๊ะ
                           </button>
                         )
                       })}
+                      {events.length > 3 && (
+                        <p className="text-[10px] text-gray-400 pl-1.5">+ อีก {events.length - 3} งาน</p>
+                      )}
+                      {usage && events.length > 0 && (
+                        <p className="text-[9px] text-gray-400 pl-1.5">
+                          จอง {BASE_SLOTS.reduce((max, s) => Math.max(max, usage[s]), 0)}/{SLOT_CAPACITY} โต๊ะ
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
@@ -127,35 +190,65 @@ export default function CalendarView() {
       {popup && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
-            <div className={`p-5 flex items-start justify-between ${STATUS_COLORS[popup.status].split(' ').slice(0, 1).join(' ')}`}>
+            <div className={`p-5 flex items-start justify-between ${BOOKING_STATUS_INFO[popup.status].chip}`}>
               <div>
                 <p className="font-bold text-gray-900">{popup.customerName}</p>
                 <p className="text-sm text-gray-600">{popup.id}</p>
               </div>
-              <button onClick={() => setPopup(null)} className="w-8 h-8 bg-white/70 rounded-xl flex items-center justify-center hover:bg-white transition-colors">
+              <button onClick={() => setPopupId(null)} className="w-8 h-8 bg-white/70 rounded-xl flex items-center justify-center hover:bg-white transition-colors">
                 <X size={14} />
               </button>
             </div>
-            <div className="p-5 space-y-3">
+
+            <div className="p-5 space-y-3 max-h-[60vh] overflow-y-auto">
               {[
                 { label: 'วันที่', value: new Date(popup.date + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) },
                 { label: 'ช่วงเวลา', value: popup.timeSlot },
                 { label: 'จำนวนโต๊ะ', value: `${popup.tables} โต๊ะ` },
+                { label: 'ผู้ร่วมงาน', value: `${popup.guestCount ?? popup.tables * 10} คน` },
                 { label: 'แพ็กเกจ', value: popup.packageName },
                 { label: 'สถานที่', value: popup.location },
                 { label: 'ราคารวม', value: `฿${popup.totalPrice.toLocaleString()}` },
               ].map(({ label, value }) => (
-                <div key={label} className="flex justify-between text-sm border-b border-gray-50 pb-2.5">
-                  <span className="text-gray-400">{label}</span>
-                  <span className="font-medium text-gray-800 text-right ml-4">{value}</span>
+                <div key={label} className="flex justify-between gap-4 text-sm border-b border-gray-50 pb-2.5">
+                  <span className="text-gray-400 flex-shrink-0">{label}</span>
+                  <span className="font-medium text-gray-800 text-right">{value}</span>
                 </div>
               ))}
-              <div className="pt-1">
-                <p className="text-xs text-gray-400 mb-2">สถานะ</p>
-                <span className={`text-xs font-medium px-3 py-1.5 rounded-full border ${STATUS_COLORS[popup.status]}`}>
-                  {popup.status === 'confirmed' ? 'ยืนยันแล้ว' :
-                   popup.status === 'pending' ? 'รอยืนยัน' : 'เสร็จสิ้น'}
-                </span>
+
+              {popup.staffActual && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
+                  <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <Users size={13} />
+                    แผนกำลังคน
+                  </span>
+                  <span className="text-sm font-semibold text-gray-800">
+                    {popup.staffActual.servers + popup.staffActual.chefs + popup.staffActual.assistants + popup.staffActual.dishwashers} คน
+                  </span>
+                </div>
+              )}
+
+              {/* เปลี่ยนสถานะได้จากปฏิทินเลย */}
+              <div>
+                <p className="text-xs text-gray-400 mb-2">อัปเดตสถานะ</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['pending', 'confirmed', 'completed', 'cancelled'] as const).map(s => {
+                    const info = BOOKING_STATUS_INFO[s]
+                    const isActive = popup.status === s
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => onUpdateBooking(popup.id, { status: s })}
+                        className={`flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold transition-all border-2 ${
+                          isActive ? `${info.chip} ${info.border}` : 'bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100'
+                        }`}
+                      >
+                        {isActive && <Check size={11} />}
+                        {info.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
             </div>
           </div>

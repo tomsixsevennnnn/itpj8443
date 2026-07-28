@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { Calendar, Download, Eye, FileText, Filter, Search } from 'lucide-react'
+import { Calendar, Eye, FileText, Filter, Printer, Search, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
+import BookingDocument from '../components/BookingDocument'
 import type { Booking, Screen, UserProfile } from '../types'
-import { MOCK_BOOKINGS } from '../data'
+import { DOC_LABEL, docNumber, type DocType } from '../documents'
 
 interface BookingHistoryProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
-  newBooking?: Booking | null
+  bookings: Booking[]
 }
 
 const STATUS_CONFIG = {
@@ -17,12 +18,13 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-export default function BookingHistory({ navigate, user, newBooking }: BookingHistoryProps) {
+export default function BookingHistory({ navigate, user, bookings }: BookingHistoryProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [docView, setDocView] = useState<{ id: string; type: DocType } | null>(null)
 
-  const allBookings = newBooking ? [newBooking, ...MOCK_BOOKINGS] : MOCK_BOOKINGS
+  const allBookings = bookings
 
   const filtered = allBookings.filter(b => {
     const matchSearch = b.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -32,6 +34,7 @@ export default function BookingHistory({ navigate, user, newBooking }: BookingHi
   })
 
   const detailBooking = allBookings.find(b => b.id === detailId)
+  const docBooking = docView ? allBookings.find(b => b.id === docView.id) : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -128,12 +131,18 @@ export default function BookingHistory({ navigate, user, newBooking }: BookingHi
                             <Eye size={12} />
                             ดู
                           </button>
-                          <button className="flex items-center gap-1 text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-600 px-2.5 py-1.5 rounded-lg transition-colors">
+                          <button
+                            onClick={() => setDocView({ id: booking.id, type: 'quotation' })}
+                            className="flex items-center gap-1 text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-600 px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
                             <FileText size={12} />
                             ใบเสนอ
                           </button>
-                          <button className="flex items-center gap-1 text-xs bg-gray-100 hover:bg-green-50 hover:text-green-600 text-gray-600 px-2.5 py-1.5 rounded-lg transition-colors">
-                            <Download size={12} />
+                          <button
+                            onClick={() => setDocView({ id: booking.id, type: 'booking' })}
+                            className="flex items-center gap-1 text-xs bg-gray-100 hover:bg-green-50 hover:text-green-600 text-gray-600 px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
+                            <FileText size={12} />
                             ใบจอง
                           </button>
                         </div>
@@ -163,9 +172,20 @@ export default function BookingHistory({ navigate, user, newBooking }: BookingHi
                   </p>
                   <p className="text-xs text-gray-500 mb-2">{booking.timeSlot} · {booking.tables} โต๊ะ · {booking.packageName}</p>
                   <p className="text-lg font-bold text-orange-600">{booking.totalPrice.toLocaleString()} ฿</p>
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     <button onClick={() => setDetailId(booking.id)} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg">รายละเอียด</button>
-                    <button className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg">ใบเสนอราคา</button>
+                    <button
+                      onClick={() => setDocView({ id: booking.id, type: 'quotation' })}
+                      className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg"
+                    >
+                      ใบเสนอราคา
+                    </button>
+                    <button
+                      onClick={() => setDocView({ id: booking.id, type: 'booking' })}
+                      className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg"
+                    >
+                      ใบจอง
+                    </button>
                   </div>
                 </div>
               )
@@ -180,6 +200,54 @@ export default function BookingHistory({ navigate, user, newBooking }: BookingHi
           )}
         </div>
       </div>
+
+      {/* Document viewer — ใบเสนอราคา / ใบจอง */}
+      {docBooking && docView && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-auto overflow-hidden print-area">
+            {/* Toolbar */}
+            <div className="no-print flex items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100 sticky top-0">
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-800 text-sm truncate">{DOC_LABEL[docView.type]}</p>
+                <p className="text-xs text-gray-400 font-mono">{docNumber(docBooking, docView.type)}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {/* สลับดูอีกฉบับของงานเดียวกัน */}
+                <div className="hidden sm:flex bg-gray-200 rounded-lg p-0.5">
+                  {(['quotation', 'booking'] as DocType[]).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setDocView({ id: docBooking.id, type: t })}
+                      className={`text-xs px-2.5 py-1.5 rounded-md font-medium transition-colors ${
+                        docView.type === t ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {DOC_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 rounded-lg font-medium transition-colors"
+                >
+                  <Printer size={13} />
+                  พิมพ์ / บันทึก PDF
+                </button>
+                <button
+                  onClick={() => setDocView(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-200 text-gray-500 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-[80vh] overflow-y-auto">
+              <BookingDocument booking={docBooking} type={docView.type} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {detailBooking && (
@@ -203,7 +271,7 @@ export default function BookingHistory({ navigate, user, newBooking }: BookingHi
                 { label: 'วันที่', value: new Date(detailBooking.date + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) },
                 { label: 'ช่วงเวลา', value: detailBooking.timeSlot },
                 { label: 'จำนวนโต๊ะ', value: `${detailBooking.tables} โต๊ะ` },
-                { label: 'จำนวนคนที่ใช้สำหรับงาน', value: `${detailBooking.guestCount ?? detailBooking.tables * 10} คน` },
+                { label: 'จำนวนคนที่ร่วมงาน', value: `${detailBooking.guestCount ?? detailBooking.tables * 10} คน` },
                 { label: 'แพ็กเกจ', value: detailBooking.packageName },
                 { label: 'สถานที่', value: detailBooking.location },
                 { label: 'เบอร์โทร', value: detailBooking.phone },

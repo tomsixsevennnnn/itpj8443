@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+package-lock.json
+
+# build output ของเครื่องมือ/แคช
+.vite/
+*.local
+
+# ไฟล์ระบบและเครื่องมือ
+.DS_Store
+.notebook/
+Catering Booking Web Application.zip
+
+# logs
+*.log
+npm-debug.log*

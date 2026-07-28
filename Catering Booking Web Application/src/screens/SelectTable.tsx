@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Minus, Plus, Users } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import type { Screen, UserProfile } from '../types'
+import { DELIVERY_FEE, FREE_DELIVERY_MIN_TABLES, HOME_PROVINCE } from '../geo'
 
 interface SelectTableProps {
   navigate: (s: Screen) => void
@@ -95,7 +96,7 @@ export default function SelectTable({ navigate, user, tables, guestCount, onSetT
             {/* <div className="bg-gray-50 rounded-2xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-xs text-gray-400">จำนวนคนที่ใช้สำหรับงาน</p>
+                  <p className="text-xs text-gray-400">จำนวนคนที่ร่วมงาน</p>
                   <p className="text-sm font-semibold text-gray-900">{guestCount} คน</p>
                 </div>
               </div>
@@ -132,10 +133,28 @@ export default function SelectTable({ navigate, user, tables, guestCount, onSetT
               <p className="text-xs text-orange-400">ที่นั่ง</p>
             </div>
           </div>
-          <div className="text-xs text-gray-500">
-            <br />
-              สำหรับการจัดงานในกรุงเทพและปริมณฑล: หากไม่ถึง 30 โต๊ะ จะมีค่าขนส่ง 2,000 บาท
-            </div>
+          {/* เงื่อนไขพื้นที่ — ตรวจจริงอีกครั้งในขั้นตอนเลือกสถานที่ */}
+          <div
+            className={`mt-6 rounded-2xl border px-4 py-3 text-xs leading-relaxed ${
+              tables < FREE_DELIVERY_MIN_TABLES
+                ? 'bg-amber-50 border-amber-100 text-amber-700'
+                : 'bg-green-50 border-green-100 text-green-700'
+            }`}
+          >
+            <p className="font-semibold mb-1">เงื่อนไขพื้นที่จัดงาน</p>
+            <p>
+              • ใน{HOME_PROVINCE} (พื้นที่ร้าน) รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง
+            </p>
+            <p>
+              • นอก{HOME_PROVINCE} ขั้นต่ำ {FREE_DELIVERY_MIN_TABLES} โต๊ะ — กรุงเทพและปริมณฑลไม่ถึงขั้นต่ำ จองได้แต่มีค่าขนส่ง{' '}
+              {DELIVERY_FEE.toLocaleString()} บาท
+            </p>
+            {tables < FREE_DELIVERY_MIN_TABLES && (
+              <p className="mt-1.5 font-semibold">
+                งานนี้ {tables} โต๊ะ — จัดได้เฉพาะใน{HOME_PROVINCE} หรือกรุงเทพและปริมณฑล (มีค่าขนส่ง)
+              </p>
+            )}
+          </div>
         </div>
 
           
