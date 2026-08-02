@@ -16,13 +16,16 @@ export type SlotId = 'morning' | 'noon' | 'evening' | 'allday'
 export type BaseSlotId = Exclude<SlotId, 'allday'>
 
 export const TIME_SLOTS: TimeSlotDef[] = [
-  { id: 'morning', label: 'ช่วงเช้า', time: '07:00 - 10:00', icon: '🌅' },
-  { id: 'noon', label: 'ช่วงกลางวัน', time: '12:00 - 15:00', icon: '☀️' },
-  { id: 'evening', label: 'ช่วงเย็น', time: '18:00 - 21:00', icon: '🌆' },
-  { id: 'allday', label: 'ทั้งวัน', time: '07:00 - 21:00', icon: '📆' },
+  { id: 'morning', label: 'ช่วงเช้า', time: '08:00 - 12:00', icon: '🌅' },
+  { id: 'noon', label: 'ช่วงกลางวัน', time: '12:00 - 16:00', icon: '☀️' },
+  { id: 'evening', label: 'ช่วงเย็น', time: '17:00 - 21:00', icon: '🌆' },
+  { id: 'allday', label: 'ทั้งวัน', time: '08:00 - 21:00', icon: '📆' },
 ]
 
 export const BASE_SLOTS: BaseSlotId[] = ['morning', 'noon', 'evening']
+
+/** ช่วงเวลาที่ให้ลูกค้าเลือกได้จริง (ไม่มีตัวเลือก "ทั้งวัน") */
+export const BOOKABLE_SLOTS: TimeSlotDef[] = TIME_SLOTS.filter(s => s.id !== 'allday')
 
 /** จำนวนโต๊ะสูงสุดที่ร้านรับได้ต่อ 1 ช่วงเวลา (เท่ากับจำนวนโต๊ะสูงสุดที่จองได้ 1 งาน) */
 export const SLOT_CAPACITY = 500
@@ -65,20 +68,14 @@ export const remainingFor = (bookings: Booking[], date: string, slot: SlotId): n
   return Math.max(0, SLOT_CAPACITY - used)
 }
 
-export type DayStatus = 'available' | 'partial' | 'full'
+export type DayStatus = 'available' | 'full'
 
-/** สถานะรวมของวัน: ว่าง / เหลือบางช่วง / เต็ม */
-export const dayStatus = (bookings: Booking[], date: string): DayStatus => {
-  const usage = slotUsage(bookings, date)
-  const full = BASE_SLOTS.filter(s => usage[s] >= SLOT_CAPACITY).length
-  if (full === BASE_SLOTS.length) return 'full'
-  const used = BASE_SLOTS.filter(s => usage[s] > 0).length
-  return used > 0 ? 'partial' : 'available'
-}
+/** มีงานจองอยู่แล้วในวันนั้นหรือยัง — จองแล้ว 1 งาน (ช่วงใดก็ได้) ถือว่าเต็มทั้งวัน ไม่รับซ้อนช่วงอื่น */
+export const dayStatus = (bookings: Booking[], date: string): DayStatus =>
+  bookings.some(b => b.date === date && OCCUPIES_QUEUE.includes(b.status)) ? 'full' : 'available'
 
 export const DAY_STATUS_INFO: Record<DayStatus, { label: string; dot: string; chip: string }> = {
   available: { label: 'ว่าง', dot: 'bg-green-400', chip: 'bg-green-100 text-green-700' },
-  partial: { label: 'เหลือบางช่วง', dot: 'bg-yellow-400', chip: 'bg-yellow-100 text-yellow-700' },
   full: { label: 'เต็ม', dot: 'bg-red-400', chip: 'bg-red-100 text-red-600' },
 }
 

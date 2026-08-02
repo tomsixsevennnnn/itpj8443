@@ -3,11 +3,9 @@ import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import type { Booking, Screen, UserProfile } from '../types'
 import {
+  BOOKABLE_SLOTS,
   DAY_STATUS_INFO,
-  SLOT_CAPACITY,
-  TIME_SLOTS,
   dayStatus,
-  remainingFor,
   toDateKey,
 } from '../availability'
 
@@ -55,13 +53,9 @@ export default function BookingCalendar({ navigate, user, bookings, onSelectDate
     return d < t
   }
 
-  /** จำนวนโต๊ะที่ยังรับได้ในช่วงเวลานั้นของวันที่เลือก */
-  const slotRemaining = (slotId: (typeof TIME_SLOTS)[number]['id']) =>
-    selectedDate ? remainingFor(bookings, selectedDate, slotId) : SLOT_CAPACITY
-
   const handleNext = () => {
     if (!selectedDate || !selectedSlot) return
-    const slot = TIME_SLOTS.find(s => s.id === selectedSlot)!
+    const slot = BOOKABLE_SLOTS.find(s => s.id === selectedSlot)!
     onSelectDateTime(selectedDate, `${slot.label} (${slot.time})`)
     navigate('select-table')
   }
@@ -143,13 +137,12 @@ export default function BookingCalendar({ navigate, user, bookings, onSelectDate
 
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 pt-5 border-t border-gray-100">
-              {(['available', 'partial', 'full'] as const).map(s => (
+              {(['available', 'full'] as const).map(s => (
                 <div key={s} className="flex items-center gap-1.5">
                   <span className={`w-2.5 h-2.5 rounded-full ${DAY_STATUS_INFO[s].dot}`} />
                   <span className="text-xs text-gray-500">{DAY_STATUS_INFO[s].label}</span>
                 </div>
               ))}
-              <span className="text-xs text-gray-400 ml-auto">รับได้ช่วงละ {SLOT_CAPACITY} โต๊ะ</span>
             </div>
           </div>
 
@@ -181,12 +174,9 @@ export default function BookingCalendar({ navigate, user, bookings, onSelectDate
               )}
 
               <div className="space-y-3">
-                {TIME_SLOTS.map((slot) => {
-                  const remaining = slotRemaining(slot.id)
-                  const isFull = selectedDate != null && remaining === 0
-                  const disabled = !selectedDate || isFull
+                {BOOKABLE_SLOTS.map((slot) => {
+                  const disabled = !selectedDate
                   const isSlotSelected = selectedSlot === slot.id
-                  const almostFull = remaining > 0 && remaining < SLOT_CAPACITY
 
                   return (
                     <button
@@ -207,15 +197,7 @@ export default function BookingCalendar({ navigate, user, bookings, onSelectDate
                         <p className={`text-xs ${isSlotSelected ? 'text-orange-500' : 'text-gray-400'}`}>
                           {slot.time}
                         </p>
-                        {selectedDate && !isFull && (
-                          <p className={`text-[10px] mt-0.5 ${almostFull ? 'text-yellow-600' : 'text-green-600'}`}>
-                            {almostFull ? `เหลือ ${remaining} โต๊ะ` : 'ว่างทั้งช่วง'}
-                          </p>
-                        )}
                       </div>
-                      {isFull && (
-                        <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full font-medium flex-shrink-0">เต็ม</span>
-                      )}
                       {isSlotSelected && (
                         <div className="w-5 h-5 bg-orange-500 rounded-full flex items-center justify-center flex-shrink-0">
                           <span className="text-white text-xs">✓</span>

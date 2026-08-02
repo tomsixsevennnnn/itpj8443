@@ -83,7 +83,7 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
           </div>
         ))}
         <span className="text-xs font-semibold text-gray-400 ml-auto">คิวรับงาน</span>
-        {(['available', 'partial', 'full'] as const).map(s => (
+        {(['available', 'full'] as const).map(s => (
           <div key={s} className="flex items-center gap-2">
             <span className={`w-3 h-3 rounded-sm ${DAY_STATUS_INFO[s].dot}`} />
             <span className="text-sm text-gray-600">{DAY_STATUS_INFO[s].label}</span>
