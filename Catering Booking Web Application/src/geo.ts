@@ -9,9 +9,10 @@ export type { ServiceZone }
  *       · กรุงเทพและปริมณฑล : ไม่ถึง 30 โต๊ะ จองได้ แต่คิดค่าขนส่ง 2,000 บาท
  *       · นอกพื้นที่        : ต้องครบ 30 โต๊ะ และทีมงานแจ้งค่าเดินทางเป็นรายงาน
  * ------------------------------------------------------------------ */
-export const DELIVERY_FEE = 2000
-/** ขั้นต่ำสำหรับงานนอกนครปฐม (ต่ำกว่านี้ในเขตกรุงเทพฯ ปริมณฑล = คิดค่าขนส่ง) */
-export const FREE_DELIVERY_MIN_TABLES = 30
+/** ค่าเริ่มต้น — แก้ไขได้จริงจากหน้า "ตั้งค่า" ฝั่งร้าน (ค่านี้ใช้เป็นค่าเริ่มต้นของ AppSettings) */
+export const DEFAULT_DELIVERY_FEE = 2000
+/** ขั้นต่ำสำหรับงานนอกนครปฐม (ต่ำกว่านี้ในเขตกรุงเทพฯ ปริมณฑล = คิดค่าขนส่ง) — แก้ไขได้จากหน้า "ตั้งค่า" */
+export const DEFAULT_FREE_DELIVERY_MIN_TABLES = 30
 
 /** จังหวัดที่ร้านตั้งอยู่ */
 export const HOME_PROVINCE = 'นครปฐม'
@@ -45,9 +46,13 @@ export const ZONE_LABEL: Record<ServiceZone, string> = {
   outside: 'นอกพื้นที่ให้บริการ',
 }
 
-/** ค่าขนส่งของงานนี้ — คิดเฉพาะกรุงเทพและปริมณฑลที่ไม่ถึง 30 โต๊ะ */
-export const deliveryFeeFor = (tables: number, location: { zone: ServiceZone } | null): number =>
-  location?.zone === 'metro' && tables < FREE_DELIVERY_MIN_TABLES ? DELIVERY_FEE : 0
+/** ค่าขนส่งของงานนี้ — คิดเฉพาะกรุงเทพและปริมณฑลที่ไม่ถึงขั้นต่ำ */
+export const deliveryFeeFor = (
+  tables: number,
+  location: { zone: ServiceZone } | null,
+  deliveryFee: number = DEFAULT_DELIVERY_FEE,
+  minTables: number = DEFAULT_FREE_DELIVERY_MIN_TABLES
+): number => (location?.zone === 'metro' && tables < minTables ? deliveryFee : 0)
 
 export interface DeliveryCheck {
   fee: number
@@ -59,7 +64,12 @@ export interface DeliveryCheck {
 }
 
 /** สรุปเงื่อนไขพื้นที่ + ค่าขนส่งของงานหนึ่ง ๆ ไว้ให้หน้าจอนำไปแสดง */
-export const checkDelivery = (tables: number, zone: ServiceZone): DeliveryCheck => {
+export const checkDelivery = (
+  tables: number,
+  zone: ServiceZone,
+  deliveryFee: number = DEFAULT_DELIVERY_FEE,
+  minTables: number = DEFAULT_FREE_DELIVERY_MIN_TABLES
+): DeliveryCheck => {
   if (zone === 'home') {
     return {
       fee: 0,
@@ -70,23 +80,23 @@ export const checkDelivery = (tables: number, zone: ServiceZone): DeliveryCheck 
     }
   }
 
-  const short = tables < FREE_DELIVERY_MIN_TABLES
+  const short = tables < minTables
 
   if (zone === 'metro') {
     return short
       ? {
-          fee: DELIVERY_FEE,
+          fee: deliveryFee,
           blocked: false,
           tone: 'fee',
-          title: `ค่าขนส่ง ${DELIVERY_FEE.toLocaleString()} บาท`,
-          detail: `งานนอก${HOME_PROVINCE}ขั้นต่ำ ${FREE_DELIVERY_MIN_TABLES} โต๊ะ — งานนี้ ${tables} โต๊ะ จองได้แต่มีค่าขนส่ง`,
+          title: `ค่าขนส่ง ${deliveryFee.toLocaleString()} บาท`,
+          detail: `งานนอก${HOME_PROVINCE}ขั้นต่ำ ${minTables} โต๊ะ — งานนี้ ${tables} โต๊ะ จองได้แต่มีค่าขนส่ง`,
         }
       : {
           fee: 0,
           blocked: false,
           tone: 'ok',
           title: 'ไม่มีค่าขนส่ง',
-          detail: `งานนี้ ${tables} โต๊ะ ครบขั้นต่ำ ${FREE_DELIVERY_MIN_TABLES} โต๊ะ ในเขตกรุงเทพและปริมณฑล`,
+          detail: `งานนี้ ${tables} โต๊ะ ครบขั้นต่ำ ${minTables} โต๊ะ ในเขตกรุงเทพและปริมณฑล`,
         }
   }
 
@@ -95,8 +105,8 @@ export const checkDelivery = (tables: number, zone: ServiceZone): DeliveryCheck 
         fee: 0,
         blocked: true,
         tone: 'blocked',
-        title: `พื้นที่นี้ต้องสั่งขั้นต่ำ ${FREE_DELIVERY_MIN_TABLES} โต๊ะ`,
-        detail: `งานนี้ ${tables} โต๊ะ — กรุณาเพิ่มเป็น ${FREE_DELIVERY_MIN_TABLES} โต๊ะขึ้นไป หรือติดต่อร้านเพื่อสอบถามเป็นกรณีพิเศษ`,
+        title: `พื้นที่นี้ต้องสั่งขั้นต่ำ ${minTables} โต๊ะ`,
+        detail: `งานนี้ ${tables} โต๊ะ — กรุณาเพิ่มเป็น ${minTables} โต๊ะขึ้นไป หรือติดต่อร้านเพื่อสอบถามเป็นกรณีพิเศษ`,
       }
     : {
         fee: 0,

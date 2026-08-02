@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { Eye, FileText, Printer, Search } from 'lucide-react'
 import BookingDocument from '../../components/BookingDocument'
 import { DOC_LABEL, docNumber, type DocType } from '../../documents'
-import type { Booking } from '../../types'
+import type { AppSettings, Booking } from '../../types'
 
 interface DocumentsProps {
   bookings: Booking[]
+  settings: AppSettings
 }
 
-export default function Documents({ bookings }: DocumentsProps) {
+export default function Documents({ bookings, settings }: DocumentsProps) {
   const [activeTab, setActiveTab] = useState<DocType>('quotation')
   const [search, setSearch] = useState('')
   const [previewBooking, setPreviewBooking] = useState<Booking | null>(null)
@@ -132,7 +133,12 @@ export default function Documents({ bookings }: DocumentsProps) {
             </div>
 
             <div className="max-h-[75vh] overflow-y-auto">
-              <BookingDocument booking={previewBooking} type={activeTab} />
+              <BookingDocument
+                booking={previewBooking}
+                type={activeTab}
+                shopInfo={settings.shopInfo}
+                depositRate={settings.depositRate}
+              />
             </div>
           </div>
         ) : (

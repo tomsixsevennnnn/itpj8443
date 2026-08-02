@@ -4,7 +4,7 @@ import Navbar from '../components/Navbar'
 import DishTile from '../components/DishTile'
 import LocationMap from '../components/LocationMap'
 import type { BookingData, Package as PackageType, Screen, UserProfile } from '../types'
-import { FREE_DELIVERY_MIN_TABLES, HOME_PROVINCE, ZONE_LABEL, deliveryFeeFor, formatFullAddress } from '../geo'
+import { HOME_PROVINCE, ZONE_LABEL, deliveryFeeFor, formatFullAddress } from '../geo'
 
 interface CartProps {
   navigate: (s: Screen) => void
@@ -12,15 +12,17 @@ interface CartProps {
   packages: PackageType[]
   booking: BookingData
   onConfirm: () => void
+  deliveryFee: number
+  freeDeliveryMinTables: number
 }
 
-export default function Cart({ navigate, user, packages, booking, onConfirm }: CartProps) {
+export default function Cart({ navigate, user, packages, booking, onConfirm, deliveryFee: deliveryFeeAmount, freeDeliveryMinTables }: CartProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const pkg = packages.find(p => p.id === booking.packageId) ?? null
   /** จับคู่เมนูที่เลือกกับ "ข้อ" ของแพ็กเกจ เพื่อแสดงตามลำดับเสิร์ฟ */
   const courseOf = (menuId: string) => pkg?.courses.find(c => c.items.some(i => i.id === menuId)) ?? null
   const subtotal = booking.packagePrice * booking.tables
-  const deliveryFee = deliveryFeeFor(booking.tables, booking.location)
+  const deliveryFee = deliveryFeeFor(booking.tables, booking.location, deliveryFeeAmount, freeDeliveryMinTables)
   const total = subtotal + deliveryFee
 
   const handleConfirm = () => {
@@ -192,7 +194,7 @@ export default function Cart({ navigate, user, packages, booking, onConfirm }: C
                 {deliveryFee > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">
-                      ค่าขนส่ง (นอก{HOME_PROVINCE} ไม่ถึง {FREE_DELIVERY_MIN_TABLES} โต๊ะ)
+                      ค่าขนส่ง (นอก{HOME_PROVINCE} ไม่ถึง {freeDeliveryMinTables} โต๊ะ)
                     </span>
                     <span className="text-gray-700">{deliveryFee.toLocaleString()} ฿</span>
                   </div>

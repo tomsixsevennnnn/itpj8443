@@ -1,7 +1,7 @@
-import type { Booking } from './types'
+import type { Booking, ShopInfo } from './types'
 
-/** ข้อมูลร้านที่ใช้บนหัวเอกสาร */
-export const SHOP_INFO = {
+/** ข้อมูลร้านเริ่มต้น — แก้ไขได้จริงจากหน้า "ตั้งค่า" ฝั่งร้าน (ค่านี้ใช้เป็นค่าเริ่มต้นของ AppSettings) */
+export const DEFAULT_SHOP_INFO: ShopInfo = {
   name: 'ร้านพิพัฒน์โภชนา',
   nameEn: 'Pipat Phochana Catering',
   initials: 'PP',
@@ -48,15 +48,15 @@ export interface BookingPricing {
   remaining: number
 }
 
-/** อัตรามัดจำที่ต้องชำระเพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน */
-export const DEPOSIT_RATE = 0.5
+/** อัตรามัดจำเริ่มต้นที่ต้องชำระเพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน — แก้ไขได้จากหน้า "ตั้งค่า" */
+export const DEFAULT_DEPOSIT_RATE = 0.5
 
-export const bookingPricing = (b: Booking): BookingPricing => {
+export const bookingPricing = (b: Booking, depositRate: number = DEFAULT_DEPOSIT_RATE): BookingPricing => {
   const deliveryFee = b.deliveryFee ?? 0
   const subtotal = b.totalPrice - deliveryFee
   const pricePerTable = b.pricePerTable ?? Math.round(subtotal / Math.max(1, b.tables))
   const total = b.totalPrice
-  const deposit = Math.round(total * DEPOSIT_RATE)
+  const deposit = Math.round(total * depositRate)
   return { pricePerTable, subtotal, deliveryFee, total, deposit, remaining: total - deposit }
 }
 

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import type { BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package } from './types'
+import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package } from './types'
 import { MENU_ITEMS, MOCK_BOOKINGS, PACKAGES, includedItems } from './data'
-import { deliveryFeeFor, formatFullAddress } from './geo'
+import { DEFAULT_DEPOSIT_RATE, DEFAULT_SHOP_INFO } from './documents'
+import { DEFAULT_DELIVERY_FEE, DEFAULT_FREE_DELIVERY_MIN_TABLES, deliveryFeeFor, formatFullAddress } from './geo'
 import Login from './screens/Login'
 import Home from './screens/Home'
 import BookingCalendar from './screens/BookingCalendar'
@@ -19,10 +20,20 @@ import CalendarView from './screens/owner/CalendarView'
 import Packages from './screens/owner/Packages'
 import Menus from './screens/owner/Menus'
 import Documents from './screens/owner/Documents'
+import Customers from './screens/owner/Customers'
+import Settings from './screens/owner/Settings'
 
 const OWNER_SCREENS: Screen[] = [
   'owner-dashboard', 'owner-orders', 'owner-calendar', 'owner-packages', 'owner-menus', 'owner-documents',
+  'owner-customers', 'owner-settings',
 ]
+
+const initialSettings: AppSettings = {
+  shopInfo: DEFAULT_SHOP_INFO,
+  depositRate: DEFAULT_DEPOSIT_RATE,
+  deliveryFee: DEFAULT_DELIVERY_FEE,
+  freeDeliveryMinTables: DEFAULT_FREE_DELIVERY_MIN_TABLES,
+}
 
 const initialBooking: BookingData = {
   date: null,
@@ -46,6 +57,8 @@ export default function App() {
   // แพ็กเกจและคลังเมนูอยู่ที่นี่ เพื่อให้เจ้าของร้านแก้แล้วฝั่งลูกค้าเห็นผลทันที
   const [packages, setPackages] = useState<Package[]>(PACKAGES)
   const [menus, setMenus] = useState<MenuItem[]>(MENU_ITEMS)
+  // ค่าตั้งค่าร้าน — แก้ได้จากหน้า "ตั้งค่า" ฝั่งเจ้าของร้าน มีผลกับค่าขนส่ง มัดจำ และข้อมูลบนเอกสารทันที
+  const [settings, setSettings] = useState<AppSettings>(initialSettings)
 
   /** เพิ่มหรือแก้ไขเมนู — ถ้าแก้ของเดิม ให้ซิงก์เข้าไปในแพ็กเกจที่ใช้เมนูนี้อยู่ด้วย */
   const handleSaveMenu = (item: MenuItem) => {
@@ -112,10 +125,14 @@ export default function App() {
     setBooking(b => ({ ...b, selectedMenus: menus }))
   }
 
+  const handleUpdateSettings = (patch: Partial<AppSettings>) => {
+    setSettings(s => ({ ...s, ...patch }))
+  }
+
   const handleConfirm = () => {
     // คิดยอดแบบเดียวกับหน้าตะกร้า เพื่อให้ใบเสนอราคา/ใบจองตรงกัน
     const subtotal = booking.packagePrice * booking.tables
-    const deliveryFee = deliveryFeeFor(booking.tables, booking.location)
+    const deliveryFee = deliveryFeeFor(booking.tables, booking.location, settings.deliveryFee, settings.freeDeliveryMinTables)
 
     const newBooking: Booking = {
       id: `BK-2025-${String(Math.floor(Math.random() * 900 + 100))}`,
@@ -165,7 +182,11 @@ export default function App() {
             onDeleteMenu={handleDeleteMenu}
           />
         )}
-        {screen === 'owner-documents' && <Documents bookings={bookings} />}
+        {screen === 'owner-documents' && <Documents bookings={bookings} settings={settings} />}
+        {screen === 'owner-customers' && <Customers bookings={bookings} />}
+        {screen === 'owner-settings' && (
+          <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
+        )}
       </OwnerLayout>
     )
   }
@@ -197,6 +218,8 @@ export default function App() {
           onSetGuestCount={handleSetGuestCount}
           date={booking.date}
           timeSlot={booking.timeSlot}
+          deliveryFee={settings.deliveryFee}
+          freeDeliveryMinTables={settings.freeDeliveryMinTables}
         />
       )}
       {screen === 'select-location' && (
@@ -206,6 +229,8 @@ export default function App() {
           tables={booking.tables}
           location={booking.location}
           onSetLocation={handleSetLocation}
+          deliveryFee={settings.deliveryFee}
+          freeDeliveryMinTables={settings.freeDeliveryMinTables}
         />
       )}
       {screen === 'select-package' && (
@@ -229,10 +254,24 @@ export default function App() {
         />
       )}
       {screen === 'cart' && (
-        <Cart navigate={navigate} user={user} packages={packages} booking={booking} onConfirm={handleConfirm} />
+        <Cart
+          navigate={navigate}
+          user={user}
+          packages={packages}
+          booking={booking}
+          onConfirm={handleConfirm}
+          deliveryFee={settings.deliveryFee}
+          freeDeliveryMinTables={settings.freeDeliveryMinTables}
+        />
       )}
       {screen === 'history' && (
-        <BookingHistory navigate={navigate} user={user} bookings={bookings} onUpdateBooking={handleUpdateBooking} />
+        <BookingHistory
+          navigate={navigate}
+          user={user}
+          bookings={bookings}
+          onUpdateBooking={handleUpdateBooking}
+          settings={settings}
+        />
       )}
       {screen === 'notifications' && (
         <Notifications navigate={navigate} user={user} />

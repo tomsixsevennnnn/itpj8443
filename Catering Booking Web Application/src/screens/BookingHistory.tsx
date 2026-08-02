@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Calendar, Check, Eye, FileText, Filter, Loader2, Printer, Search, Send, Upload, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
-import type { Booking, Screen, UserProfile } from '../types'
+import type { AppSettings, Booking, Screen, UserProfile } from '../types'
 import { DOC_LABEL, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
 
@@ -11,6 +11,7 @@ interface BookingHistoryProps {
   user: UserProfile | null
   bookings: Booking[]
   onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+  settings: AppSettings
 }
 
 const STATUS_CONFIG = {
@@ -20,7 +21,7 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-export default function BookingHistory({ navigate, user, bookings, onUpdateBooking }: BookingHistoryProps) {
+export default function BookingHistory({ navigate, user, bookings, onUpdateBooking, settings }: BookingHistoryProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -290,7 +291,12 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
             </div>
 
             <div className="max-h-[80vh] overflow-y-auto">
-              <BookingDocument booking={docBooking} type={docView.type} />
+              <BookingDocument
+                booking={docBooking}
+                type={docView.type}
+                shopInfo={settings.shopInfo}
+                depositRate={settings.depositRate}
+              />
             </div>
           </div>
         </div>

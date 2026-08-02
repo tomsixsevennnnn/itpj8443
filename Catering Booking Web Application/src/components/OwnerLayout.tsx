@@ -28,8 +28,8 @@ const sidebarItems = [
   { label: 'แพ็กเกจ', screen: 'owner-packages' as Screen, icon: Package },
   { label: 'เมนูอาหาร', screen: 'owner-menus' as Screen, icon: Book },
   { label: 'เอกสาร', screen: 'owner-documents' as Screen, icon: FileText },
-  { label: 'ลูกค้า', screen: 'owner-dashboard' as Screen, icon: Users },
-  { label: 'ตั้งค่า', screen: 'owner-dashboard' as Screen, icon: Settings },
+  { label: 'ลูกค้า', screen: 'owner-customers' as Screen, icon: Users },
+  { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
 
 export default function OwnerLayout({ navigate, currentScreen, children }: OwnerLayoutProps) {

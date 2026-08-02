@@ -4,8 +4,6 @@ import Navbar from '../components/Navbar'
 import LocationMap from '../components/LocationMap'
 import type { EventLocation, LocationDetail, Screen, UserProfile } from '../types'
 import {
-  DELIVERY_FEE,
-  FREE_DELIVERY_MIN_TABLES,
   HOME_PROVINCE,
   PRESET_LOCATIONS,
   ZONE_LABEL,
@@ -24,6 +22,8 @@ interface SelectLocationProps {
   tables: number
   location: EventLocation | null
   onSetLocation: (loc: EventLocation) => void
+  deliveryFee: number
+  freeDeliveryMinTables: number
 }
 
 /** กลางกรุงเทพฯ — ใช้เป็นจุดเริ่มต้นเมื่อยังไม่เคยเลือกสถานที่ */
@@ -42,7 +42,7 @@ const DETAIL_FIELDS: { key: keyof LocationDetail; label: string; placeholder: st
   },
 ]
 
-export default function SelectLocation({ navigate, user, tables, location, onSetLocation }: SelectLocationProps) {
+export default function SelectLocation({ navigate, user, tables, location, onSetLocation, deliveryFee, freeDeliveryMinTables }: SelectLocationProps) {
   const [pos, setPos] = useState(location ? { lat: location.lat, lng: location.lng } : DEFAULT_CENTER)
   const [focusKey, setFocusKey] = useState(0)
   const [place, setPlace] = useState({
@@ -154,7 +154,7 @@ export default function SelectLocation({ navigate, user, tables, location, onSet
   }
 
   const zone = zoneFor(place.province, place.address)
-  const check = checkDelivery(tables, zone)
+  const check = checkDelivery(tables, zone, deliveryFee, freeDeliveryMinTables)
   const hasPlace = place.address.trim().length > 0
 
   const handleNext = () => {
@@ -328,8 +328,8 @@ export default function SelectLocation({ navigate, user, tables, location, onSet
                   <Truck size={15} className="flex-shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
                     เลือกสถานที่เพื่อตรวจเงื่อนไขพื้นที่ — ใน {HOME_PROVINCE} รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง ·
-                    นอก {HOME_PROVINCE} ขั้นต่ำ {FREE_DELIVERY_MIN_TABLES} โต๊ะ (กรุงเทพและปริมณฑล ไม่ถึงขั้นต่ำ
-                    คิดค่าขนส่ง {DELIVERY_FEE.toLocaleString()} บาท)
+                    นอก {HOME_PROVINCE} ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ (กรุงเทพและปริมณฑล ไม่ถึงขั้นต่ำ
+                    คิดค่าขนส่ง {deliveryFee.toLocaleString()} บาท)
                   </div>
                 </div>
               ) : (

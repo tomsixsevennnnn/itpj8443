@@ -1,8 +1,8 @@
-import type { Booking } from '../types'
+import type { Booking, ShopInfo } from '../types'
 import {
-  DEPOSIT_RATE,
+  DEFAULT_DEPOSIT_RATE,
+  DEFAULT_SHOP_INFO,
   DOC_LABEL,
-  SHOP_INFO,
   bahtText,
   bookingPricing,
   docNumber,
@@ -15,6 +15,8 @@ interface BookingDocumentProps {
   booking: Booking
   type: DocType
   className?: string
+  shopInfo?: ShopInfo
+  depositRate?: number
 }
 
 const STATUS_TH: Record<Booking['status'], string> = {
@@ -25,8 +27,14 @@ const STATUS_TH: Record<Booking['status'], string> = {
 }
 
 /** เอกสารใบเสนอราคา / ใบจอง — ใช้ร่วมกันทั้งฝั่งลูกค้าและเจ้าของร้าน */
-export default function BookingDocument({ booking, type, className = '' }: BookingDocumentProps) {
-  const price = bookingPricing(booking)
+export default function BookingDocument({
+  booking,
+  type,
+  className = '',
+  shopInfo = DEFAULT_SHOP_INFO,
+  depositRate = DEFAULT_DEPOSIT_RATE,
+}: BookingDocumentProps) {
+  const price = bookingPricing(booking, depositRate)
   const issuedAt = new Date().toISOString().slice(0, 10)
 
   const lines = [
@@ -48,16 +56,16 @@ export default function BookingDocument({ booking, type, className = '' }: Booki
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-orange-500 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              {SHOP_INFO.initials}
+              {shopInfo.initials}
             </div>
             <div className="min-w-0">
-              <p className="font-bold text-gray-900 text-sm leading-tight">{SHOP_INFO.name}</p>
-              <p className="text-[10px] text-gray-400 leading-tight">{SHOP_INFO.nameEn}</p>
+              <p className="font-bold text-gray-900 text-sm leading-tight">{shopInfo.name}</p>
+              <p className="text-[10px] text-gray-400 leading-tight">{shopInfo.nameEn}</p>
             </div>
           </div>
-          <p className="text-[11px] text-gray-500 mt-2">{SHOP_INFO.address}</p>
+          <p className="text-[11px] text-gray-500 mt-2">{shopInfo.address}</p>
           <p className="text-[11px] text-gray-500">
-            โทร {SHOP_INFO.phone} · Line {SHOP_INFO.line}
+            โทร {shopInfo.phone} · Line {shopInfo.line}
           </p>
         </div>
 
@@ -174,7 +182,7 @@ export default function BookingDocument({ booking, type, className = '' }: Booki
           {type === 'quotation' && (
             <div className="mt-3 bg-orange-50 rounded-lg px-3 py-2.5 space-y-1">
               <div className="flex justify-between text-xs font-semibold text-orange-700">
-                <span>มัดจำเพื่อยืนยันการจอง ({Math.round(DEPOSIT_RATE * 100)}%)</span>
+                <span>มัดจำเพื่อยืนยันการจอง ({Math.round(depositRate * 100)}%)</span>
                 <span>{price.deposit.toLocaleString()} ฿</span>
               </div>
               <div className="flex justify-between text-[11px] text-orange-500">
@@ -194,12 +202,12 @@ export default function BookingDocument({ booking, type, className = '' }: Booki
             <>
               <li>• ใบเสนอราคานี้ยืนราคาถึงวันที่ {formatThaiDate(quotationValidUntil())}</li>
               <li>• ราคานี้รวมอุปกรณ์จัดเลี้ยง โต๊ะ เก้าอี้ และพนักงานเสิร์ฟแล้ว ไม่มีค่าบริการเพิ่ม</li>
-              <li>• ยืนยันการจองโดยชำระมัดจำ {Math.round(DEPOSIT_RATE * 100)}% ({price.deposit.toLocaleString()} ฿) ส่วนที่เหลือชำระในวันจัดงาน</li>
+              <li>• ยืนยันการจองโดยชำระมัดจำ {Math.round(depositRate * 100)}% ({price.deposit.toLocaleString()} ฿) ส่วนที่เหลือชำระในวันจัดงาน</li>
               <li>• งานในนครปฐมไม่มีค่าขนส่ง · นอกนครปฐมขั้นต่ำ 30 โต๊ะ</li>
             </>
           ) : (
             <>
-              <li>• กรุณาชำระมัดจำ {Math.round(DEPOSIT_RATE * 100)}% ({price.deposit.toLocaleString()} ฿) เพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน</li>
+              <li>• กรุณาชำระมัดจำ {Math.round(depositRate * 100)}% ({price.deposit.toLocaleString()} ฿) เพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน</li>
               <li>• ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง</li>
               <li>• แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน</li>
               <li>• ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ</li>
@@ -220,7 +228,7 @@ export default function BookingDocument({ booking, type, className = '' }: Booki
       </div>
 
       <p className="text-[10px] text-gray-400 text-center mt-6 pt-4 border-t border-gray-100">
-        ขอบคุณที่ใช้บริการ {SHOP_INFO.name} · โทร {SHOP_INFO.phone}
+        ขอบคุณที่ใช้บริการ {shopInfo.name} · โทร {shopInfo.phone}
       </p>
     </div>
   )

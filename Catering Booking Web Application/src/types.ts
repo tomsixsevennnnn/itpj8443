@@ -15,6 +15,8 @@ export type Screen =
   | 'owner-packages'
   | 'owner-menus'
   | 'owner-documents'
+  | 'owner-customers'
+  | 'owner-settings'
 
 export interface Category {
   id: string
@@ -149,4 +151,25 @@ export interface UserProfile {
   lineId: string
   email: string
   avatar: string
+}
+
+/** ข้อมูลร้านที่แสดงบนหัวเอกสารใบเสนอราคา/ใบจอง */
+export interface ShopInfo {
+  name: string
+  nameEn: string
+  initials: string
+  address: string
+  phone: string
+  line: string
+}
+
+/** ค่าตั้งค่าของร้านที่เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+export interface AppSettings {
+  shopInfo: ShopInfo
+  /** อัตรามัดจำ 0–1 เช่น 0.5 = 50% */
+  depositRate: number
+  /** ค่าขนส่งสำหรับกรุงเทพและปริมณฑลที่จองไม่ถึงขั้นต่ำ (บาท) */
+  deliveryFee: number
+  /** จำนวนโต๊ะขั้นต่ำสำหรับงานนอกพื้นที่ร้าน */
+  freeDeliveryMinTables: number
 }

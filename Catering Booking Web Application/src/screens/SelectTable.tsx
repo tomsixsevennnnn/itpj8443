@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, Minus, Plus, Users } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import type { Screen, UserProfile } from '../types'
-import { DELIVERY_FEE, FREE_DELIVERY_MIN_TABLES, HOME_PROVINCE } from '../geo'
+import { HOME_PROVINCE } from '../geo'
 
 interface SelectTableProps {
   navigate: (s: Screen) => void
@@ -12,9 +12,11 @@ interface SelectTableProps {
   onSetGuestCount: (n: number) => void
   date: string | null
   timeSlot: string | null
+  deliveryFee: number
+  freeDeliveryMinTables: number
 }
 
-export default function SelectTable({ navigate, user, tables, guestCount, onSetTables, onSetGuestCount, date, timeSlot }: SelectTableProps) {
+export default function SelectTable({ navigate, user, tables, guestCount, onSetTables, onSetGuestCount, date, timeSlot, deliveryFee, freeDeliveryMinTables }: SelectTableProps) {
   const totalGuests = tables * 10
   const overCapacity = guestCount > totalGuests
 
@@ -136,7 +138,7 @@ export default function SelectTable({ navigate, user, tables, guestCount, onSetT
           {/* เงื่อนไขพื้นที่ — ตรวจจริงอีกครั้งในขั้นตอนเลือกสถานที่ */}
           <div
             className={`mt-6 rounded-2xl border px-4 py-3 text-xs leading-relaxed ${
-              tables < FREE_DELIVERY_MIN_TABLES
+              tables < freeDeliveryMinTables
                 ? 'bg-amber-50 border-amber-100 text-amber-700'
                 : 'bg-green-50 border-green-100 text-green-700'
             }`}
@@ -146,10 +148,10 @@ export default function SelectTable({ navigate, user, tables, guestCount, onSetT
               • ใน{HOME_PROVINCE} (พื้นที่ร้าน) รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง
             </p>
             <p>
-              • นอก{HOME_PROVINCE} ขั้นต่ำ {FREE_DELIVERY_MIN_TABLES} โต๊ะ — กรุงเทพและปริมณฑลไม่ถึงขั้นต่ำ จองได้แต่มีค่าขนส่ง{' '}
-              {DELIVERY_FEE.toLocaleString()} บาท
+              • นอก{HOME_PROVINCE} ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ — กรุงเทพและปริมณฑลไม่ถึงขั้นต่ำ จองได้แต่มีค่าขนส่ง{' '}
+              {deliveryFee.toLocaleString()} บาท
             </p>
-            {tables < FREE_DELIVERY_MIN_TABLES && (
+            {tables < freeDeliveryMinTables && (
               <p className="mt-1.5 font-semibold">
                 งานนี้ {tables} โต๊ะ — จัดได้เฉพาะใน{HOME_PROVINCE} หรือกรุงเทพและปริมณฑล (มีค่าขนส่ง)
               </p>
