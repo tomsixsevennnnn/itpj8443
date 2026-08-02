@@ -1,5 +1,6 @@
 import type { Booking } from '../types'
 import {
+  DEPOSIT_RATE,
   DOC_LABEL,
   SHOP_INFO,
   bahtText,
@@ -169,6 +170,19 @@ export default function BookingDocument({ booking, type, className = '' }: Booki
             <span>{price.total.toLocaleString()} ฿</span>
           </div>
           <p className="text-[10px] text-gray-400 text-right mt-1">({bahtText(price.total)})</p>
+
+          {type === 'quotation' && (
+            <div className="mt-3 bg-orange-50 rounded-lg px-3 py-2.5 space-y-1">
+              <div className="flex justify-between text-xs font-semibold text-orange-700">
+                <span>มัดจำเพื่อยืนยันการจอง ({Math.round(DEPOSIT_RATE * 100)}%)</span>
+                <span>{price.deposit.toLocaleString()} ฿</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-orange-500">
+                <span>ชำระส่วนที่เหลือในวันจัดงาน</span>
+                <span>{price.remaining.toLocaleString()} ฿</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -180,12 +194,12 @@ export default function BookingDocument({ booking, type, className = '' }: Booki
             <>
               <li>• ใบเสนอราคานี้ยืนราคาถึงวันที่ {formatThaiDate(quotationValidUntil())}</li>
               <li>• ราคานี้รวมอุปกรณ์จัดเลี้ยง โต๊ะ เก้าอี้ และพนักงานเสิร์ฟแล้ว ไม่มีค่าบริการเพิ่ม</li>
-              <li>• ยืนยันการจองโดยชำระมัดจำ 50% ส่วนที่เหลือชำระในวันจัดงาน</li>
+              <li>• ยืนยันการจองโดยชำระมัดจำ {Math.round(DEPOSIT_RATE * 100)}% ({price.deposit.toLocaleString()} ฿) ส่วนที่เหลือชำระในวันจัดงาน</li>
               <li>• งานในนครปฐมไม่มีค่าขนส่ง · นอกนครปฐมขั้นต่ำ 30 โต๊ะ</li>
             </>
           ) : (
             <>
-              <li>• กรุณาชำระมัดจำ 50% เพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน</li>
+              <li>• กรุณาชำระมัดจำ {Math.round(DEPOSIT_RATE * 100)}% ({price.deposit.toLocaleString()} ฿) เพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน</li>
               <li>• ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง</li>
               <li>• แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน</li>
               <li>• ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ</li>

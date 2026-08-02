@@ -16,7 +16,7 @@ export default function Login({ navigate, onLogin }: LoginProps) {
   }
 
   const handleSave = () => {
-    if (!form.name || !form.phone) return
+    if (!form.name || !form.surname || !form.phone) return
     onLogin({
       name: form.name,
       surname: form.surname,
@@ -146,7 +146,7 @@ export default function Login({ navigate, onLogin }: LoginProps) {
             <div className="space-y-4">
               {[
                 { key: 'name', label: 'ชื่อ *', placeholder: 'ชื่อจริง', type: 'text' },
-                { key: 'surname', label: 'นามสกุล', placeholder: 'นามสกุล', type: 'text' },
+                { key: 'surname', label: 'นามสกุล *', placeholder: 'นามสกุล', type: 'text' },
                 { key: 'phone', label: 'เบอร์โทรศัพท์ *', placeholder: '08X-XXX-XXXX', type: 'tel' },
                 { key: 'lineId', label: 'Line ID', placeholder: '@yourid', type: 'text' },
               ].map(({ key, label, placeholder, type }) => (
@@ -165,7 +165,7 @@ export default function Login({ navigate, onLogin }: LoginProps) {
 
             <button
               onClick={handleSave}
-              disabled={!form.name || !form.phone}
+              disabled={!form.name || !form.surname || !form.phone}
               className="mt-6 w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl py-3.5 font-semibold transition-colors"
             >
               บันทึกข้อมูลและเข้าสู่ระบบ

@@ -44,13 +44,20 @@ export interface BookingPricing {
   subtotal: number
   deliveryFee: number
   total: number
+  deposit: number
+  remaining: number
 }
+
+/** อัตรามัดจำที่ต้องชำระเพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน */
+export const DEPOSIT_RATE = 0.5
 
 export const bookingPricing = (b: Booking): BookingPricing => {
   const deliveryFee = b.deliveryFee ?? 0
   const subtotal = b.totalPrice - deliveryFee
   const pricePerTable = b.pricePerTable ?? Math.round(subtotal / Math.max(1, b.tables))
-  return { pricePerTable, subtotal, deliveryFee, total: b.totalPrice }
+  const total = b.totalPrice
+  const deposit = Math.round(total * DEPOSIT_RATE)
+  return { pricePerTable, subtotal, deliveryFee, total, deposit, remaining: total - deposit }
 }
 
 /* ------------------------------------------------------------------ *
