@@ -1,14 +1,16 @@
-import { useState } from 'react'
-import { Calendar, Eye, FileText, Filter, Printer, Search, X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Calendar, Check, Eye, FileText, Filter, Loader2, Printer, Search, Send, Upload, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
 import type { Booking, Screen, UserProfile } from '../types'
 import { DOC_LABEL, docNumber, type DocType } from '../documents'
+import { pickImageAsDataUrl } from '../imageUpload'
 
 interface BookingHistoryProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
   bookings: Booking[]
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => void
 }
 
 const STATUS_CONFIG = {
@@ -18,13 +20,58 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-export default function BookingHistory({ navigate, user, bookings }: BookingHistoryProps) {
+export default function BookingHistory({ navigate, user, bookings, onUpdateBooking }: BookingHistoryProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [docView, setDocView] = useState<{ id: string; type: DocType } | null>(null)
+  const [uploadingSlip, setUploadingSlip] = useState(false)
+  const [slipError, setSlipError] = useState<string | null>(null)
+  const [slipSent, setSlipSent] = useState(false)
+  /** รูปที่เลือกไว้แต่ยังไม่ได้กดส่ง — ผูกกับ bookingId เพื่อกันเผลอโชว์ข้ามรายการ */
+  const [slipDraft, setSlipDraft] = useState<{ id: string; dataUrl: string } | null>(null)
+  const slipInputRef = useRef<HTMLInputElement>(null)
 
   const allBookings = bookings
+
+  const openDetail = (id: string) => {
+    setDetailId(id)
+    setSlipDraft(null)
+    setSlipError(null)
+    setSlipSent(false)
+  }
+
+  const closeDetail = () => {
+    setDetailId(null)
+    setSlipDraft(null)
+    setSlipError(null)
+    setSlipSent(false)
+  }
+
+  /** เลือกรูปสลิป — ย่อขนาดแล้วพักไว้เป็นตัวอย่าง ยังไม่บันทึกจนกว่าจะกด "ส่ง" */
+  const handlePickSlip = async (bookingId: string, file: File | undefined) => {
+    if (!file) return
+    setUploadingSlip(true)
+    setSlipError(null)
+    setSlipSent(false)
+    try {
+      const dataUrl = await pickImageAsDataUrl(file)
+      setSlipDraft({ id: bookingId, dataUrl })
+    } catch (err) {
+      setSlipError(err instanceof Error ? err.message : 'อัปโหลดสลิปไม่สำเร็จ')
+    } finally {
+      setUploadingSlip(false)
+      if (slipInputRef.current) slipInputRef.current.value = ''
+    }
+  }
+
+  /** กดส่งจริง — ค่อยบันทึกสลิปเข้าใบจองให้ร้านเห็น */
+  const submitSlip = () => {
+    if (!slipDraft) return
+    onUpdateBooking(slipDraft.id, { paymentSlip: slipDraft.dataUrl, paymentSlipUploadedAt: new Date().toISOString() })
+    setSlipDraft(null)
+    setSlipSent(true)
+  }
 
   const filtered = allBookings.filter(b => {
     const matchSearch = b.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -125,7 +172,7 @@ export default function BookingHistory({ navigate, user, bookings }: BookingHist
                       <td className="px-4 py-4">
                         <div className="flex gap-1.5">
                           <button
-                            onClick={() => setDetailId(booking.id)}
+                            onClick={() => openDetail(booking.id)}
                             className="flex items-center gap-1 text-xs bg-gray-100 hover:bg-orange-50 hover:text-orange-600 text-gray-600 px-2.5 py-1.5 rounded-lg transition-colors"
                           >
                             <Eye size={12} />
@@ -173,7 +220,7 @@ export default function BookingHistory({ navigate, user, bookings }: BookingHist
                   <p className="text-xs text-gray-500 mb-2">{booking.timeSlot} · {booking.tables} โต๊ะ · {booking.packageName}</p>
                   <p className="text-lg font-bold text-orange-600">{booking.totalPrice.toLocaleString()} ฿</p>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    <button onClick={() => setDetailId(booking.id)} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg">รายละเอียด</button>
+                    <button onClick={() => openDetail(booking.id)} className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg">รายละเอียด</button>
                     <button
                       onClick={() => setDocView({ id: booking.id, type: 'quotation' })}
                       className="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg"
@@ -259,7 +306,7 @@ export default function BookingHistory({ navigate, user, bookings }: BookingHist
                 <p className="text-orange-100 text-sm">{detailBooking.id}</p>
               </div>
               <button
-                onClick={() => setDetailId(null)}
+                onClick={closeDetail}
                 className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-white"
               >
                 ✕
@@ -292,6 +339,90 @@ export default function BookingHistory({ navigate, user, bookings }: BookingHist
               <div className="bg-orange-50 rounded-2xl p-4 flex items-center justify-between">
                 <span className="font-bold text-gray-800">ราคารวม</span>
                 <span className="text-xl font-bold text-orange-600">{detailBooking.totalPrice.toLocaleString()} ฿</span>
+              </div>
+
+              {/* สลิปโอนเงินมัดจำ — ร้านจะตรวจสอบกับบัญชีเองแล้วเปลี่ยนสถานะให้ */}
+              <div>
+                <p className="text-xs text-gray-400 mb-2">สลิปโอนเงินมัดจำ</p>
+                <input
+                  ref={slipInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={e => handlePickSlip(detailBooking.id, e.target.files?.[0])}
+                  className="hidden"
+                />
+
+                {slipDraft?.id === detailBooking.id ? (
+                  // เลือกรูปไว้แล้วแต่ยังไม่ได้กดส่ง
+                  <div className="space-y-2">
+                    <img
+                      src={slipDraft.dataUrl}
+                      alt="ตัวอย่างสลิปที่เลือก"
+                      className="w-full max-h-64 object-contain rounded-xl border-2 border-dashed border-orange-300 bg-gray-50"
+                    />
+                    <p className="text-[11px] text-orange-600">ยังไม่ได้ส่ง — กด "ส่งสลิป" เพื่อแจ้งร้าน</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={submitSlip}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-2 text-xs font-semibold transition-colors"
+                      >
+                        <Send size={12} />
+                        ส่งสลิป
+                      </button>
+                      <button
+                        onClick={() => slipInputRef.current?.click()}
+                        disabled={uploadingSlip}
+                        className="px-3 text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
+                      >
+                        เลือกรูปใหม่
+                      </button>
+                    </div>
+                  </div>
+                ) : detailBooking.paymentSlip ? (
+                  <div className="space-y-2">
+                    <img
+                      src={detailBooking.paymentSlip}
+                      alt="สลิปโอนเงิน"
+                      className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50"
+                    />
+                    {detailBooking.paymentSlipUploadedAt && (
+                      <p className="text-[11px] text-gray-400">
+                        {slipSent ? (
+                          <span className="text-green-600 font-medium inline-flex items-center gap-1">
+                            <Check size={11} />
+                            ส่งสลิปแล้ว
+                          </span>
+                        ) : (
+                          'แนบเมื่อ'
+                        )}{' '}
+                        {new Date(detailBooking.paymentSlipUploadedAt).toLocaleString('th-TH', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                        {' · '}รอร้านตรวจสอบกับบัญชี
+                      </p>
+                    )}
+                    <button
+                      onClick={() => slipInputRef.current?.click()}
+                      disabled={uploadingSlip}
+                      className="flex items-center gap-1.5 text-xs text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50"
+                    >
+                      {uploadingSlip ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                      แนบสลิปใหม่
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => slipInputRef.current?.click()}
+                    disabled={uploadingSlip}
+                    className="w-full flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 rounded-xl py-6 text-gray-400 hover:text-orange-600 transition-colors disabled:opacity-50"
+                  >
+                    {uploadingSlip ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                    <span className="text-xs font-medium">
+                      {uploadingSlip ? 'กำลังอัปโหลด...' : 'แนบสลิปโอนเงินมัดจำ'}
+                    </span>
+                  </button>
+                )}
+                {slipError && <p className="text-[11px] text-red-500 mt-1.5">{slipError}</p>}
               </div>
             </div>
           </div>

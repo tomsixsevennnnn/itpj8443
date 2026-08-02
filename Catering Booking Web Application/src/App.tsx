@@ -232,7 +232,7 @@ export default function App() {
         <Cart navigate={navigate} user={user} packages={packages} booking={booking} onConfirm={handleConfirm} />
       )}
       {screen === 'history' && (
-        <BookingHistory navigate={navigate} user={user} bookings={bookings} />
+        <BookingHistory navigate={navigate} user={user} bookings={bookings} onUpdateBooking={handleUpdateBooking} />
       )}
       {screen === 'notifications' && (
         <Notifications navigate={navigate} user={user} />

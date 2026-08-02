@@ -136,6 +136,10 @@ export interface Booking {
   staffNote?: string
   /** เวลาที่บันทึกแผนกำลังคนล่าสุด */
   staffSavedAt?: string
+  /** สลิปโอนเงินมัดจำที่ลูกค้าแนบ (data URL) — ร้านตรวจสอบกับบัญชีเองแล้วเปลี่ยนสถานะ */
+  paymentSlip?: string
+  /** เวลาที่แนบสลิปล่าสุด */
+  paymentSlipUploadedAt?: string
 }
 
 export interface UserProfile {

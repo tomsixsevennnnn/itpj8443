@@ -28,6 +28,7 @@ export default function Orders({ bookings, onUpdateBooking }: OrdersProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [staffDraft, setStaffDraft] = useState<StaffPlan | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
+  const [slipZoom, setSlipZoom] = useState<string | null>(null)
 
   // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
   const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
@@ -381,6 +382,35 @@ export default function Orders({ bookings, onUpdateBooking }: OrdersProps) {
                 <span className="font-bold text-gray-800">ราคารวม</span>
                 <span className="text-xl font-bold text-orange-600">฿{selected.totalPrice.toLocaleString()}</span>
               </div>
+
+              {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">สลิปโอนเงินมัดจำ</p>
+                {selected.paymentSlip ? (
+                  <div className="space-y-2">
+                    <button type="button" onClick={() => setSlipZoom(selected.paymentSlip!)} className="block w-full">
+                      <img
+                        src={selected.paymentSlip}
+                        alt="สลิปโอนเงิน"
+                        className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                      />
+                    </button>
+                    {selected.paymentSlipUploadedAt && (
+                      <p className="text-[11px] text-gray-400">
+                        ลูกค้าแนบเมื่อ{' '}
+                        {new Date(selected.paymentSlipUploadedAt).toLocaleString('th-TH', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </p>
+                    )}
+                    <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                      ตรวจสอบยอดเงินเข้าบัญชีร้านให้ตรงกับสลิปก่อนกดเปลี่ยนสถานะเป็น "ยืนยันแล้ว"
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 bg-gray-50 rounded-xl px-3 py-2.5">ลูกค้ายังไม่ได้แนบสลิป</p>
+                )}
+              </div>
             </div>
 
             {/* Status buttons */}
@@ -408,6 +438,27 @@ export default function Orders({ bookings, onUpdateBooking }: OrdersProps) {
           </div>
         )}
       </div>
+
+      {/* Lightbox ดูสลิปแบบเต็มขนาด */}
+      {slipZoom && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setSlipZoom(null)}
+        >
+          <button
+            onClick={() => setSlipZoom(null)}
+            className="absolute top-4 right-4 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white"
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={slipZoom}
+            alt="สลิปโอนเงิน (ขยาย)"
+            className="max-w-full max-h-full object-contain rounded-xl"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   )
 }

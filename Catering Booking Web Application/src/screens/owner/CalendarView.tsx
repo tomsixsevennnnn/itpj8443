@@ -32,6 +32,7 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [popupId, setPopupId] = useState<string | null>(null)
+  const [slipZoom, setSlipZoom] = useState<string | null>(null)
 
   const popup = popupId ? bookings.find(b => b.id === popupId) ?? null : null
 
@@ -228,6 +229,17 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
                 </div>
               )}
 
+              {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
+              {popup.paymentSlip && (
+                <button type="button" onClick={() => setSlipZoom(popup.paymentSlip!)} className="block w-full">
+                  <img
+                    src={popup.paymentSlip}
+                    alt="สลิปโอนเงิน"
+                    className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                  />
+                </button>
+              )}
+
               {/* เปลี่ยนสถานะได้จากปฏิทินเลย */}
               <div>
                 <p className="text-xs text-gray-400 mb-2">อัปเดตสถานะ</p>
@@ -252,6 +264,27 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox ดูสลิปแบบเต็มขนาด */}
+      {slipZoom && (
+        <div
+          className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={() => setSlipZoom(null)}
+        >
+          <button
+            onClick={() => setSlipZoom(null)}
+            className="absolute top-4 right-4 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white"
+          >
+            <X size={18} />
+          </button>
+          <img
+            src={slipZoom}
+            alt="สลิปโอนเงิน (ขยาย)"
+            className="max-w-full max-h-full object-contain rounded-xl"
+            onClick={e => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
