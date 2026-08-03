@@ -1,8 +1,29 @@
-# ระบบจองโต๊ะจีน — ร้านพิพัฒน์โภชนา
+# ระบบจองโต๊ะจีนออนไลน์ — ร้านพิพัฒน์โภชนา
 
 เว็บแอปจองโต๊ะจีนแบบครบวงจร มีทั้งฝั่งลูกค้า (จองงาน เลือกเมนู เลือกสถานที่บนแผนที่) และฝั่งเจ้าของร้าน (จัดการคิว แพ็กเกจ เมนู กำลังคน และออกเอกสาร)
 
-สร้างด้วย **React 19 + TypeScript + Vite + Tailwind CSS v4**
+ดู requirement/ขอบเขตโครงงานฉบับเต็มได้ที่ [REQOLD.md](./REQOLD.md)
+
+โปรเจกต์นี้เป็น **monorepo** มี 2 ส่วน:
+
+```
+.
+├── Catering Booking Web Application/   # Frontend — React 19 + Vite + Tailwind CSS v4
+└── backend/                            # Backend — NestJS + Prisma + PostgreSQL
+```
+
+## เทคโนโลยีที่ใช้
+
+| ส่วน | เทคโนโลยี |
+|---|---|
+| Frontend | React 19, TypeScript, Vite 8, Tailwind CSS v4 |
+| แผนที่ | Leaflet + OpenStreetMap (Nominatim) |
+| กราฟ | Recharts |
+| Backend | NestJS (Node.js + TypeScript) |
+| ฐานข้อมูล | PostgreSQL (Railway) ผ่าน Prisma ORM |
+| ยืนยันตัวตน | Auth0 — Google Social Login (ลูกค้า), Username/Password (เจ้าของร้าน) |
+| Package manager | pnpm |
+| แผน deploy | Vercel (frontend) + Railway (backend + DB) |
 
 ---
 
@@ -11,58 +32,70 @@
 ### สิ่งที่ต้องมี
 
 - [Node.js](https://nodejs.org/) เวอร์ชัน **20.19.0 ขึ้นไป** หรือ **22.12.0 ขึ้นไป** — แนะนำให้ลง **22 LTS** ไปเลย
-- npm (ติดมากับ Node.js อยู่แล้ว)
-
-> ⚠️ **สำคัญ:** Vite 8 ใช้ Node เวอร์ชันต่ำกว่านี้ไม่ได้ ถ้าใช้ Node 20.11 หรือเก่ากว่าจะรันไม่ขึ้น
-> (ดูวิธีแก้ที่หัวข้อ [แก้ปัญหาที่พบบ่อย](#แก้ปัญหาที่พบบ่อย))
+- pnpm (ใช้ `corepack enable` แล้วเรียก `corepack pnpm` ได้เลยโดยไม่ต้องติดตั้งเพิ่ม)
+- บัญชี [Auth0](https://manage.auth0.com/) และโปรเจกต์ [Railway](https://railway.com/) (สำหรับ PostgreSQL) — ดูวิธีตั้งค่าด้านล่าง
 
 ตรวจเวอร์ชันก่อนเริ่ม
 
 ```bash
 node -v    # ต้องได้ v20.19.x ขึ้นไป หรือ v22.12.x ขึ้นไป
-npm -v
+corepack enable
 ```
 
-### ขั้นตอนรัน
+### 1. Backend
 
 ```bash
-# 1. โคลนโปรเจกต์
-git clone https://github.com/ChanonOonna/resturant.git
-cd resturant
-
-# 2. เข้าโฟลเดอร์แอป (ชื่อมีเว้นวรรค ต้องใส่เครื่องหมายคำพูด)
-cd "Catering Booking Web Application"
-
-# 3. ติดตั้ง dependencies
-npm install
-
-# 4. รัน development server
-npm run dev
+cd backend
+corepack pnpm install
+cp .env.example .env   # ใส่ DATABASE_URL, AUTH0_DOMAIN, AUTH0_AUDIENCE ของจริง
+corepack pnpm prisma:migrate     # สร้างตารางในฐานข้อมูล
+corepack pnpm prisma:seed        # ใส่แพ็กเกจ/เมนูเริ่มต้น (ข้ามถ้ามีข้อมูลอยู่แล้ว)
+corepack pnpm start:dev          # รันที่ http://localhost:3000
 ```
 
-เปิดเบราว์เซอร์ที่ URL ที่ขึ้นในเทอร์มินัล (ปกติคือ `http://localhost:5173`)
+### 2. Frontend
 
-> **สำหรับ Windows PowerShell**
-> - เข้าโฟลเดอร์ด้วย `cd '.\Catering Booking Web Application'`
-> - ถ้า `npm install` ขึ้น `npm.ps1 cannot be loaded because running scripts is disabled`
->   ให้ใช้ `npm.cmd install` และ `npm.cmd run dev` แทน (หรือดูวิธีแก้ถาวรที่หัวข้อ
->   [แก้ปัญหาที่พบบ่อย](#แก้ปัญหาที่พบบ่อย))
+```bash
+cd "Catering Booking Web Application"
+corepack pnpm install
+cp .env.example .env   # ใส่ VITE_AUTH0_DOMAIN, VITE_AUTH0_CLIENT_ID, VITE_AUTH0_AUDIENCE
+corepack pnpm dev                # รันที่ http://localhost:8443
+```
 
-### คำสั่งอื่น ๆ
+> **สำหรับ Windows PowerShell** — ถ้า `pnpm` ขึ้น `cannot be loaded because running scripts is disabled` ดูวิธีแก้ที่หัวข้อ [แก้ปัญหาที่พบบ่อย](#แก้ปัญหาที่พบบ่อย)
 
-| คำสั่ง | ใช้ทำอะไร |
-|---|---|
-| `npm run dev` | รัน development server พร้อม hot reload |
-| `npm run build` | สร้างไฟล์สำหรับ production ลงโฟลเดอร์ `dist/` |
-| `npm run preview` | ดูตัวอย่างไฟล์ที่ build แล้ว |
-| `npx tsc --noEmit` | ตรวจ TypeScript ทั้งโปรเจกต์ |
+### ตั้งค่า Auth0 (จำเป็นก่อนรันจริง)
+
+1. สร้าง Application ประเภท **Single Page Application** → เอา Domain + Client ID มาใส่ `.env` ฝั่ง frontend
+2. ตั้ง Allowed Callback / Logout / Web Origins = `http://localhost:8443`
+3. เปิด Social Connection **Google** (ใช้กับฝั่งลูกค้า)
+4. เปิด Database Connection **Username-Password-Authentication** (ใช้กับฝั่งเจ้าของร้าน) แล้วสร้างบัญชี Owner เอง 1 บัญชี (User Management → Users → Create User)
+5. สร้าง **API** (Applications → APIs → Create API) เอา Identifier มาใส่ `VITE_AUTH0_AUDIENCE` (frontend) และ `AUTH0_AUDIENCE` (backend) ให้ตรงกันเป๊ะ
+6. ในหน้า Settings ของ API นั้น เลื่อนไปหัวข้อ **Application Access Policy** ตั้ง **User-delegated Access** เป็น **"All Applications"** (หรือไป authorize แอปเป็นรายตัวที่ Application → APIs tab ก็ได้)
+7. สร้าง Auth0 Action (Actions → Library → Build Custom, Trigger: **Login / Post Login**) เพื่อกำหนด role ตาม connection ที่ login เข้ามา:
+
+   ```js
+   exports.onExecutePostLogin = async (event, api) => {
+     const role = event.connection.name === 'Username-Password-Authentication' ? 'owner' : 'customer'
+     api.idToken.setCustomClaim('https://pipatphochana-catering.app/role', role)
+     api.accessToken.setCustomClaim('https://pipatphochana-catering.app/role', role)
+   }
+   ```
+
+   กด **Deploy** แล้วไปที่ **Actions → Triggers → post-login** ลาก Action นี้เข้า flow แล้วกด **Apply**
 
 ---
 
 ## การเข้าใช้งาน
 
-หน้าแรกคือหน้า **เข้าสู่ระบบ** — เป็นระบบจำลอง กดปุ่มเข้าสู่ระบบได้เลยโดยไม่ต้องใส่รหัสจริง
-สลับไปหน้าเจ้าของร้านได้จากหน้า Login และกลับมาฝั่งลูกค้าด้วยปุ่ม **"มุมมองลูกค้า"** มุมขวาบนของหลังบ้าน
+หน้าแรกคือหน้า **เข้าสู่ระบบ**:
+
+- ปุ่ม **"เข้าสู่ระบบด้วย Google"** — สำหรับลูกค้า login ผ่าน Auth0 (Google Social Login)
+- ลิงก์ **"เข้าระบบในฐานะเจ้าของร้าน"** — สำหรับพนักงานร้าน login ด้วย username/password ที่สร้างไว้ใน Auth0
+
+ลูกค้าที่ login ครั้งแรกจะต้องกรอกเบอร์โทร/Line ID เพิ่ม (ข้อมูลที่ Google ไม่มีให้) ก่อนเข้าใช้งาน
+
+เจ้าของร้านสามารถกดปุ่มลอย **"กลับสู่แดชบอร์ด"** (มุมขวาล่าง) เพื่อสลับกลับจากมุมมองลูกค้าได้ทุกเมื่อ
 
 ---
 
@@ -70,29 +103,31 @@ npm run dev
 
 ### ฝั่งลูกค้า (6 ขั้นตอน)
 
-1. **เลือกวันจัดงาน** — ปฏิทินบอกสถานะคิวจริง (ว่าง / เหลือบางช่วง / เต็ม) และบอกที่ว่างรายช่วงเวลา
+1. **เลือกวันจัดงาน** — ปฏิทินบอกสถานะคิวจริง (ว่าง / เต็ม) ตามการจองจริงในฐานข้อมูล
 2. **เลือกจำนวนโต๊ะ** — 1–500 โต๊ะ พร้อมแจ้งเงื่อนไขพื้นที่
 3. **เลือกสถานที่** — แผนที่จริง (Leaflet + OpenStreetMap) ค้นหาสถานที่ ลากหมุด ใช้ GPS และกรอกรายละเอียดการเข้าถึง
 4. **เลือกแพ็กเกจ** — โต๊ะจีน 2,000 / 3,000 / 5,000 บาทต่อโต๊ะ
 5. **เลือกเมนู** — อาหาร 9 ข้อ เลือกได้ข้อละ 1 อย่างตามที่ร้านกำหนด
-6. **ตะกร้าและยืนยันการจอง** — สรุปราคา แผนที่ และรายการอาหาร
+6. **ตะกร้าและยืนยันการจอง** — สรุปราคา แผนที่ และรายการอาหาร แล้วบันทึกลงฐานข้อมูลจริง
 
-มีหน้า **ประวัติการจอง** ที่เปิดดู/พิมพ์ **ใบเสนอราคา** และ **ใบจอง** ได้
+มีหน้า **ประวัติการจอง** ที่เปิดดู/พิมพ์ **ใบเสนอราคา** และ **ใบจอง** ได้ พร้อมแนบสลิปโอนเงินมัดจำ
 
 ### ฝั่งเจ้าของร้าน
 
-- **แดชบอร์ด** — รายได้/จำนวนงานย้อนหลัง 8 เดือน สัดส่วนแพ็กเกจ และงานที่ใกล้ถึง (คำนวณจากข้อมูลจริงทั้งหมด)
+- **แดชบอร์ด** — รายได้/จำนวนงานย้อนหลัง สัดส่วนแพ็กเกจ และงานที่ใกล้ถึง (คำนวณจากข้อมูลจริงในฐานข้อมูล)
 - **รายการจอง** — ดูรายละเอียด เปลี่ยนสถานะ และ **คำนวณจำนวนพนักงานอัตโนมัติ** พร้อมปรับแก้และใส่หมายเหตุได้
 - **ปฏิทิน** — ดูงานทั้งเดือน สถานะคิว และเปลี่ยนสถานะงานได้จากปฏิทิน
 - **แพ็กเกจ** — เพิ่ม/แก้ไขแพ็กเกจ และเลือกเมนูในแต่ละประเภทอาหารได้เอง
 - **เมนูอาหาร** — เพิ่ม/แก้ไข/ลบเมนู อัปโหลดรูปจากเครื่อง (ย่อขนาดอัตโนมัติ)
+- **ลูกค้า** — รายชื่อ/ประวัติลูกค้าพร้อมเบอร์โทรและ Line ID
 - **เอกสาร** — ออกใบเสนอราคาและใบจอง พิมพ์หรือบันทึกเป็น PDF ได้
+- **ตั้งค่า** — แก้ข้อมูลร้าน อัตรามัดจำ ค่าขนส่ง ขั้นต่ำโต๊ะ
 
 ---
 
 ## กติกาธุรกิจในระบบ
 
-| เรื่อง | เงื่อนไข | แก้ได้ที่ |
+| เรื่อง | เงื่อนไข | แก้ได้ที่ (frontend) |
 |---|---|---|
 | พื้นที่ร้าน | **นครปฐม** รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง | `src/geo.ts` |
 | กรุงเทพและปริมณฑล | ไม่ถึง 30 โต๊ะ คิดค่าขนส่ง 2,000 บาท | `src/geo.ts` |
@@ -103,7 +138,7 @@ npm run dev
 | พ่อครัว | 1 คน ต่อ 1 งาน | `src/staffing.ts` |
 | ผู้ช่วยพ่อครัว / ล้างจาน | 1 คน ต่อ 20 โต๊ะ (เศษเกิน 10 โต๊ะ เพิ่ม 1 คน) | `src/staffing.ts` |
 
-ข้อมูลร้านบนหัวเอกสาร (ชื่อ ที่อยู่ เบอร์โทร Line) แก้ได้ที่ `SHOP_INFO` ใน `src/documents.ts`
+ค่าเริ่มต้นของร้าน (มัดจำ, ค่าขนส่ง, ขั้นต่ำโต๊ะ, ข้อมูลร้านบนหัวเอกสาร) ตอนนี้แก้ได้จริงจากหน้า **ตั้งค่า** ฝั่งเจ้าของร้าน (บันทึกลงฐานข้อมูล ไม่ใช่ค่าคงที่ในโค้ดอีกต่อไป)
 
 ---
 
@@ -112,47 +147,80 @@ npm run dev
 ```
 Catering Booking Web Application/
 ├── src/
-│   ├── App.tsx                 # จัดการ state และสลับหน้าทั้งหมด
-│   ├── data.ts                 # แพ็กเกจ เมนู หมวดอาหาร และข้อมูลตัวอย่าง
-│   ├── types.ts                # TypeScript types ทั้งโปรเจกต์
-│   ├── geo.ts                  # โซนบริการ ค่าขนส่ง และค้นหาสถานที่
-│   ├── availability.ts         # คิวรับงานและสถานะปฏิทิน
-│   ├── staffing.ts             # คำนวณจำนวนพนักงาน
-│   ├── documents.ts            # ใบเสนอราคา/ใบจอง และบาทตัวอักษร
-│   ├── imageUpload.ts          # อ่านและย่อรูปที่อัปโหลด
-│   ├── components/             # Navbar, แผนที่, การ์ดเมนู, เอกสาร
+│   ├── App.tsx                 # จัดการ state, auth gating และสลับหน้าทั้งหมด
+│   ├── api.ts                   # เรียก backend API ทั้งหมด (แปลง shape ให้ตรง types.ts)
+│   ├── auth.ts                  # ค่าคงที่/helper เกี่ยวกับ Auth0 role claim
+│   ├── data.ts                  # หมวดอาหาร (CATEGORIES) และ helper functions
+│   ├── types.ts                 # TypeScript types ทั้งโปรเจกต์
+│   ├── geo.ts                   # โซนบริการ ค่าขนส่ง และค้นหาสถานที่
+│   ├── availability.ts          # คิวรับงานและสถานะปฏิทิน
+│   ├── staffing.ts               # คำนวณจำนวนพนักงาน
+│   ├── documents.ts             # ใบเสนอราคา/ใบจอง และบาทตัวอักษร
+│   ├── imageUpload.ts           # อ่านและย่อรูปที่อัปโหลด
+│   ├── components/              # Navbar, แผนที่, การ์ดเมนู, เอกสาร
 │   └── screens/
-│       ├── ...                 # หน้าฝั่งลูกค้า
-│       └── owner/              # หน้าฝั่งเจ้าของร้าน
+│       ├── ...                  # หน้าฝั่งลูกค้า
+│       └── owner/               # หน้าฝั่งเจ้าของร้าน
 ├── index.html
 ├── package.json
 └── vite.config.ts
+
+backend/
+├── prisma/
+│   ├── schema.prisma            # User, Booking, Package, PackageCourse, MenuItem, Settings
+│   └── seed.ts                  # ใส่แพ็กเกจ/เมนูเริ่มต้น
+└── src/
+    ├── main.ts
+    ├── app.module.ts
+    ├── auth/                     # Auth0 JWT guard + role guard
+    ├── users/                    # sync profile, PATCH เบอร์โทร/Line ID
+    ├── bookings/
+    ├── packages/
+    ├── menus/
+    └── settings/
 ```
+
+---
+
+## คำสั่งที่ใช้บ่อย
+
+### Frontend
+
+| คำสั่ง | ใช้ทำอะไร |
+|---|---|
+| `pnpm dev` | รัน development server พร้อม hot reload (`localhost:8443`) |
+| `pnpm build` | สร้างไฟล์สำหรับ production ลงโฟลเดอร์ `dist/` |
+| `pnpm preview` | ดูตัวอย่างไฟล์ที่ build แล้ว |
+| `npx tsc --noEmit` | ตรวจ TypeScript ทั้งโปรเจกต์ |
+
+### Backend
+
+| คำสั่ง | ใช้ทำอะไร |
+|---|---|
+| `pnpm start:dev` | รัน development server พร้อม hot reload (`localhost:3000`) |
+| `pnpm build` | compile TypeScript ลงโฟลเดอร์ `dist/` |
+| `pnpm prisma:migrate` | สร้าง/อัปเดต migration และตารางในฐานข้อมูล (dev) |
+| `pnpm prisma:deploy` | รัน migration ที่มีอยู่แล้วกับฐานข้อมูล (production) |
+| `pnpm prisma:seed` | ใส่ข้อมูลแพ็กเกจ/เมนูเริ่มต้น |
 
 ---
 
 ## แก้ปัญหาที่พบบ่อย
 
-### (Windows) `npm : File ...\npm.ps1 cannot be loaded because running scripts is disabled on this system`
-
-```
-npm : File C:\Program Files\nodejs\npm.ps1 cannot be loaded because running scripts
-is disabled on this system.
-    + FullyQualifiedErrorId : UnauthorizedAccess
-```
+### (Windows) `pnpm : File ...\pnpm.ps1 cannot be loaded because running scripts is disabled on this system`
 
 **สาเหตุ:** Windows PowerShell ตั้งค่าห้ามรันสคริปต์ (`.ps1`) ไว้ตั้งแต่แรก ไม่เกี่ยวกับ Node หรือโปรเจกต์นี้ — เลือกวิธีแก้ได้ 3 แบบ
 
-**วิธีที่ 1 — เติม `.cmd` ต่อท้าย (ง่ายสุด ไม่ต้องแก้ตั้งค่าอะไรเลย)**
+**วิธีที่ 1 — ใช้ `corepack pnpm` แทน `pnpm` เฉย ๆ (ง่ายสุด ไม่ต้องแก้ตั้งค่าอะไรเลย)**
 
 ```powershell
-npm.cmd install
-npm.cmd run dev
+corepack pnpm install
+corepack pnpm dev
 ```
 
 **วิธีที่ 2 — เปิด Command Prompt (cmd) แทน PowerShell**
 
-กด `Win + R` พิมพ์ `cmd` กด Enter แล้ว `cd` เข้าโฟลเดอร์โปรเจกต์ ใช้ `npm install` ได้ตามปกติ
+กด `Win + R` พิมพ์ `cmd` กด Enter แล้ว `cd` เข้าโฟลเดอร์โปรเจกต์ ใช้ `pnpm install` ได้ตามปกติ
 
 **วิธีที่ 3 — อนุญาตให้ PowerShell รันสคริปต์ได้ถาวร (แนะนำถ้าต้องใช้บ่อย)**
 
@@ -185,21 +253,19 @@ Node.js v20.11.1
   nvm install 22.12.0
   nvm use 22.12.0
   ```
-- **ถ้าใช้ nvm (macOS / Linux)** — ในโฟลเดอร์โปรเจกต์มีไฟล์ `.nvmrc` อยู่แล้ว สั่งได้เลย
+- **ถ้าใช้ nvm (macOS / Linux)** —
   ```bash
-  nvm install
-  nvm use
+  nvm install 22
+  nvm use 22
   ```
 
-เช็กว่าอัปเกรดสำเร็จด้วย `node -v` แล้วค่อย `npm install` และ `npm run dev` ใหม่
+เช็กว่าอัปเกรดสำเร็จด้วย `node -v` แล้วค่อยรัน `pnpm install` และ `pnpm dev`/`pnpm start:dev` ใหม่
 
-> โปรเจกต์ตั้ง `engine-strict` ไว้ ถ้า Node ไม่ถึงเวอร์ชันขั้นต่ำ `npm install` จะหยุดพร้อมบอกเวอร์ชันที่ต้องใช้ตั้งแต่แรก
+### login แล้วขึ้น `invalid_request` / `Client ... is not authorized to access resource server ...`
 
-### `npm install` แล้วขึ้น `EBADENGINE`
+Application ยังไม่ได้รับอนุญาตให้ขอ token เข้า API — ไปที่ Auth0 → API ที่สร้างไว้ → Settings → **Application Access Policy** ตั้ง User-delegated Access เป็น "All Applications" (ดูหัวข้อ [ตั้งค่า Auth0](#ตั้งค่า-auth0-จำเป็นก่อนรันจริง) ข้อ 6)
 
-เป็นข้อความเดียวกับด้านบน — Node เก่าเกินไป อัปเกรดตามวิธีข้างต้นได้เลย
-
-### `cd` เข้าโฟลเดอร์ไม่ได้
+### `cd` เข้าโฟลเดอร์ frontend ไม่ได้
 
 ชื่อโฟลเดอร์มีเว้นวรรค ต้องใส่เครื่องหมายคำพูด
 
@@ -215,8 +281,8 @@ cd "Catering Booking Web Application"
 
 ## ข้อควรรู้
 
-- **ยังไม่มี backend** ข้อมูลทั้งหมดเก็บในหน่วยความจำของเบราว์เซอร์ — สิ่งที่แก้ไข (จองงาน เพิ่มเมนู แก้แพ็กเกจ) จะหายเมื่อรีเฟรชหน้า และกลับไปเป็นข้อมูลตัวอย่างเริ่มต้น
-- **แผนที่และการค้นหาสถานที่** ใช้ OpenStreetMap และ Nominatim ไม่ต้องใช้ API key แต่ต้องต่ออินเทอร์เน็ต หากเรียกไม่ได้ ระบบจะสำรองด้วยรายการสถานที่ยอดนิยมให้อัตโนมัติ
-- **วันที่ในข้อมูลตัวอย่าง** คำนวณจากวันที่ปัจจุบัน จึงมีงานขึ้นบนปฏิทินและกราฟเสมอไม่ว่าจะเปิดใช้เมื่อไร
-- **รูปเมนูที่อัปโหลด** ถูกย่อและเก็บเป็น data URL ในหน่วยความจำ ไม่ได้อัปโหลดขึ้นเซิร์ฟเวอร์
+- **รูปเมนูที่อัปโหลดและสลิปโอนเงิน** ถูกย่อและเก็บเป็น base64 ตรงในฐานข้อมูล ยังไม่ได้แยกไปเก็บที่ object storage (เช่น Cloudflare R2) — ใช้งานได้จริงสำหรับต้นแบบ แต่ควรย้ายก่อนใช้งานเชิงพาณิชย์ที่มีผู้ใช้จำนวนมาก
+- **การชำระเงินมัดจำ** ยังใช้วิธีลูกค้าแนบสลิปให้ร้านตรวจสอบเอง ไม่ใช่ payment gateway จริง (พร้อมเพย์/บัตรเครดิต)
+- **ระบบยังรันอยู่บนเครื่อง dev เท่านั้น** ยังไม่ได้ deploy ขึ้น production จริง (แผนคือ Vercel สำหรับ frontend และ Railway สำหรับ backend/ฐานข้อมูล)
 - **การพิมพ์เอกสาร** ใช้ระบบพิมพ์ของเบราว์เซอร์ เลือก "Save as PDF" เพื่อบันทึกเป็นไฟล์ได้
+- ยังไม่มี automated test (unit/e2e) — มีแค่ TypeScript type-check

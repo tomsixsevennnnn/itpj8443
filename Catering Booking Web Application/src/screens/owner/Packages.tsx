@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Edit2, Plus, Trash2, X } from 'lucide-react'
 import type { MenuItem, Package, PackageCourse } from '../../types'
 import { CATEGORIES, CATEGORY_MAP, requiredCourses } from '../../data'
+import type { CreatePackageInput, UpdatePackageInput } from '../../api'
 
 interface PackagesProps {
   packages: Package[]
   /** คลังเมนูของร้าน — มาจากหน้า "เมนูอาหาร" */
   menus: MenuItem[]
-  onUpdate: (packages: Package[]) => void
+  onCreatePackage: (input: CreatePackageInput) => void
+  onUpdatePackage: (id: string, input: UpdatePackageInput) => void
+  onDeletePackage: (id: string) => void
 }
 
 const emptyForm = { name: '', pricePerTable: 0, description: '', badge: '' }
@@ -24,7 +27,7 @@ const newCourse = (no: number, categoryId: string): PackageCourse => ({
 /** แพ็กเกจใหม่เริ่มต้นด้วย 9 ข้อ ตามประเภทอาหารทั้งหมด */
 const blankCourses = (): PackageCourse[] => CATEGORIES.map((c, i) => newCourse(i + 1, c.id))
 
-export default function Packages({ packages, menus, onUpdate }: PackagesProps) {
+export default function Packages({ packages, menus, onCreatePackage, onUpdatePackage, onDeletePackage }: PackagesProps) {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Package | null>(null)
   const [form, setForm] = useState(emptyForm)
@@ -96,22 +99,31 @@ export default function Packages({ packages, menus, onUpdate }: PackagesProps) {
   const handleSave = () => {
     if (!canSave) return
     const normalized = courses.map((c, i) => ({ ...c, no: i + 1 }))
+    const courseInputs = normalized.map(c => ({
+      no: c.no,
+      title: c.title,
+      category: c.category,
+      choose: c.choose,
+      itemIds: c.items.map(i => i.id),
+    }))
     const base = {
-      ...form,
+      name: form.name,
+      pricePerTable: form.pricePerTable,
+      description: form.description,
       badge: form.badge.trim(),
-      courses: normalized,
       menuLimit: normalized.length,
+      courses: courseInputs,
     }
     if (editing) {
-      onUpdate(packages.map(p => (p.id === editing.id ? { ...p, ...base } : p)))
+      onUpdatePackage(editing.id, base)
     } else {
-      onUpdate([...packages, { ...base, id: `pkg-${Date.now()}`, features: ['บริการเสิร์ฟ'] }])
+      onCreatePackage({ ...base, features: ['บริการเสิร์ฟ'] })
     }
     setShowModal(false)
   }
 
   const handleDelete = (id: string) => {
-    onUpdate(packages.filter(p => p.id !== id))
+    onDeletePackage(id)
   }
 
   return (

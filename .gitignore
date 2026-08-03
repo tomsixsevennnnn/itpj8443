@@ -4,7 +4,13 @@ package-lock.json
 
 # build output ของเครื่องมือ/แคช
 .vite/
+dist/
 *.local
+
+# ค่าลับ (Auth0 ฯลฯ) — อย่า commit
+.env
+.env.*
+!.env.example
 
 # ไฟล์ระบบและเครื่องมือ
 .DS_Store

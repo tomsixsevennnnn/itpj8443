@@ -12,12 +12,13 @@ import {
   Settings,
   Users,
 } from 'lucide-react'
-import type { Screen } from '../types'
+import type { Screen, UserProfile } from '../types'
 import type { ReactNode } from 'react'
 
 interface OwnerLayoutProps {
   navigate: (s: Screen) => void
   currentScreen: Screen
+  user: UserProfile | null
   children: ReactNode
 }
 
@@ -32,7 +33,7 @@ const sidebarItems = [
   { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
 
-export default function OwnerLayout({ navigate, currentScreen, children }: OwnerLayoutProps) {
+export default function OwnerLayout({ navigate, currentScreen, user, children }: OwnerLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -72,17 +73,18 @@ export default function OwnerLayout({ navigate, currentScreen, children }: Owner
         <div className="p-4 border-t border-gray-700/50 space-y-2">
           <div className="flex items-center gap-3 px-3 py-2">
             <img
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&auto=format"
+              src={user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&auto=format'}
               alt="Owner"
               className="w-9 h-9 rounded-full object-cover"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">เจ้าของร้านพิพัฒน์โภชนา</p>
-              <p className="text-[10px] text-gray-400 truncate">admin@krathai.com</p>
+              <p className="text-sm font-medium text-white truncate">{user?.name || 'เจ้าของร้านพิพัฒน์โภชนา'}</p>
+              <p className="text-[10px] text-gray-400 truncate">{user?.email || '—'}</p>
             </div>
             <button
               onClick={() => navigate('login')}
               className="text-gray-500 hover:text-red-400 transition-colors"
+              title="ออกจากระบบ"
             >
               <LogOut size={16} />
             </button>

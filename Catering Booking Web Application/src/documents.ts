@@ -19,7 +19,7 @@ export const DOC_LABEL: Record<DocType, string> = {
 
 /** เลขที่เอกสาร — ใบเสนอราคาใช้ QT- นำหน้า ส่วนใบจองใช้เลขที่จองเดิม */
 export const docNumber = (booking: Booking, type: DocType): string =>
-  type === 'quotation' ? `QT-${booking.id.split('-').slice(1).join('-')}` : booking.id
+  type === 'quotation' ? `QT-${booking.id.slice(-8).toUpperCase()}` : booking.id
 
 export const formatThaiDate = (iso: string, long = false): string =>
   new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso).toLocaleDateString(

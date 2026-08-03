@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  OWNER
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  auth0Sub  String    @unique
+  role      Role      @default(CUSTOMER)
+  name      String
+  surname   String    @default("")
+  phone     String    @default("")
+  lineId    String    @default("")
+  email     String
+  avatar    String    @default("")
+  createdAt DateTime  @default(now())
+  bookings  Booking[]
+}
+
+model MenuItem {
+  id          String          @id @default(cuid())
+  name        String
+  category    String
+  description String          @default("")
+  image       String?
+  extraPrice  Int?
+  active      Boolean         @default(true)
+  courses     PackageCourse[] @relation("CourseItems")
+}
+
+model Package {
+  id            String          @id @default(cuid())
+  name          String
+  pricePerTable Int
+  menuLimit     Int
+  description   String          @default("")
+  features      String[]
+  badge         String?
+  courses       PackageCourse[]
+}
+
+model PackageCourse {
+  id        String     @id @default(cuid())
+  package   Package    @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  packageId String
+  no        Int
+  title     String
+  category  String
+  /** 0 = รวมมาในแพ็กเกจแล้ว ไม่ต้องเลือก, >0 = ลูกค้าเลือกได้เองกี่อย่าง */
+  choose    Int
+  items     MenuItem[] @relation("CourseItems")
+}
+
+model Booking {
+  id                    String        @id @default(cuid())
+  customer              User?         @relation(fields: [customerId], references: [id])
+  customerId            String?
+  customerName          String
+  date                  String
+  timeSlot              String
+  tables                Int
+  guestCount            Int
+  packageName           String
+  totalPrice            Int
+  pricePerTable         Int?
+  deliveryFee           Int?
+  status                BookingStatus @default(PENDING)
+  location              String
+  /** พิกัด + รายละเอียดสถานที่จากแผนที่ (EventLocation ฝั่ง frontend) */
+  locationDetail        Json?
+  menus                 String[]
+  phone                 String
+  /** Line ID ของลูกค้า ณ ตอนจอง (ถ้ามี) */
+  lineId                String?
+  staffAuto             Json?
+  staffActual           Json?
+  staffNote             String?
+  staffSavedAt          DateTime?
+  paymentSlipUrl        String?
+  paymentSlipUploadedAt DateTime?
+  createdAt             DateTime      @default(now())
+
+  @@index([customerId])
+  @@index([date])
+}
+
+/** ตั้งใจให้มีแถวเดียวเสมอ (id = 1) เก็บค่าตั้งค่าร้าน */
+model Settings {
+  id                    Int    @id @default(1)
+  shopName              String
+  shopNameEn            String
+  shopInitials          String
+  shopAddress           String
+  shopPhone             String
+  shopLine              String
+  /** 0–1 เช่น 0.5 = 50% */
+  depositRate           Float
+  deliveryFee           Int
+  freeDeliveryMinTables Int
+}

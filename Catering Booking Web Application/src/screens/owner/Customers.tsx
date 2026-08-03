@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, Phone, Search, ShoppingBag, User, Wallet, X } from 'lucide-react'
+import { Calendar, MessageCircle, Phone, Search, ShoppingBag, User, Wallet, X } from 'lucide-react'
 import type { Booking } from '../../types'
 
 interface CustomersProps {
@@ -17,6 +17,7 @@ interface CustomerSummary {
   key: string
   name: string
   phone: string
+  lineId: string
   bookings: Booking[]
   totalSpent: number
   lastDate: string
@@ -32,11 +33,13 @@ const groupByCustomer = (bookings: Booking[]): CustomerSummary[] => {
       existing.bookings.push(b)
       if (b.status !== 'cancelled') existing.totalSpent += b.totalPrice
       if (b.date > existing.lastDate) existing.lastDate = b.date
+      if (b.lineId && b.lineId !== '—') existing.lineId = b.lineId
     } else {
       map.set(key, {
         key,
         name: b.customerName,
         phone: b.phone,
+        lineId: b.lineId || '—',
         bookings: [b],
         totalSpent: b.status !== 'cancelled' ? b.totalPrice : 0,
         lastDate: b.date,
@@ -52,7 +55,7 @@ export default function Customers({ bookings }: CustomersProps) {
 
   const customers = groupByCustomer(bookings)
   const filtered = customers.filter(c =>
-    c.name.includes(search) || c.phone.includes(search) || search === ''
+    c.name.includes(search) || c.phone.includes(search) || c.lineId.includes(search) || search === ''
   )
   const selected = selectedKey ? customers.find(c => c.key === selectedKey) ?? null : null
 
@@ -64,7 +67,7 @@ export default function Customers({ bookings }: CustomersProps) {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="ค้นหาชื่อลูกค้า หรือเบอร์โทร..."
+            placeholder="ค้นหาชื่อลูกค้า, เบอร์โทร หรือ Line ID..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -91,7 +94,7 @@ export default function Customers({ bookings }: CustomersProps) {
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['ลูกค้า', 'เบอร์โทร', 'จำนวนครั้งที่จอง', 'ยอดใช้จ่ายรวม', 'จองล่าสุด', ''].map(col => (
+              {['ลูกค้า', 'เบอร์โทร', 'Line ID', 'จำนวนครั้งที่จอง', 'ยอดใช้จ่ายรวม', 'จองล่าสุด', ''].map(col => (
                 <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500">{col}</th>
               ))}
             </tr>
@@ -112,6 +115,7 @@ export default function Customers({ bookings }: CustomersProps) {
                   </div>
                 </td>
                 <td className="px-4 py-3.5 text-sm text-gray-600">{c.phone}</td>
+                <td className="px-4 py-3.5 text-sm text-gray-600">{c.lineId}</td>
                 <td className="px-4 py-3.5 text-sm text-gray-700">{c.bookings.length} ครั้ง</td>
                 <td className="px-4 py-3.5">
                   <span className="font-bold text-orange-600">{c.totalSpent.toLocaleString()}</span>
@@ -147,6 +151,12 @@ export default function Customers({ bookings }: CustomersProps) {
                   <Phone size={12} />
                   {selected.phone}
                 </p>
+                {selected.lineId !== '—' && (
+                  <p className="text-orange-100 text-sm flex items-center gap-1.5 mt-0.5">
+                    <MessageCircle size={12} />
+                    {selected.lineId}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setSelectedKey(null)}

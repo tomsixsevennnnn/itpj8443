@@ -130,6 +130,8 @@ export interface Booking {
   locationDetail?: EventLocation
   menus: string[]
   phone: string
+  /** Line ID ของลูกค้า ณ ตอนจอง — ใช้ให้ร้านติดต่อ/ดูประวัติที่หน้า "ลูกค้า" */
+  lineId?: string
   /** จำนวนพนักงานที่ระบบคำนวณได้ ณ ตอนบันทึก (เก็บไว้อ้างอิง) */
   staffAuto?: StaffPlan
   /** จำนวนพนักงานที่เจ้าของร้านปรับแก้และใช้จริง */

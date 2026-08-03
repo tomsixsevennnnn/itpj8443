@@ -1,9 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useAuth0 } from '@auth0/auth0-react'
+import { LayoutDashboard } from 'lucide-react'
 import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package } from './types'
-import { MENU_ITEMS, MOCK_BOOKINGS, PACKAGES, includedItems } from './data'
+import { includedItems } from './data'
 import { DEFAULT_DEPOSIT_RATE, DEFAULT_SHOP_INFO } from './documents'
 import { DEFAULT_DELIVERY_FEE, DEFAULT_FREE_DELIVERY_MIN_TABLES, deliveryFeeFor, formatFullAddress } from './geo'
+import { roleFromAuth0User } from './auth'
+import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput } from './api'
 import Login from './screens/Login'
+import CompleteProfile from './screens/CompleteProfile'
 import Home from './screens/Home'
 import BookingCalendar from './screens/BookingCalendar'
 import SelectTable from './screens/SelectTable'
@@ -48,36 +53,94 @@ const initialBooking: BookingData = {
   selectedMenus: [],
 }
 
+const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&auto=format'
+
 export default function App() {
+  const { isAuthenticated, isLoading, user: auth0User, logout, getAccessTokenSilently } = useAuth0()
   const [screen, setScreen] = useState<Screen>('login')
-  const [user, setUser] = useState<UserProfile | null>(null)
   const [booking, setBooking] = useState<BookingData>(initialBooking)
-  // รายการจองทั้งหมด — ใช้ร่วมกันทั้งปฏิทินลูกค้า ปฏิทินร้าน ประวัติ และเอกสาร
-  const [bookings, setBookings] = useState<Booking[]>(MOCK_BOOKINGS)
+  // รายการจองทั้งหมด — ใช้ร่วมกันทั้งปฏิทินลูกค้า ปฏิทินร้าน ประวัติ และเอกสาร (มาจาก backend ทั้งหมด)
+  const [bookings, setBookings] = useState<Booking[]>([])
   // แพ็กเกจและคลังเมนูอยู่ที่นี่ เพื่อให้เจ้าของร้านแก้แล้วฝั่งลูกค้าเห็นผลทันที
-  const [packages, setPackages] = useState<Package[]>(PACKAGES)
-  const [menus, setMenus] = useState<MenuItem[]>(MENU_ITEMS)
+  const [packages, setPackages] = useState<Package[]>([])
+  const [menus, setMenus] = useState<MenuItem[]>([])
   // ค่าตั้งค่าร้าน — แก้ได้จากหน้า "ตั้งค่า" ฝั่งเจ้าของร้าน มีผลกับค่าขนส่ง มัดจำ และข้อมูลบนเอกสารทันที
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
+  // โปรไฟล์ผู้ใช้จาก backend (ผูกกับ Auth0 sub) — เป็นแหล่งความจริงเดียวของ user profile
+  const [backendUser, setBackendUser] = useState<BackendUser | null>(null)
+  const [dataLoaded, setDataLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  /** โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — sync user + ดึง bookings/packages/menus/settings พร้อมกัน */
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+
+    const load = async () => {
+      try {
+        const token = await getAccessTokenSilently()
+        // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
+        const [me, bks, pkgs, mns, sttgs] = await Promise.all([
+          api.syncProfile(token, {
+            name: auth0User?.given_name || auth0User?.name?.split(' ')[0] || 'ผู้ใช้',
+            surname: auth0User?.family_name || auth0User?.name?.split(' ').slice(1).join(' ') || '',
+            email: auth0User?.email ?? '',
+            avatar: auth0User?.picture ?? '',
+          }),
+          api.bookings(token),
+          api.packages(token),
+          api.menus(token),
+          api.settings(token),
+        ])
+        if (cancelled) return
+        setBackendUser(me)
+        setBookings(bks)
+        setPackages(pkgs)
+        setMenus(mns)
+        setSettings(sttgs)
+        setDataLoaded(true)
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, getAccessTokenSilently, auth0User])
+
+  const withToken = () => getAccessTokenSilently()
 
   /** เพิ่มหรือแก้ไขเมนู — ถ้าแก้ของเดิม ให้ซิงก์เข้าไปในแพ็กเกจที่ใช้เมนูนี้อยู่ด้วย */
-  const handleSaveMenu = (item: MenuItem) => {
-    setMenus(prev =>
-      prev.some(m => m.id === item.id) ? prev.map(m => (m.id === item.id ? item : m)) : [...prev, item]
-    )
+  const handleSaveMenu = async (item: MenuItem) => {
+    const token = await withToken()
+    const isExisting = menus.some(m => m.id === item.id)
+    const input = {
+      name: item.name,
+      category: item.category,
+      description: item.description,
+      image: item.image,
+      extraPrice: item.extraPrice,
+      active: item.active,
+    }
+    const saved = isExisting ? await api.updateMenu(token, item.id, input) : await api.createMenu(token, input)
+
+    setMenus(prev => (isExisting ? prev.map(m => (m.id === saved.id ? saved : m)) : [...prev, saved]))
     setPackages(prev =>
       prev.map(p => ({
         ...p,
         courses: p.courses.map(c => ({
           ...c,
-          items: c.items.map(i => (i.id === item.id ? item : i)),
+          items: c.items.map(i => (i.id === saved.id ? saved : i)),
         })),
       }))
     )
   }
 
   /** ลบเมนูออกจากคลัง พร้อมถอดออกจากทุกแพ็กเกจที่ใช้อยู่ */
-  const handleDeleteMenu = (id: string) => {
+  const handleDeleteMenu = async (id: string) => {
+    const token = await withToken()
+    await api.deleteMenu(token, id)
     setMenus(prev => prev.filter(m => m.id !== id))
     setPackages(prev =>
       prev.map(p => ({
@@ -87,11 +150,56 @@ export default function App() {
     )
   }
 
-  const navigate = (s: Screen) => setScreen(s)
-
-  const handleLogin = (u: UserProfile) => {
-    setUser(u)
+  const handleCreatePackage = async (input: CreatePackageInput) => {
+    const token = await withToken()
+    const created = await api.createPackage(token, input)
+    setPackages(prev => [...prev, created])
   }
+
+  const handleUpdatePackage = async (id: string, input: UpdatePackageInput) => {
+    const token = await withToken()
+    const updated = await api.updatePackage(token, id, input)
+    setPackages(prev => prev.map(p => (p.id === id ? updated : p)))
+  }
+
+  const handleDeletePackage = async (id: string) => {
+    const token = await withToken()
+    await api.deletePackage(token, id)
+    setPackages(prev => prev.filter(p => p.id !== id))
+  }
+
+  /** เข้าเว็บด้วย role จาก Auth0 (customer = Google, owner = username/password) ดู src/auth.ts */
+  const role = roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
+  /** เบอร์โทร/Line ID เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ยังไม่กรอก = phone ว่าง */
+  const needsProfile = isAuthenticated && role === 'customer' && backendUser !== null && !backendUser.phone
+
+  const user: UserProfile | null = backendUser
+    ? {
+        name: backendUser.name,
+        surname: backendUser.surname,
+        phone: backendUser.phone,
+        lineId: backendUser.lineId,
+        email: backendUser.email,
+        avatar: backendUser.avatar || DEFAULT_AVATAR,
+      }
+    : null
+
+  /** navigate('login') คือปุ่ม "ออกจากระบบ" เดิมทุกจุดในแอป — ผูกเข้ากับ Auth0 logout จริงตรงนี้ที่เดียว */
+  const navigate = (s: Screen) => {
+    if (s === 'login') {
+      logout({ logoutParams: { returnTo: window.location.origin } })
+      return
+    }
+    setScreen(s)
+  }
+
+  /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที */
+  const effectiveScreen: Screen =
+    screen === 'login' && isAuthenticated && !needsProfile
+      ? role === 'owner'
+        ? 'owner-dashboard'
+        : 'home'
+      : screen
 
   const handleSelectDateTime = (date: string, timeSlot: string) => {
     setBooking(b => ({ ...b, date, timeSlot }))
@@ -125,18 +233,19 @@ export default function App() {
     setBooking(b => ({ ...b, selectedMenus: menus }))
   }
 
-  const handleUpdateSettings = (patch: Partial<AppSettings>) => {
-    setSettings(s => ({ ...s, ...patch }))
+  const handleUpdateSettings = async (patch: Partial<AppSettings>) => {
+    const token = await withToken()
+    const updated = await api.updateSettings(token, patch)
+    setSettings(updated)
   }
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     // คิดยอดแบบเดียวกับหน้าตะกร้า เพื่อให้ใบเสนอราคา/ใบจองตรงกัน
     const subtotal = booking.packagePrice * booking.tables
     const deliveryFee = deliveryFeeFor(booking.tables, booking.location, settings.deliveryFee, settings.freeDeliveryMinTables)
 
-    const newBooking: Booking = {
-      id: `BK-2025-${String(Math.floor(Math.random() * 900 + 100))}`,
-      customerName: user ? `${user.name} ${user.surname}` : 'ลูกค้า',
+    const token = await withToken()
+    const created = await api.createBooking(token, {
       date: booking.date || new Date().toISOString().split('T')[0],
       timeSlot: booking.timeSlot || 'ทั้งวัน',
       tables: booking.tables,
@@ -145,36 +254,104 @@ export default function App() {
       totalPrice: subtotal + deliveryFee,
       pricePerTable: booking.packagePrice,
       deliveryFee,
-      status: 'pending',
       location: booking.location ? formatFullAddress(booking.location) : 'ไม่ระบุ',
       locationDetail: booking.location ?? undefined,
       menus: booking.selectedMenus.map(m => m.name),
-      phone: user?.phone || '—',
-    }
-    setBookings(prev => [newBooking, ...prev])
+      lineId: user?.lineId || undefined,
+    })
+    setBookings(prev => [created, ...prev])
     setBooking(initialBooking)
   }
 
-  /** แก้ไขใบจอง (เปลี่ยนสถานะ / บันทึกแผนกำลังคน) */
-  const handleUpdateBooking = (id: string, patch: Partial<Booking>) => {
-    setBookings(prev => prev.map(b => (b.id === id ? { ...b, ...patch } : b)))
+  /** แก้ไขใบจอง — แยกปลายทางตาม patch: ลูกค้าแนบสลิป vs เจ้าของร้านเปลี่ยนสถานะ/บันทึกแผนกำลังคน */
+  const handleUpdateBooking = async (id: string, patch: Partial<Booking>) => {
+    try {
+      const token = await withToken()
+      const updated =
+        'paymentSlip' in patch && patch.paymentSlip
+          ? await api.uploadPaymentSlip(token, id, patch.paymentSlip)
+          : await api.updateBookingAsOwner(token, id, {
+              status: patch.status,
+              staffAuto: patch.staffAuto,
+              staffActual: patch.staffActual,
+              staffNote: patch.staffNote,
+            })
+      setBookings(prev => prev.map(b => (b.id === id ? updated : b)))
+    } catch (err) {
+      console.error('อัปเดตใบจองไม่สำเร็จ', err)
+    }
+  }
+
+  // กำลังตรวจสอบ session ของ Auth0 (โหลดครั้งแรก / กลับจาก redirect)
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">กำลังโหลด...</div>
+    )
+  }
+
+  // ยังไม่ login
+  if (!isAuthenticated) {
+    return <Login />
+  }
+
+  // โหลดข้อมูลจาก backend ไม่สำเร็จ (เช่น server ไม่ทำงาน, token audience ไม่ตรง)
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-red-500 text-sm">โหลดข้อมูลไม่สำเร็จ: {loadError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="text-sm text-orange-600 hover:text-orange-700 font-medium underline"
+        >
+          ลองใหม่
+        </button>
+      </div>
+    )
+  }
+
+  // กำลังดึงข้อมูล bookings/packages/menus/settings จาก backend หลัง login
+  if (!dataLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">กำลังโหลดข้อมูล...</div>
+    )
+  }
+
+  // login ด้วย Google ครั้งแรก — Auth0 ไม่มีเบอร์โทร/Line ID ให้ ขอเพิ่มก่อนเข้าใช้งาน
+  if (needsProfile) {
+    return (
+      <CompleteProfile
+        name={backendUser?.name || ''}
+        onComplete={async (profile) => {
+          const token = await withToken()
+          const updated = await api.updateProfile(token, profile)
+          setBackendUser(updated)
+          setScreen('home')
+        }}
+      />
+    )
   }
 
   // Owner screens
-  if (OWNER_SCREENS.includes(screen)) {
+  if (OWNER_SCREENS.includes(effectiveScreen)) {
     return (
-      <OwnerLayout navigate={navigate} currentScreen={screen}>
-        {screen === 'owner-dashboard' && <Dashboard bookings={bookings} />}
-        {screen === 'owner-orders' && (
+      <OwnerLayout navigate={navigate} currentScreen={effectiveScreen} user={user}>
+        {effectiveScreen === 'owner-dashboard' && <Dashboard bookings={bookings} />}
+        {effectiveScreen === 'owner-orders' && (
           <Orders bookings={bookings} onUpdateBooking={handleUpdateBooking} />
         )}
-        {screen === 'owner-calendar' && (
+        {effectiveScreen === 'owner-calendar' && (
           <CalendarView bookings={bookings} onUpdateBooking={handleUpdateBooking} />
         )}
-        {screen === 'owner-packages' && (
-          <Packages packages={packages} menus={menus} onUpdate={setPackages} />
+        {effectiveScreen === 'owner-packages' && (
+          <Packages
+            packages={packages}
+            menus={menus}
+            onCreatePackage={handleCreatePackage}
+            onUpdatePackage={handleUpdatePackage}
+            onDeletePackage={handleDeletePackage}
+          />
         )}
-        {screen === 'owner-menus' && (
+        {effectiveScreen === 'owner-menus' && (
           <Menus
             menus={menus}
             packages={packages}
@@ -182,9 +359,9 @@ export default function App() {
             onDeleteMenu={handleDeleteMenu}
           />
         )}
-        {screen === 'owner-documents' && <Documents bookings={bookings} settings={settings} />}
-        {screen === 'owner-customers' && <Customers bookings={bookings} />}
-        {screen === 'owner-settings' && (
+        {effectiveScreen === 'owner-documents' && <Documents bookings={bookings} settings={settings} />}
+        {effectiveScreen === 'owner-customers' && <Customers bookings={bookings} />}
+        {effectiveScreen === 'owner-settings' && (
           <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
         )}
       </OwnerLayout>
@@ -194,13 +371,20 @@ export default function App() {
   // Customer screens
   return (
     <>
-      {screen === 'login' && (
-        <Login navigate={navigate} onLogin={handleLogin} />
+      {/* เจ้าของร้านกำลังดูมุมมองลูกค้าอยู่ (กดปุ่ม "มุมมองลูกค้า" ใน OwnerLayout) — มีทางกลับเสมอ ไม่ว่าจะอยู่หน้าไหน */}
+      {role === 'owner' && (
+        <button
+          onClick={() => navigate('owner-dashboard')}
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-4 py-3 rounded-2xl shadow-lg text-sm font-medium transition-colors"
+        >
+          <LayoutDashboard size={16} />
+          กลับสู่แดชบอร์ด
+        </button>
       )}
-      {screen === 'home' && (
+      {effectiveScreen === 'home' && (
         <Home navigate={navigate} user={user} />
       )}
-      {screen === 'booking-calendar' && (
+      {effectiveScreen === 'booking-calendar' && (
         <BookingCalendar
           navigate={navigate}
           user={user}
@@ -208,7 +392,7 @@ export default function App() {
           onSelectDateTime={handleSelectDateTime}
         />
       )}
-      {screen === 'select-table' && (
+      {effectiveScreen === 'select-table' && (
         <SelectTable
           navigate={navigate}
           user={user}
@@ -222,7 +406,7 @@ export default function App() {
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
         />
       )}
-      {screen === 'select-location' && (
+      {effectiveScreen === 'select-location' && (
         <SelectLocation
           navigate={navigate}
           user={user}
@@ -233,7 +417,7 @@ export default function App() {
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
         />
       )}
-      {screen === 'select-package' && (
+      {effectiveScreen === 'select-package' && (
         <SelectPackage
           navigate={navigate}
           user={user}
@@ -243,7 +427,7 @@ export default function App() {
           onSelectPackage={handleSelectPackage}
         />
       )}
-      {screen === 'select-menu' && (
+      {effectiveScreen === 'select-menu' && (
         <SelectMenu
           navigate={navigate}
           user={user}
@@ -253,7 +437,7 @@ export default function App() {
           onSetMenus={handleSetMenus}
         />
       )}
-      {screen === 'cart' && (
+      {effectiveScreen === 'cart' && (
         <Cart
           navigate={navigate}
           user={user}
@@ -264,7 +448,7 @@ export default function App() {
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
         />
       )}
-      {screen === 'history' && (
+      {effectiveScreen === 'history' && (
         <BookingHistory
           navigate={navigate}
           user={user}
@@ -273,7 +457,7 @@ export default function App() {
           settings={settings}
         />
       )}
-      {screen === 'notifications' && (
+      {effectiveScreen === 'notifications' && (
         <Notifications navigate={navigate} user={user} />
       )}
     </>
