@@ -13,13 +13,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { ArrowDownRight, ArrowUpRight, Calendar, Clock, DollarSign, ShoppingBag, Users } from 'lucide-react'
-import type { Booking } from '../../types'
+import { ArrowDownRight, ArrowUpRight, Calendar, Clock, DollarSign, TrendingUp, ShoppingBag, Users, Wallet } from 'lucide-react'
+import type { AppSettings, Booking, MenuItem } from '../../types'
 import { BOOKING_STATUS_INFO, TIME_SLOTS, slotIdOf } from '../../availability'
 import { calculateStaff, sumStaff, toPlan } from '../../staffing'
+import { bookingCostSummary } from '../../costing'
 
 interface DashboardProps {
   bookings: Booking[]
+  menus: MenuItem[]
+  settings: AppSettings
 }
 
 const MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
@@ -36,7 +39,7 @@ const pctChange = (now: number, prev: number): number | null => {
   return Math.round(((now - prev) / prev) * 100)
 }
 
-export default function Dashboard({ bookings }: DashboardProps) {
+export default function Dashboard({ bookings, menus, settings }: DashboardProps) {
   const stats = useMemo(() => {
     const today = new Date()
     const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -51,6 +54,15 @@ export default function Dashboard({ bookings }: DashboardProps) {
 
     const thisMonthList = inMonth(thisMonth)
     const prevMonthList = inMonth(prevMonth)
+
+    const profitOf = (list: Booking[]) =>
+      list.reduce((sum, b) => sum + bookingCostSummary(b, menus, settings).profit, 0)
+    const costOf = (list: Booking[]) =>
+      list.reduce((sum, b) => sum + bookingCostSummary(b, menus, settings).totalCost, 0)
+    const thisMonthProfit = profitOf(thisMonthList)
+    const prevMonthProfit = profitOf(prevMonthList)
+    const thisMonthCost = costOf(thisMonthList)
+    const prevMonthCost = costOf(prevMonthList)
 
     const todayList = active.filter(b => b.date === todayKey)
     const todaySlots = todayList.reduce<Record<string, number>>((acc, b) => {
@@ -111,15 +123,19 @@ export default function Dashboard({ bookings }: DashboardProps) {
       thisMonthCount: thisMonthList.length,
       thisMonthRevenue: revenueOf(thisMonthList),
       thisMonthTables: thisMonthList.reduce((sum, b) => sum + b.tables, 0),
+      thisMonthProfit,
+      thisMonthCost,
       bookingChange: pctChange(thisMonthList.length, prevMonthList.length),
       revenueChange: pctChange(revenueOf(thisMonthList), revenueOf(prevMonthList)),
+      profitChange: pctChange(thisMonthProfit, prevMonthProfit),
+      costChange: pctChange(thisMonthCost, prevMonthCost),
       monthly,
       packages,
       upcoming,
       upcomingStaff,
       buddhistYear: today.getFullYear() + 543,
     }
-  }, [bookings])
+  }, [bookings, menus, settings])
 
   const todaySlotText =
     stats.todayList.length > 0
@@ -146,6 +162,22 @@ export default function Dashboard({ bookings }: DashboardProps) {
       color: 'from-green-400 to-green-600',
     },
     {
+      label: 'ต้นทุนเดือนนี้',
+      value: `฿${stats.thisMonthCost.toLocaleString()}`,
+      sub: 'ต้นทุนเมนู + ค่าแรง',
+      change: stats.costChange,
+      icon: Wallet,
+      color: 'from-rose-400 to-rose-600',
+    },
+    {
+      label: 'กำไรเดือนนี้',
+      value: `฿${stats.thisMonthProfit.toLocaleString()}`,
+      sub: 'หลังหักต้นทุนเมนู + ค่าแรง',
+      change: stats.profitChange,
+      icon: TrendingUp,
+      color: 'from-teal-400 to-teal-600',
+    },
+    {
       label: 'งานวันนี้',
       value: `${stats.todayList.length} งาน`,
       sub: todaySlotText,
@@ -166,7 +198,7 @@ export default function Dashboard({ bookings }: DashboardProps) {
   return (
     <div className="space-y-6">
       {/* Stat cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
         {cards.map((card) => {
           const Icon = card.icon
           const up = card.change != null && card.change >= 0

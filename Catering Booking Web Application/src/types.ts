@@ -33,6 +33,10 @@ export interface MenuItem {
   description: string
   image?: string
   extraPrice?: number
+  /** ราคาทุนต่อจาน (บาท) — กรอกตรงๆ ไม่คำนวณจากวัตถุดิบ */
+  costPrice?: number
+  /** ราคาขายต่อจาน (บาท) — ใช้คิดกำไรต่อจาน */
+  sellPrice?: number
   /** เปิด/ปิดการแสดงในคลังเมนูของร้าน (ไม่ตั้งค่า = เปิด) */
   active?: boolean
 }
@@ -105,11 +109,9 @@ export interface StaffPlan {
   dishwashers: number
 }
 
-/** ผลลัพธ์ที่ระบบคำนวณ พร้อมช่วงพนักงานเสิร์ฟตามเกณฑ์ 5–8 โต๊ะ/คน */
+/** ผลลัพธ์ที่ระบบคำนวณจากจำนวนโต๊ะ */
 export interface StaffCalculation extends StaffPlan {
   total: number
-  serversMin: number
-  serversMax: number
 }
 
 export interface Booking {
@@ -174,4 +176,12 @@ export interface AppSettings {
   deliveryFee: number
   /** จำนวนโต๊ะขั้นต่ำสำหรับงานนอกพื้นที่ร้าน */
   freeDeliveryMinTables: number
+  /** ค่าแรงพ่อครัว (บาท/คน/งาน) */
+  wageChef: number
+  /** ค่าแรงผู้ช่วยพ่อครัว (บาท/คน/งาน) */
+  wageAssistant: number
+  /** ค่าแรงเสิร์ฟ (บาท/โต๊ะ) — คิดตามจำนวนโต๊ะโดยตรง ไม่ใช่ต่อคน */
+  wageServerPerTable: number
+  /** ค่าแรงพนักงานล้างจาน (บาท/คน/งาน) */
+  wageDishwasher: number
 }

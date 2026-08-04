@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "MenuItem" ADD COLUMN     "costPrice" INTEGER,
+ADD COLUMN     "sellPrice" INTEGER;
+
+-- AlterTable
+ALTER TABLE "Settings" ADD COLUMN     "wageAssistant" INTEGER NOT NULL DEFAULT 1000,
+ADD COLUMN     "wageChef" INTEGER NOT NULL DEFAULT 1200,
+ADD COLUMN     "wageDishwasher" INTEGER NOT NULL DEFAULT 500,
+ADD COLUMN     "wageServerPerTable" INTEGER NOT NULL DEFAULT 100;

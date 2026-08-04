@@ -2,17 +2,15 @@ import type { StaffCalculation, StaffPlan } from './types'
 
 /* ------------------------------------------------------------------ *
  * หลักเกณฑ์การคำนวณจำนวนพนักงาน (คำนวณจากจำนวนโต๊ะที่ลูกค้าจอง)
- *   - พนักงานเสิร์ฟ       1 คน ดูแล 5–8 โต๊ะ
+ *   - พนักงานเสิร์ฟ       1 คน ต่อ 8 โต๊ะ
  *   - พ่อครัว             1 คน ต่อ 1 งาน
  *   - ผู้ช่วยพ่อครัว       1 คน ต่อ 20 โต๊ะ
  *   - พนักงานล้างจาน      1 คน ต่อ 20 โต๊ะ
  *   - หารแล้วมีเศษมากกว่า 10 โต๊ะ ให้เพิ่มพนักงานอีก 1 คน
  * ------------------------------------------------------------------ */
 
-/** จำนวนโต๊ะสูงสุดที่พนักงานเสิร์ฟ 1 คนดูแลได้ */
-export const TABLES_PER_SERVER_MAX = 8
-/** จำนวนโต๊ะต่ำสุดที่พนักงานเสิร์ฟ 1 คนดูแล (จัดเต็มอัตรา) */
-export const TABLES_PER_SERVER_MIN = 5
+/** พนักงานเสิร์ฟ 1 คน ต่อกี่โต๊ะ */
+export const TABLES_PER_SERVER = 8
 /** ผู้ช่วยพ่อครัว / พนักงานล้างจาน 1 คน ต่อกี่โต๊ะ */
 export const TABLES_PER_SUPPORT = 20
 /** เศษเกินกี่โต๊ะจึงเพิ่มพนักงานอีก 1 คน */
@@ -33,7 +31,7 @@ export const supportStaffFor = (tables: number): number => {
  * คำนวณพนักงานเสิร์ฟ — ปัดขึ้นเพื่อไม่ให้ใครดูแลเกิน 8 โต๊ะ
  * เช่น 25 โต๊ะ → 4 คน (เฉลี่ยคนละ 6.25 โต๊ะ)
  */
-export const serversFor = (tables: number, tablesPerServer = TABLES_PER_SERVER_MAX): number =>
+export const serversFor = (tables: number, tablesPerServer = TABLES_PER_SERVER): number =>
   Math.max(1, Math.ceil(tables / tablesPerServer))
 
 export const sumStaff = (plan: StaffPlan): number =>
@@ -51,9 +49,6 @@ export const calculateStaff = (tables: number): StaffCalculation => {
   return {
     ...plan,
     total: sumStaff(plan),
-    // ช่วงพนักงานเสิร์ฟตามเกณฑ์ 5–8 โต๊ะ/คน (ขั้นต่ำ = 8 โต๊ะ/คน, เต็มอัตรา = 5 โต๊ะ/คน)
-    serversMin: serversFor(safeTables, TABLES_PER_SERVER_MAX),
-    serversMax: serversFor(safeTables, TABLES_PER_SERVER_MIN),
   }
 }
 
@@ -65,7 +60,7 @@ export interface StaffRoleMeta {
 }
 
 export const STAFF_ROLES: StaffRoleMeta[] = [
-  { key: 'servers', label: 'พนักงานเสิร์ฟ', icon: '🧍', rule: '1 คน ดูแล 5–8 โต๊ะ' },
+  { key: 'servers', label: 'พนักงานเสิร์ฟ', icon: '🧍', rule: '1 คน ต่อ 8 โต๊ะ' },
   { key: 'chefs', label: 'พ่อครัว', icon: '👨‍🍳', rule: '1 คน ต่อ 1 งาน' },
   { key: 'assistants', label: 'ผู้ช่วยพ่อครัว', icon: '🥘', rule: '1 คน ต่อ 20 โต๊ะ · เศษเกิน 10 โต๊ะ +1 คน' },
   { key: 'dishwashers', label: 'พนักงานล้างจาน', icon: '🧽', rule: '1 คน ต่อ 20 โต๊ะ · เศษเกิน 10 โต๊ะ +1 คน' },

@@ -11,4 +11,9 @@ export class UpdateSettingsDto {
   @IsOptional() @IsNumber() @Min(0) @Max(1) depositRate?: number
   @IsOptional() @IsInt() @Min(0) deliveryFee?: number
   @IsOptional() @IsInt() @Min(0) freeDeliveryMinTables?: number
+
+  @IsOptional() @IsInt() @Min(0) wageChef?: number
+  @IsOptional() @IsInt() @Min(0) wageAssistant?: number
+  @IsOptional() @IsInt() @Min(0) wageServerPerTable?: number
+  @IsOptional() @IsInt() @Min(0) wageDishwasher?: number
 }

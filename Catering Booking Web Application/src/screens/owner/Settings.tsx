@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Building2, Check, Percent, Save, Truck } from 'lucide-react'
+import { Building2, Check, Percent, Save, Truck, Users } from 'lucide-react'
 import type { AppSettings } from '../../types'
 
 interface SettingsProps {
@@ -15,6 +15,13 @@ const SHOP_FIELDS: { key: keyof AppSettings['shopInfo']; label: string; placehol
   { key: 'line', label: 'Line ID ร้าน', placeholder: 'เช่น @pipatphochana' },
 ]
 
+const WAGE_FIELDS: { key: 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 'wageDishwasher'; label: string; unit: string }[] = [
+  { key: 'wageChef', label: 'ค่าแรงพ่อครัว', unit: 'บาท/คน/งาน' },
+  { key: 'wageAssistant', label: 'ค่าแรงผู้ช่วยพ่อครัว', unit: 'บาท/คน/งาน' },
+  { key: 'wageServerPerTable', label: 'ค่าแรงพนักงานเสิร์ฟ', unit: 'บาท/โต๊ะ' },
+  { key: 'wageDishwasher', label: 'ค่าแรงพนักงานล้างจาน', unit: 'บาท/คน/งาน' },
+]
+
 export default function Settings({ settings, onUpdateSettings }: SettingsProps) {
   const [form, setForm] = useState<AppSettings>(settings)
   const [savedAt, setSavedAt] = useState<number | null>(null)
@@ -26,7 +33,10 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
     setSavedAt(null)
   }
 
-  const setNumberField = (key: 'depositRate' | 'deliveryFee' | 'freeDeliveryMinTables', value: number) => {
+  const setNumberField = (
+    key: 'depositRate' | 'deliveryFee' | 'freeDeliveryMinTables' | 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 'wageDishwasher',
+    value: number,
+  ) => {
     setForm(f => ({ ...f, [key]: value }))
     setSavedAt(null)
   }
@@ -128,6 +138,34 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
+        </div>
+      </div>
+
+      {/* อัตราค่าแรง */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Users size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">อัตราค่าแรง</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          ค่าแรง flat ต่อคนต่องาน ยกเว้นเสิร์ฟที่คิดตามจำนวนโต๊ะโดยตรง — ใช้คำนวณค่าแรงรวมของแต่ละงาน
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {WAGE_FIELDS.map(({ key, label, unit }) => (
+            <div key={key}>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={form[key]}
+                  onChange={e => setNumberField(key, Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                />
+                <span className="text-xs text-gray-400 whitespace-nowrap">{unit}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

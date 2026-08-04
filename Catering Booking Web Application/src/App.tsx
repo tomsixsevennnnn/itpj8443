@@ -5,8 +5,15 @@ import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocat
 import { includedItems } from './data'
 import { DEFAULT_DEPOSIT_RATE, DEFAULT_SHOP_INFO } from './documents'
 import { DEFAULT_DELIVERY_FEE, DEFAULT_FREE_DELIVERY_MIN_TABLES, deliveryFeeFor, formatFullAddress } from './geo'
+import {
+  DEFAULT_WAGE_ASSISTANT,
+  DEFAULT_WAGE_CHEF,
+  DEFAULT_WAGE_DISHWASHER,
+  DEFAULT_WAGE_SERVER_PER_TABLE,
+} from './costing'
 import { roleFromAuth0User } from './auth'
 import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput } from './api'
+import ErrorBanner from './components/ErrorBanner'
 import Login from './screens/Login'
 import CompleteProfile from './screens/CompleteProfile'
 import Home from './screens/Home'
@@ -38,6 +45,10 @@ const initialSettings: AppSettings = {
   depositRate: DEFAULT_DEPOSIT_RATE,
   deliveryFee: DEFAULT_DELIVERY_FEE,
   freeDeliveryMinTables: DEFAULT_FREE_DELIVERY_MIN_TABLES,
+  wageChef: DEFAULT_WAGE_CHEF,
+  wageAssistant: DEFAULT_WAGE_ASSISTANT,
+  wageServerPerTable: DEFAULT_WAGE_SERVER_PER_TABLE,
+  wageDishwasher: DEFAULT_WAGE_DISHWASHER,
 }
 
 const initialBooking: BookingData = {
@@ -70,6 +81,9 @@ export default function App() {
   const [backendUser, setBackendUser] = useState<BackendUser | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+  // แจ้งเตือนลอยตอนทำรายการ (จอง/แก้แพ็กเกจ/แก้เมนู ฯลฯ) ไม่สำเร็จ — คนละเรื่องกับ loadError ที่บล็อกทั้งหน้า
+  const [actionError, setActionError] = useState<string | null>(null)
 
   /** โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — sync user + ดึง bookings/packages/menus/settings พร้อมกัน */
   useEffect(() => {
@@ -77,6 +91,7 @@ export default function App() {
     let cancelled = false
 
     const load = async () => {
+      setLoadError(null)
       try {
         const token = await getAccessTokenSilently()
         // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
@@ -107,66 +122,83 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, getAccessTokenSilently, auth0User])
+  }, [isAuthenticated, getAccessTokenSilently, auth0User, retryKey])
 
   const withToken = () => getAccessTokenSilently()
 
-  /** เพิ่มหรือแก้ไขเมนู — ถ้าแก้ของเดิม ให้ซิงก์เข้าไปในแพ็กเกจที่ใช้เมนูนี้อยู่ด้วย */
-  const handleSaveMenu = async (item: MenuItem) => {
-    const token = await withToken()
-    const isExisting = menus.some(m => m.id === item.id)
-    const input = {
-      name: item.name,
-      category: item.category,
-      description: item.description,
-      image: item.image,
-      extraPrice: item.extraPrice,
-      active: item.active,
+  /** ห่อ handler ที่ยิง API ทุกตัว — ถ้า error ให้เด้ง banner แจ้งผู้ใช้แทนที่จะเงียบ/พังไม่รู้สาเหตุ */
+  const runAction = async (fn: () => Promise<void>) => {
+    try {
+      setActionError(null)
+      await fn()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง')
     }
-    const saved = isExisting ? await api.updateMenu(token, item.id, input) : await api.createMenu(token, input)
-
-    setMenus(prev => (isExisting ? prev.map(m => (m.id === saved.id ? saved : m)) : [...prev, saved]))
-    setPackages(prev =>
-      prev.map(p => ({
-        ...p,
-        courses: p.courses.map(c => ({
-          ...c,
-          items: c.items.map(i => (i.id === saved.id ? saved : i)),
-        })),
-      }))
-    )
   }
+
+  /** เพิ่มหรือแก้ไขเมนู — ถ้าแก้ของเดิม ให้ซิงก์เข้าไปในแพ็กเกจที่ใช้เมนูนี้อยู่ด้วย */
+  const handleSaveMenu = (item: MenuItem) =>
+    runAction(async () => {
+      const token = await withToken()
+      const isExisting = menus.some(m => m.id === item.id)
+      const input = {
+        name: item.name,
+        category: item.category,
+        description: item.description,
+        image: item.image,
+        extraPrice: item.extraPrice,
+        costPrice: item.costPrice,
+        sellPrice: item.sellPrice,
+        active: item.active,
+      }
+      const saved = isExisting ? await api.updateMenu(token, item.id, input) : await api.createMenu(token, input)
+
+      setMenus(prev => (isExisting ? prev.map(m => (m.id === saved.id ? saved : m)) : [...prev, saved]))
+      setPackages(prev =>
+        prev.map(p => ({
+          ...p,
+          courses: p.courses.map(c => ({
+            ...c,
+            items: c.items.map(i => (i.id === saved.id ? saved : i)),
+          })),
+        }))
+      )
+    })
 
   /** ลบเมนูออกจากคลัง พร้อมถอดออกจากทุกแพ็กเกจที่ใช้อยู่ */
-  const handleDeleteMenu = async (id: string) => {
-    const token = await withToken()
-    await api.deleteMenu(token, id)
-    setMenus(prev => prev.filter(m => m.id !== id))
-    setPackages(prev =>
-      prev.map(p => ({
-        ...p,
-        courses: p.courses.map(c => ({ ...c, items: c.items.filter(i => i.id !== id) })),
-      }))
-    )
-  }
+  const handleDeleteMenu = (id: string) =>
+    runAction(async () => {
+      const token = await withToken()
+      await api.deleteMenu(token, id)
+      setMenus(prev => prev.filter(m => m.id !== id))
+      setPackages(prev =>
+        prev.map(p => ({
+          ...p,
+          courses: p.courses.map(c => ({ ...c, items: c.items.filter(i => i.id !== id) })),
+        }))
+      )
+    })
 
-  const handleCreatePackage = async (input: CreatePackageInput) => {
-    const token = await withToken()
-    const created = await api.createPackage(token, input)
-    setPackages(prev => [...prev, created])
-  }
+  const handleCreatePackage = (input: CreatePackageInput) =>
+    runAction(async () => {
+      const token = await withToken()
+      const created = await api.createPackage(token, input)
+      setPackages(prev => [...prev, created])
+    })
 
-  const handleUpdatePackage = async (id: string, input: UpdatePackageInput) => {
-    const token = await withToken()
-    const updated = await api.updatePackage(token, id, input)
-    setPackages(prev => prev.map(p => (p.id === id ? updated : p)))
-  }
+  const handleUpdatePackage = (id: string, input: UpdatePackageInput) =>
+    runAction(async () => {
+      const token = await withToken()
+      const updated = await api.updatePackage(token, id, input)
+      setPackages(prev => prev.map(p => (p.id === id ? updated : p)))
+    })
 
-  const handleDeletePackage = async (id: string) => {
-    const token = await withToken()
-    await api.deletePackage(token, id)
-    setPackages(prev => prev.filter(p => p.id !== id))
-  }
+  const handleDeletePackage = (id: string) =>
+    runAction(async () => {
+      const token = await withToken()
+      await api.deletePackage(token, id)
+      setPackages(prev => prev.filter(p => p.id !== id))
+    })
 
   /** เข้าเว็บด้วย role จาก Auth0 (customer = Google, owner = username/password) ดู src/auth.ts */
   const role = roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
@@ -233,39 +265,41 @@ export default function App() {
     setBooking(b => ({ ...b, selectedMenus: menus }))
   }
 
-  const handleUpdateSettings = async (patch: Partial<AppSettings>) => {
-    const token = await withToken()
-    const updated = await api.updateSettings(token, patch)
-    setSettings(updated)
-  }
-
-  const handleConfirm = async () => {
-    // คิดยอดแบบเดียวกับหน้าตะกร้า เพื่อให้ใบเสนอราคา/ใบจองตรงกัน
-    const subtotal = booking.packagePrice * booking.tables
-    const deliveryFee = deliveryFeeFor(booking.tables, booking.location, settings.deliveryFee, settings.freeDeliveryMinTables)
-
-    const token = await withToken()
-    const created = await api.createBooking(token, {
-      date: booking.date || new Date().toISOString().split('T')[0],
-      timeSlot: booking.timeSlot || 'ทั้งวัน',
-      tables: booking.tables,
-      guestCount: booking.guestCount,
-      packageName: booking.packageName || 'Standard',
-      totalPrice: subtotal + deliveryFee,
-      pricePerTable: booking.packagePrice,
-      deliveryFee,
-      location: booking.location ? formatFullAddress(booking.location) : 'ไม่ระบุ',
-      locationDetail: booking.location ?? undefined,
-      menus: booking.selectedMenus.map(m => m.name),
-      lineId: user?.lineId || undefined,
+  const handleUpdateSettings = (patch: Partial<AppSettings>) =>
+    runAction(async () => {
+      const token = await withToken()
+      const updated = await api.updateSettings(token, patch)
+      setSettings(updated)
     })
-    setBookings(prev => [created, ...prev])
-    setBooking(initialBooking)
-  }
+
+  const handleConfirm = () =>
+    runAction(async () => {
+      // คิดยอดแบบเดียวกับหน้าตะกร้า เพื่อให้ใบเสนอราคา/ใบจองตรงกัน
+      const subtotal = booking.packagePrice * booking.tables
+      const deliveryFee = deliveryFeeFor(booking.tables, booking.location, settings.deliveryFee, settings.freeDeliveryMinTables)
+
+      const token = await withToken()
+      const created = await api.createBooking(token, {
+        date: booking.date || new Date().toISOString().split('T')[0],
+        timeSlot: booking.timeSlot || 'ทั้งวัน',
+        tables: booking.tables,
+        guestCount: booking.guestCount,
+        packageName: booking.packageName || 'Standard',
+        totalPrice: subtotal + deliveryFee,
+        pricePerTable: booking.packagePrice,
+        deliveryFee,
+        location: booking.location ? formatFullAddress(booking.location) : 'ไม่ระบุ',
+        locationDetail: booking.location ?? undefined,
+        menus: booking.selectedMenus.map(m => m.name),
+        lineId: user?.lineId || undefined,
+      })
+      setBookings(prev => [created, ...prev])
+      setBooking(initialBooking)
+    })
 
   /** แก้ไขใบจอง — แยกปลายทางตาม patch: ลูกค้าแนบสลิป vs เจ้าของร้านเปลี่ยนสถานะ/บันทึกแผนกำลังคน */
-  const handleUpdateBooking = async (id: string, patch: Partial<Booking>) => {
-    try {
+  const handleUpdateBooking = (id: string, patch: Partial<Booking>) =>
+    runAction(async () => {
       const token = await withToken()
       const updated =
         'paymentSlip' in patch && patch.paymentSlip
@@ -277,10 +311,7 @@ export default function App() {
               staffNote: patch.staffNote,
             })
       setBookings(prev => prev.map(b => (b.id === id ? updated : b)))
-    } catch (err) {
-      console.error('อัปเดตใบจองไม่สำเร็จ', err)
-    }
-  }
+    })
 
   // กำลังตรวจสอบ session ของ Auth0 (โหลดครั้งแรก / กลับจาก redirect)
   if (isLoading) {
@@ -300,7 +331,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
         <p className="text-red-500 text-sm">โหลดข้อมูลไม่สำเร็จ: {loadError}</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => setRetryKey(k => k + 1)}
           className="text-sm text-orange-600 hover:text-orange-700 font-medium underline"
         >
           ลองใหม่
@@ -319,15 +350,20 @@ export default function App() {
   // login ด้วย Google ครั้งแรก — Auth0 ไม่มีเบอร์โทร/Line ID ให้ ขอเพิ่มก่อนเข้าใช้งาน
   if (needsProfile) {
     return (
-      <CompleteProfile
-        name={backendUser?.name || ''}
-        onComplete={async (profile) => {
-          const token = await withToken()
-          const updated = await api.updateProfile(token, profile)
-          setBackendUser(updated)
-          setScreen('home')
-        }}
-      />
+      <>
+        {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
+        <CompleteProfile
+          name={backendUser?.name || ''}
+          onComplete={(profile) =>
+            runAction(async () => {
+              const token = await withToken()
+              const updated = await api.updateProfile(token, profile)
+              setBackendUser(updated)
+              setScreen('home')
+            })
+          }
+        />
+      </>
     )
   }
 
@@ -335,9 +371,12 @@ export default function App() {
   if (OWNER_SCREENS.includes(effectiveScreen)) {
     return (
       <OwnerLayout navigate={navigate} currentScreen={effectiveScreen} user={user}>
-        {effectiveScreen === 'owner-dashboard' && <Dashboard bookings={bookings} />}
+        {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
+        {effectiveScreen === 'owner-dashboard' && (
+          <Dashboard bookings={bookings} menus={menus} settings={settings} />
+        )}
         {effectiveScreen === 'owner-orders' && (
-          <Orders bookings={bookings} onUpdateBooking={handleUpdateBooking} />
+          <Orders bookings={bookings} menus={menus} settings={settings} onUpdateBooking={handleUpdateBooking} />
         )}
         {effectiveScreen === 'owner-calendar' && (
           <CalendarView bookings={bookings} onUpdateBooking={handleUpdateBooking} />
@@ -359,7 +398,9 @@ export default function App() {
             onDeleteMenu={handleDeleteMenu}
           />
         )}
-        {effectiveScreen === 'owner-documents' && <Documents bookings={bookings} settings={settings} />}
+        {effectiveScreen === 'owner-documents' && (
+          <Documents bookings={bookings} menus={menus} settings={settings} />
+        )}
         {effectiveScreen === 'owner-customers' && <Customers bookings={bookings} />}
         {effectiveScreen === 'owner-settings' && (
           <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
@@ -371,6 +412,7 @@ export default function App() {
   // Customer screens
   return (
     <>
+      {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
       {/* เจ้าของร้านกำลังดูมุมมองลูกค้าอยู่ (กดปุ่ม "มุมมองลูกค้า" ใน OwnerLayout) — มีทางกลับเสมอ ไม่ว่าจะอยู่หน้าไหน */}
       {role === 'owner' && (
         <button

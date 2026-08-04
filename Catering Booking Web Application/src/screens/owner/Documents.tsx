@@ -2,14 +2,16 @@ import { useState } from 'react'
 import { Eye, FileText, Printer, Search } from 'lucide-react'
 import BookingDocument from '../../components/BookingDocument'
 import { DOC_LABEL, docNumber, type DocType } from '../../documents'
-import type { AppSettings, Booking } from '../../types'
+import { bookingCostSummary } from '../../costing'
+import type { AppSettings, Booking, MenuItem } from '../../types'
 
 interface DocumentsProps {
   bookings: Booking[]
+  menus: MenuItem[]
   settings: AppSettings
 }
 
-export default function Documents({ bookings, settings }: DocumentsProps) {
+export default function Documents({ bookings, menus, settings }: DocumentsProps) {
   const [activeTab, setActiveTab] = useState<DocType>('quotation')
   const [search, setSearch] = useState('')
   const [previewBooking, setPreviewBooking] = useState<Booking | null>(null)
@@ -140,6 +142,38 @@ export default function Documents({ bookings, settings }: DocumentsProps) {
                 depositRate={settings.depositRate}
               />
             </div>
+
+            {/* ต้นทุน/กำไรของงานนี้ — ข้อมูลภายในร้าน ไม่พิมพ์ออกเอกสาร */}
+            {(() => {
+              const cost = bookingCostSummary(previewBooking, menus, settings)
+              return (
+                <div className="no-print border-t border-gray-100 p-4 bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                    ต้นทุน / กำไร (ไม่แสดงในเอกสาร)
+                  </p>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <div className="bg-white rounded-lg p-2 border border-gray-100">
+                      <p className="text-[10px] text-gray-400">ต้นทุนเมนู</p>
+                      <p className="text-sm font-bold text-gray-800">฿{cost.menuCost.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-gray-100">
+                      <p className="text-[10px] text-gray-400">ค่าแรง</p>
+                      <p className="text-sm font-bold text-gray-800">฿{cost.wageCost.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-gray-100">
+                      <p className="text-[10px] text-gray-400">ต้นทุนรวม</p>
+                      <p className="text-sm font-bold text-gray-800">฿{cost.totalCost.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-gray-100">
+                      <p className="text-[10px] text-gray-400">กำไร</p>
+                      <p className={`text-sm font-bold ${cost.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        ฿{cost.profit.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-dashed border-gray-200 flex items-center justify-center h-64">

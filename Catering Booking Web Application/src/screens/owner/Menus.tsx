@@ -4,6 +4,7 @@ import DishTile from '../../components/DishTile'
 import type { MenuItem, Package } from '../../types'
 import { CATEGORIES, CATEGORY_MAP } from '../../data'
 import { pickImageAsDataUrl } from '../../imageUpload'
+import { menuProfitPerPlate } from '../../costing'
 
 interface MenusProps {
   menus: MenuItem[]
@@ -17,6 +18,8 @@ interface MenuForm {
   category: string
   description: string
   extraPrice: number
+  costPrice: number
+  sellPrice: number
   image: string
 }
 
@@ -25,6 +28,8 @@ const emptyForm = (category: string): MenuForm => ({
   category,
   description: '',
   extraPrice: 0,
+  costPrice: 0,
+  sellPrice: 0,
   image: '',
 })
 
@@ -74,6 +79,8 @@ export default function Menus({ menus, packages, onSaveMenu, onDeleteMenu }: Men
       category: item.category,
       description: item.description,
       extraPrice: item.extraPrice ?? 0,
+      costPrice: item.costPrice ?? 0,
+      sellPrice: item.sellPrice ?? 0,
       image: item.image ?? '',
     })
     setImageError(null)
@@ -91,6 +98,8 @@ export default function Menus({ menus, packages, onSaveMenu, onDeleteMenu }: Men
       description: form.description.trim(),
       active: editing?.active ?? true,
       ...(form.extraPrice > 0 ? { extraPrice: form.extraPrice } : {}),
+      ...(form.costPrice > 0 ? { costPrice: form.costPrice } : {}),
+      ...(form.sellPrice > 0 ? { sellPrice: form.sellPrice } : {}),
       ...(form.image.trim() ? { image: form.image.trim() } : {}),
     }
     onSaveMenu(item)
@@ -187,6 +196,25 @@ export default function Menus({ menus, packages, onSaveMenu, onDeleteMenu }: Men
                   {usedIn.length > 0 && (
                     <p className="text-[10px] text-blue-500 mb-2">ใช้ใน {usedIn.length} แพ็กเกจ</p>
                   )}
+
+                  {(menu.costPrice != null || menu.sellPrice != null) && (() => {
+                    const profit = menuProfitPerPlate(menu)
+                    return (
+                      <div className="flex items-center gap-2 text-[10px] mb-2">
+                        {menu.costPrice != null && (
+                          <span className="text-gray-400">ทุน ฿{menu.costPrice.toLocaleString()}</span>
+                        )}
+                        {menu.sellPrice != null && (
+                          <span className="text-gray-400">ขาย ฿{menu.sellPrice.toLocaleString()}</span>
+                        )}
+                        {profit != null && (
+                          <span className={`font-semibold ${profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            กำไร ฿{profit.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   <div className="flex items-center gap-1.5">
                     <button
@@ -309,6 +337,34 @@ export default function Menus({ menus, packages, onSaveMenu, onDeleteMenu }: Men
                 />
                 <p className="text-[10px] text-gray-400 mt-1">0 = ไม่มีค่าใช้จ่ายเพิ่ม</p>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">ราคาทุนต่อจาน (฿)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.costPrice}
+                    onChange={e => setForm(f => ({ ...f, costPrice: Math.max(0, Number(e.target.value) || 0) }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">ราคาขายต่อจาน (฿)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.sellPrice}
+                    onChange={e => setForm(f => ({ ...f, sellPrice: Math.max(0, Number(e.target.value) || 0) }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                </div>
+              </div>
+              {form.costPrice > 0 && form.sellPrice > 0 && (
+                <p className={`text-xs font-medium -mt-2 ${form.sellPrice - form.costPrice >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  กำไรต่อจาน ฿{(form.sellPrice - form.costPrice).toLocaleString()}
+                </p>
+              )}
 
               {/* รูปภาพเมนู — เลือกไฟล์จากเครื่อง */}
               <div>

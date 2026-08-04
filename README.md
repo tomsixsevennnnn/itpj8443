@@ -22,6 +22,7 @@
 | Backend | NestJS (Node.js + TypeScript) |
 | ฐานข้อมูล | PostgreSQL (Railway) ผ่าน Prisma ORM |
 | ยืนยันตัวตน | Auth0 — Google Social Login (ลูกค้า), Username/Password (เจ้าของร้าน) |
+| Automated test | Vitest (frontend), Jest (backend) |
 | Package manager | pnpm |
 | แผน deploy | Vercel (frontend) + Railway (backend + DB) |
 
@@ -157,25 +158,28 @@ Catering Booking Web Application/
 │   ├── staffing.ts               # คำนวณจำนวนพนักงาน
 │   ├── documents.ts             # ใบเสนอราคา/ใบจอง และบาทตัวอักษร
 │   ├── imageUpload.ts           # อ่านและย่อรูปที่อัปโหลด
-│   ├── components/              # Navbar, แผนที่, การ์ดเมนู, เอกสาร
+│   ├── *.test.ts                # unit test (Vitest) คู่กับไฟล์กติกาธุรกิจแต่ละไฟล์
+│   ├── components/              # Navbar, แผนที่, การ์ดเมนู, เอกสาร, ErrorBanner
 │   └── screens/
 │       ├── ...                  # หน้าฝั่งลูกค้า
 │       └── owner/               # หน้าฝั่งเจ้าของร้าน
 ├── index.html
 ├── package.json
-└── vite.config.ts
+├── vite.config.ts
+└── vitest.config.ts             # แยกจาก vite.config.ts เพื่อไม่ให้ชนกับ plugin ของ Figma Make
 
 backend/
 ├── prisma/
 │   ├── schema.prisma            # User, Booking, Package, PackageCourse, MenuItem, Settings
 │   └── seed.ts                  # ใส่แพ็กเกจ/เมนูเริ่มต้น
+├── jest.config.js
 └── src/
     ├── main.ts
     ├── app.module.ts
-    ├── auth/                     # Auth0 JWT guard + role guard
+    ├── auth/                     # Auth0 JWT guard + role guard (+ roles.guard.spec.ts)
     ├── users/                    # sync profile, PATCH เบอร์โทร/Line ID
     ├── bookings/
-    ├── packages/
+    ├── packages/                 # รวม endpoint แก้ทีละข้อ (courses) แยกจากแก้ทั้งแพ็กเกจ
     ├── menus/
     └── settings/
 ```
@@ -191,6 +195,8 @@ backend/
 | `pnpm dev` | รัน development server พร้อม hot reload (`localhost:8443`) |
 | `pnpm build` | สร้างไฟล์สำหรับ production ลงโฟลเดอร์ `dist/` |
 | `pnpm preview` | ดูตัวอย่างไฟล์ที่ build แล้ว |
+| `pnpm test` | รัน unit test ทั้งหมด (Vitest) |
+| `pnpm test:watch` | รัน test แบบ watch mode |
 | `npx tsc --noEmit` | ตรวจ TypeScript ทั้งโปรเจกต์ |
 
 ### Backend
@@ -202,6 +208,7 @@ backend/
 | `pnpm prisma:migrate` | สร้าง/อัปเดต migration และตารางในฐานข้อมูล (dev) |
 | `pnpm prisma:deploy` | รัน migration ที่มีอยู่แล้วกับฐานข้อมูล (production) |
 | `pnpm prisma:seed` | ใส่ข้อมูลแพ็กเกจ/เมนูเริ่มต้น |
+| `pnpm test` | รัน unit test ทั้งหมด (Jest) |
 
 ---
 
@@ -285,4 +292,4 @@ cd "Catering Booking Web Application"
 - **การชำระเงินมัดจำ** ยังใช้วิธีลูกค้าแนบสลิปให้ร้านตรวจสอบเอง ไม่ใช่ payment gateway จริง (พร้อมเพย์/บัตรเครดิต)
 - **ระบบยังรันอยู่บนเครื่อง dev เท่านั้น** ยังไม่ได้ deploy ขึ้น production จริง (แผนคือ Vercel สำหรับ frontend และ Railway สำหรับ backend/ฐานข้อมูล)
 - **การพิมพ์เอกสาร** ใช้ระบบพิมพ์ของเบราว์เซอร์ เลือก "Save as PDF" เพื่อบันทึกเป็นไฟล์ได้
-- ยังไม่มี automated test (unit/e2e) — มีแค่ TypeScript type-check
+- **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/DTO validation) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ

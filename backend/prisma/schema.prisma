@@ -40,6 +40,10 @@ model MenuItem {
   description String          @default("")
   image       String?
   extraPrice  Int?
+  /** ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ */
+  costPrice   Int?
+  /** ราคาขายต่อจาน (บาท) — ใช้คำนวณกำไรต่อจาน */
+  sellPrice   Int?
   active      Boolean         @default(true)
   courses     PackageCourse[] @relation("CourseItems")
 }
@@ -113,4 +117,10 @@ model Settings {
   depositRate           Float
   deliveryFee           Int
   freeDeliveryMinTables Int
+  /** อัตราค่าแรง flat ต่อคน ต่องาน (บาท) */
+  wageChef              Int    @default(1200)
+  wageAssistant         Int    @default(1000)
+  /** ค่าแรงเสิร์ฟ คิดต่อโต๊ะ (ไม่ใช่ต่อคน) */
+  wageServerPerTable    Int    @default(100)
+  wageDishwasher        Int    @default(500)
 }

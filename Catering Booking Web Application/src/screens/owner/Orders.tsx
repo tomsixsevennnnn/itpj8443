@@ -1,15 +1,9 @@
 import { useState } from 'react'
 import { Check, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
-import type { Booking, StaffPlan } from '../../types'
-import {
-  STAFF_ROLES,
-  TABLES_PER_SERVER_MIN,
-  calculateStaff,
-  isSamePlan,
-  sumStaff,
-  toPlan,
-} from '../../staffing'
+import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
+import { STAFF_ROLES, calculateStaff, isSamePlan, sumStaff, toPlan } from '../../staffing'
+import { bookingCostSummary } from '../../costing'
 
 const STATUS_CONFIG = {
   pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
@@ -20,10 +14,12 @@ const STATUS_CONFIG = {
 
 interface OrdersProps {
   bookings: Booking[]
+  menus: MenuItem[]
+  settings: AppSettings
   onUpdateBooking: (id: string, patch: Partial<Booking>) => void
 }
 
-export default function Orders({ bookings, onUpdateBooking }: OrdersProps) {
+export default function Orders({ bookings, menus, settings, onUpdateBooking }: OrdersProps) {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [staffDraft, setStaffDraft] = useState<StaffPlan | null>(null)
@@ -312,16 +308,6 @@ export default function Orders({ bookings, onUpdateBooking }: OrdersProps) {
                       })}
                     </div>
 
-                    {/* คำแนะนำช่วงพนักงานเสิร์ฟ 5–8 โต๊ะ/คน */}
-                    {calc.serversMax > calc.serversMin && (
-                      <button
-                        onClick={() => setStaffDraft(prev => (prev ? { ...prev, servers: calc.serversMax } : prev))}
-                        className="w-full mt-2 text-left text-[11px] text-gray-500 hover:text-orange-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 transition-colors"
-                      >
-                        💡 เสิร์ฟเต็มอัตรา ({TABLES_PER_SERVER_MIN} โต๊ะ/คน) ใช้ {calc.serversMax} คน — กดเพื่อใช้ค่านี้
-                      </button>
-                    )}
-
                     {/* รวมทั้งหมด */}
                     <div className="mt-2.5 bg-gray-900 rounded-xl p-3.5 flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -382,6 +368,34 @@ export default function Orders({ bookings, onUpdateBooking }: OrdersProps) {
                 <span className="font-bold text-gray-800">ราคารวม</span>
                 <span className="text-xl font-bold text-orange-600">฿{selected.totalPrice.toLocaleString()}</span>
               </div>
+
+              {/* ต้นทุน + กำไรของงานนี้ */}
+              {(() => {
+                const cost = bookingCostSummary(selected, menus, settings)
+                return (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">ต้นทุน / กำไรของงานนี้</p>
+                    <div className="bg-gray-50 rounded-xl p-3.5 space-y-1.5 text-sm">
+                      <div className="flex justify-between text-gray-600">
+                        <span>ต้นทุนวัตถุดิบ (เมนู)</span>
+                        <span className="font-medium">฿{cost.menuCost.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-600">
+                        <span>ค่าแรงคน</span>
+                        <span className="font-medium">฿{cost.wageCost.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-800 font-semibold pt-1.5 border-t border-gray-200">
+                        <span>ต้นทุนรวม</span>
+                        <span>฿{cost.totalCost.toLocaleString()}</span>
+                      </div>
+                      <div className={`flex justify-between font-bold pt-1.5 border-t border-gray-200 ${cost.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        <span>กำไร</span>
+                        <span>฿{cost.profit.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
               <div>

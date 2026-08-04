@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { CreatePackageDto } from './dto/create-package.dto'
+import { CourseInput, CreatePackageDto } from './dto/create-package.dto'
+import { UpdateCourseDto } from './dto/update-course.dto'
 import { UpdatePackageDto } from './dto/update-package.dto'
 
 @Injectable()
@@ -80,5 +81,47 @@ export class PackagesService {
 
   remove(id: string) {
     return this.prisma.package.delete({ where: { id } })
+  }
+
+  /** เพิ่มข้อใหม่เข้าแพ็กเกจที่มีอยู่ โดยไม่ต้องส่งคอร์สทั้งชุด */
+  addCourse(packageId: string, dto: CourseInput) {
+    return this.prisma.packageCourse.create({
+      data: {
+        packageId,
+        no: dto.no,
+        title: dto.title,
+        category: dto.category,
+        choose: dto.choose,
+        items: { connect: dto.itemIds.map((itemId) => ({ id: itemId })) },
+      },
+      include: { items: true },
+    })
+  }
+
+  /** แก้ทีละข้อ — ส่ง itemIds มา = แทนที่รายการเมนูในข้อนี้ทั้งหมด ไม่ส่ง = ไม่แตะรายการเมนูเดิม */
+  async updateCourse(packageId: string, courseId: string, dto: UpdateCourseDto) {
+    await this.assertCourseInPackage(packageId, courseId)
+    return this.prisma.packageCourse.update({
+      where: { id: courseId },
+      data: {
+        no: dto.no,
+        title: dto.title,
+        category: dto.category,
+        choose: dto.choose,
+        ...(dto.itemIds ? { items: { set: dto.itemIds.map((itemId) => ({ id: itemId })) } } : {}),
+      },
+      include: { items: true },
+    })
+  }
+
+  async removeCourse(packageId: string, courseId: string) {
+    await this.assertCourseInPackage(packageId, courseId)
+    return this.prisma.packageCourse.delete({ where: { id: courseId } })
+  }
+
+  private async assertCourseInPackage(packageId: string, courseId: string) {
+    const course = await this.prisma.packageCourse.findFirst({ where: { id: courseId, packageId } })
+    if (!course) throw new NotFoundException('ไม่พบข้อนี้ในแพ็กเกจ')
+    return course
   }
 }

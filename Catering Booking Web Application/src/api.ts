@@ -49,6 +49,10 @@ interface BackendSettings {
   depositRate: number
   deliveryFee: number
   freeDeliveryMinTables: number
+  wageChef: number
+  wageAssistant: number
+  wageServerPerTable: number
+  wageDishwasher: number
 }
 
 const toFrontendSettings = (s: BackendSettings): AppSettings => ({
@@ -63,6 +67,10 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   depositRate: s.depositRate,
   deliveryFee: s.deliveryFee,
   freeDeliveryMinTables: s.freeDeliveryMinTables,
+  wageChef: s.wageChef,
+  wageAssistant: s.wageAssistant,
+  wageServerPerTable: s.wageServerPerTable,
+  wageDishwasher: s.wageDishwasher,
 })
 
 const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unknown> => {
@@ -77,6 +85,10 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (patch.depositRate !== undefined) out.depositRate = patch.depositRate
   if (patch.deliveryFee !== undefined) out.deliveryFee = patch.deliveryFee
   if (patch.freeDeliveryMinTables !== undefined) out.freeDeliveryMinTables = patch.freeDeliveryMinTables
+  if (patch.wageChef !== undefined) out.wageChef = patch.wageChef
+  if (patch.wageAssistant !== undefined) out.wageAssistant = patch.wageAssistant
+  if (patch.wageServerPerTable !== undefined) out.wageServerPerTable = patch.wageServerPerTable
+  if (patch.wageDishwasher !== undefined) out.wageDishwasher = patch.wageDishwasher
   return out
 }
 

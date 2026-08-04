@@ -14,6 +14,10 @@ const DEFAULT_SETTINGS = {
   depositRate: 0.5,
   deliveryFee: 2000,
   freeDeliveryMinTables: 30,
+  wageChef: 1200,
+  wageAssistant: 1000,
+  wageServerPerTable: 100,
+  wageDishwasher: 500,
 }
 
 @Injectable()
