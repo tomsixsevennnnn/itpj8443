@@ -141,7 +141,7 @@ export default function SelectMenu({ navigate, user, packages, packageId, select
                 </span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-1 text-xs font-semibold leading-tight">
-                    <span>{cat?.icon}</span>
+                    <span>{course.icon || cat?.icon}</span>
                     <span className="truncate">{course.title}</span>
                   </span>
                   <span className="block text-[10px] leading-tight mt-0.5 truncate text-gray-400">

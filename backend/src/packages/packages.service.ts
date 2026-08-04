@@ -27,6 +27,7 @@ export class PackagesService {
           create: dto.courses.map((c) => ({
             no: c.no,
             title: c.title,
+            icon: c.icon,
             category: c.category,
             choose: c.choose,
             items: { connect: c.itemIds.map((id) => ({ id })) },
@@ -68,6 +69,7 @@ export class PackagesService {
             create: dto.courses!.map((c) => ({
               no: c.no,
               title: c.title,
+              icon: c.icon,
               category: c.category,
               choose: c.choose,
               items: { connect: c.itemIds.map((itemId) => ({ id: itemId })) },
@@ -90,6 +92,7 @@ export class PackagesService {
         packageId,
         no: dto.no,
         title: dto.title,
+        icon: dto.icon,
         category: dto.category,
         choose: dto.choose,
         items: { connect: dto.itemIds.map((itemId) => ({ id: itemId })) },
@@ -106,6 +109,7 @@ export class PackagesService {
       data: {
         no: dto.no,
         title: dto.title,
+        icon: dto.icon,
         category: dto.category,
         choose: dto.choose,
         ...(dto.itemIds ? { items: { set: dto.itemIds.map((itemId) => ({ id: itemId })) } } : {}),

@@ -101,7 +101,7 @@ export default function SelectPackage({ navigate, user, packages, tables, select
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium text-gray-700 leading-tight">
-                              {CATEGORY_MAP[course.category]?.icon} {course.title}
+                              {course.icon || CATEGORY_MAP[course.category]?.icon} {course.title}
                             </p>
                             <p className="text-[10px] text-gray-400 leading-tight truncate">
                               {course.choose === 0

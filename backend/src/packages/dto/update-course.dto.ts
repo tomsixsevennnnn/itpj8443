@@ -4,6 +4,7 @@ import { IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator'
 export class UpdateCourseDto {
   @IsOptional() @IsInt() no?: number
   @IsOptional() @IsString() title?: string
+  @IsOptional() @IsString() icon?: string
   @IsOptional() @IsString() category?: string
   @IsOptional() @IsInt() @Min(0) choose?: number
 

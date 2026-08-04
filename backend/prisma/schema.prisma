@@ -65,6 +65,8 @@ model PackageCourse {
   packageId String
   no        Int
   title     String
+  /** ไอคอน (emoji) ที่แสดงหน้าชื่อข้อ — ไม่กรอก = ใช้ไอคอนของประเภทอาหาร (category) แทน */
+  icon      String?
   category  String
   /** 0 = รวมมาในแพ็กเกจแล้ว ไม่ต้องเลือก, >0 = ลูกค้าเลือกได้เองกี่อย่าง */
   choose    Int

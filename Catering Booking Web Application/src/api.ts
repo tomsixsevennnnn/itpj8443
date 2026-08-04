@@ -107,6 +107,7 @@ export interface BackendUser {
 export interface CourseInput {
   no: number
   title: string
+  icon?: string
   category: string
   choose: number
   itemIds: string[]

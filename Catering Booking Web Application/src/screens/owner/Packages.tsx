@@ -19,6 +19,7 @@ const emptyForm = { name: '', pricePerTable: 0, description: '', badge: '' }
 const newCourse = (no: number, categoryId: string): PackageCourse => ({
   no,
   title: CATEGORY_MAP[categoryId]?.label ?? 'รายการใหม่',
+  icon: CATEGORY_MAP[categoryId]?.icon,
   category: categoryId,
   choose: 1,
   items: [],
@@ -102,6 +103,7 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
     const courseInputs = normalized.map(c => ({
       no: c.no,
       title: c.title,
+      icon: c.icon,
       category: c.category,
       choose: c.choose,
       itemIds: c.items.map(i => i.id),
@@ -304,7 +306,7 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
                             <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                               {index + 1}
                             </span>
-                            <span className="text-base leading-none">{cat?.icon ?? '🍽️'}</span>
+                            <span className="text-base leading-none">{course.icon || cat?.icon || '🍽️'}</span>
                             <span className="min-w-0 flex-1">
                               <span className="block text-sm font-semibold text-gray-800 truncate">{course.title}</span>
                               <span className="block text-[11px] text-gray-400">
@@ -325,24 +327,35 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
                           {isOpen && (
                             <div className="px-3.5 pb-3.5 border-t border-gray-100 pt-3 space-y-3">
                               {/* ตั้งค่าข้อ */}
-                              <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] text-gray-400 mb-1">ประเภทอาหาร</label>
+                                <select
+                                  value={course.category}
+                                  onChange={e => {
+                                    const id = e.target.value
+                                    patchCourse(index, {
+                                      category: id,
+                                      title: CATEGORY_MAP[id]?.label ?? course.title,
+                                      icon: CATEGORY_MAP[id]?.icon ?? course.icon,
+                                    })
+                                  }}
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                >
+                                  {CATEGORIES.map(c => (
+                                    <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="grid grid-cols-[3.5rem_1fr] gap-2">
                                 <div>
-                                  <label className="block text-[10px] text-gray-400 mb-1">ประเภทอาหาร</label>
-                                  <select
-                                    value={course.category}
-                                    onChange={e => {
-                                      const id = e.target.value
-                                      patchCourse(index, {
-                                        category: id,
-                                        title: CATEGORY_MAP[id]?.label ?? course.title,
-                                      })
-                                    }}
-                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-                                  >
-                                    {CATEGORIES.map(c => (
-                                      <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
-                                    ))}
-                                  </select>
+                                  <label className="block text-[10px] text-gray-400 mb-1">ไอคอน</label>
+                                  <input
+                                    type="text"
+                                    value={course.icon ?? ''}
+                                    placeholder={cat?.icon ?? '🍽️'}
+                                    onChange={e => patchCourse(index, { icon: e.target.value })}
+                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                  />
                                 </div>
                                 <div>
                                   <label className="block text-[10px] text-gray-400 mb-1">ชื่อข้อที่แสดง</label>

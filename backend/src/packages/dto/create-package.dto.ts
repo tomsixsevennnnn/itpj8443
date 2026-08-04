@@ -4,6 +4,7 @@ import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class
 export class CourseInput {
   @IsInt() no!: number
   @IsString() title!: string
+  @IsOptional() @IsString() icon?: string
   @IsString() category!: string
   @IsInt() @Min(0) choose!: number
 

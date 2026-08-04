@@ -45,6 +45,8 @@ export interface MenuItem {
 export interface PackageCourse {
   no: number
   title: string
+  /** ไอคอน (emoji) ที่แสดงหน้าชื่อข้อ — ไม่กรอก = ใช้ไอคอนของประเภทอาหารแทน */
+  icon?: string
   category: string
   /** จำนวนที่ลูกค้าเลือกได้ในข้อนี้ (0 = รวมในแพ็กเกจ ไม่ต้องเลือก) */
   choose: number
