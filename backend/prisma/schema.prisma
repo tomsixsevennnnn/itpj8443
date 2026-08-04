@@ -78,6 +78,10 @@ model Booking {
   customer              User?         @relation(fields: [customerId], references: [id])
   customerId            String?
   customerName          String
+  /** ปีที่ออกเลขที่ใบจอง (ปี ค.ศ. ของ createdAt) — คู่กับ bookingNo ใช้ประกอบเลขที่ใบจอง BK-{bookingYear}-{bookingNo} */
+  bookingYear           Int
+  /** เลขลำดับใบจองภายในปีนั้น เริ่ม 1 ทุกปี — จองจาก BookingCounter แบบ atomic ตอนสร้าง */
+  bookingNo             Int
   date                  String
   timeSlot              String
   tables                Int
@@ -102,8 +106,15 @@ model Booking {
   paymentSlipUploadedAt DateTime?
   createdAt             DateTime      @default(now())
 
+  @@unique([bookingYear, bookingNo])
   @@index([customerId])
   @@index([date])
+}
+
+/** ตัวนับเลขที่ใบจองแยกตามปี — แถวละ 1 ปี เพิ่มค่า lastNo แบบ atomic ตอนสร้างใบจองใหม่ */
+model BookingCounter {
+  year   Int @id
+  lastNo Int @default(0)
 }
 
 /** ตั้งใจให้มีแถวเดียวเสมอ (id = 1) เก็บค่าตั้งค่าร้าน */
@@ -125,4 +136,11 @@ model Settings {
   /** ค่าแรงเสิร์ฟ คิดต่อโต๊ะ (ไม่ใช่ต่อคน) */
   wageServerPerTable    Int    @default(100)
   wageDishwasher        Int    @default(500)
+  /** ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง */
+  categoryOrder         String[] @default(["snack", "appetizer", "soup", "salad", "main", "fish", "rice-noodle", "hotpot", "dessert"])
+  /** พิกัดร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ (ค่าเริ่มต้น: องค์พระปฐมเจดีย์) */
+  shopLocationLat        Float  @default(13.8196)
+  shopLocationLng        Float  @default(100.0603)
+  /** ค่าน้ำมัน (บาท/กิโลเมตร) — คูณระยะทางไป-กลับคำนวณค่าเดินทางงานนอกพื้นที่ */
+  fuelCostPerKm          Float  @default(8)
 }

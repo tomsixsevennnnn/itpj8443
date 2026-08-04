@@ -18,6 +18,10 @@ const DEFAULT_SETTINGS = {
   wageAssistant: 1000,
   wageServerPerTable: 100,
   wageDishwasher: 500,
+  categoryOrder: ['snack', 'appetizer', 'soup', 'salad', 'main', 'fish', 'rice-noodle', 'hotpot', 'dessert'],
+  shopLocationLat: 13.8196,
+  shopLocationLng: 100.0603,
+  fuelCostPerKm: 8,
 }
 
 @Injectable()

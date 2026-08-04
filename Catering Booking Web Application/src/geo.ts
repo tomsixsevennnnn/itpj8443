@@ -1,33 +1,45 @@
-import type { EventLocation, LocationDetail, ServiceZone } from './types'
+import type { EventLocation, LocationDetail, ServiceZone, ShopLocation } from './types'
 
 export type { ServiceZone }
 
 /* ------------------------------------------------------------------ *
  * พื้นที่ให้บริการและค่าขนส่ง
- *   - นครปฐม (พื้นที่ร้าน) : รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง
- *   - นอกนครปฐม            : ขั้นต่ำ 30 โต๊ะ
- *       · กรุงเทพและปริมณฑล : ไม่ถึง 30 โต๊ะ จองได้ แต่คิดค่าขนส่ง 2,000 บาท
- *       · นอกพื้นที่        : ต้องครบ 30 โต๊ะ และทีมงานแจ้งค่าเดินทางเป็นรายงาน
+ *   - นครปฐม (พื้นที่ร้าน)                       : รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง ไม่มีขั้นต่ำ
+ *   - กรุงเทพ ปริมณฑล + จังหวัดที่ติดกับนครปฐม   : ขั้นต่ำ 30 โต๊ะ — ไม่ถึงจองได้ แต่คิดค่าขนส่ง 2,000 บาท
+ *   - จังหวัดอื่นที่ไม่ได้ติดกับนครปฐม             : รับจัดกี่โต๊ะก็ได้ ไม่มีขั้นต่ำ คิดค่าเดินทางตามระยะทางถนนจริง
+ *                                                    (ไป-กลับ) คูณค่าน้ำมันต่อกิโลเมตรที่ตั้งค่าไว้
  * ------------------------------------------------------------------ */
 /** ค่าเริ่มต้น — แก้ไขได้จริงจากหน้า "ตั้งค่า" ฝั่งร้าน (ค่านี้ใช้เป็นค่าเริ่มต้นของ AppSettings) */
 export const DEFAULT_DELIVERY_FEE = 2000
-/** ขั้นต่ำสำหรับงานนอกนครปฐม (ต่ำกว่านี้ในเขตกรุงเทพฯ ปริมณฑล = คิดค่าขนส่ง) — แก้ไขได้จากหน้า "ตั้งค่า" */
+/** ขั้นต่ำสำหรับงานนอกนครปฐม (ต่ำกว่านี้ในเขตกรุงเทพฯ ปริมณฑล และจังหวัดติดกัน = คิดค่าขนส่ง) — แก้ไขได้จากหน้า "ตั้งค่า" */
 export const DEFAULT_FREE_DELIVERY_MIN_TABLES = 30
+/** พิกัดร้านเริ่มต้น (องค์พระปฐมเจดีย์) — แก้ไขได้จากหน้า "ตั้งค่า" ใช้เป็นจุดเริ่มต้นคำนวณระยะทางงานนอกพื้นที่ */
+export const DEFAULT_SHOP_LOCATION: ShopLocation = { lat: 13.8196, lng: 100.0603 }
+/** ค่าน้ำมันเริ่มต้น (บาท/กม.) — แก้ไขได้จากหน้า "ตั้งค่า" */
+export const DEFAULT_FUEL_COST_PER_KM = 8
 
 /** จังหวัดที่ร้านตั้งอยู่ */
 export const HOME_PROVINCE = 'นครปฐม'
 
-/** กรุงเทพและปริมณฑล (ไม่รวมนครปฐม เพราะนับเป็นพื้นที่ร้าน) */
+/**
+ * กรุงเทพและปริมณฑล + จังหวัดที่มีอาณาเขตติดกับนครปฐมโดยตรง (ไม่รวมนครปฐมเอง เพราะนับเป็นพื้นที่ร้าน)
+ * ติดนครปฐม: สุพรรณบุรี, นนทบุรี, กรุงเทพมหานคร, สมุทรสาคร, สมุทรสงคราม, ราชบุรี, กาญจนบุรี
+ */
 export const METRO_PROVINCES = [
   'กรุงเทพมหานคร',
   'นนทบุรี',
   'ปทุมธานี',
   'สมุทรปราการ',
   'สมุทรสาคร',
+  'สมุทรสงคราม',
+  'สุพรรณบุรี',
+  'ราชบุรี',
+  'กาญจนบุรี',
 ]
 
 const HOME_PATTERN = /นครปฐม|nakhon ?pathom/i
-const METRO_PATTERN = /กรุงเทพ|กทม|bangkok|นนทบุรี|nonthaburi|ปทุมธานี|pathum ?thani|สมุทรปราการ|samut ?prakan|สมุทรสาคร|samut ?sakhon/i
+const METRO_PATTERN =
+  /กรุงเทพ|กทม|bangkok|นนทบุรี|nonthaburi|ปทุมธานี|pathum ?thani|สมุทรปราการ|samut ?prakan|สมุทรสาคร|samut ?sakhon|สมุทรสงคราม|samut ?songkhram|สุพรรณบุรี|suphan ?buri|ราชบุรี|ratchaburi|กาญจนบุรี|kanchanaburi/i
 
 const zoneOfText = (text: string): ServiceZone | null => {
   if (!text.trim()) return null
@@ -42,17 +54,29 @@ export const zoneFor = (province: string, address = ''): ServiceZone =>
 
 export const ZONE_LABEL: Record<ServiceZone, string> = {
   home: `พื้นที่ร้าน (${HOME_PROVINCE})`,
-  metro: 'กรุงเทพและปริมณฑล',
+  metro: 'กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง',
   outside: 'นอกพื้นที่ให้บริการ',
 }
 
-/** ค่าขนส่งของงานนี้ — คิดเฉพาะกรุงเทพและปริมณฑลที่ไม่ถึงขั้นต่ำ */
+/** ค่าเดินทางไป-กลับของงานนอกพื้นที่ = ระยะทางเที่ยวเดียว (กม.) × 2 × ค่าน้ำมัน/กม. — ปัดเศษเป็นจำนวนเต็มบาท */
+export const outsideDeliveryFeeFor = (distanceKm: number, fuelCostPerKm: number): number =>
+  Math.round(distanceKm * 2 * fuelCostPerKm)
+
+/** ค่าขนส่งของงานนี้ — metro คิดเมื่อไม่ถึงขั้นต่ำ, outside คิดตามระยะทางจริง (ต้องรู้ distanceKm แล้วเท่านั้น) */
 export const deliveryFeeFor = (
   tables: number,
-  location: { zone: ServiceZone } | null,
+  location: { zone: ServiceZone; distanceKm?: number } | null,
   deliveryFee: number = DEFAULT_DELIVERY_FEE,
-  minTables: number = DEFAULT_FREE_DELIVERY_MIN_TABLES
-): number => (location?.zone === 'metro' && tables < minTables ? deliveryFee : 0)
+  minTables: number = DEFAULT_FREE_DELIVERY_MIN_TABLES,
+  fuelCostPerKm: number = DEFAULT_FUEL_COST_PER_KM
+): number => {
+  if (!location) return 0
+  if (location.zone === 'metro') return tables < minTables ? deliveryFee : 0
+  if (location.zone === 'outside' && location.distanceKm != null) {
+    return outsideDeliveryFeeFor(location.distanceKm, fuelCostPerKm)
+  }
+  return 0
+}
 
 export interface DeliveryCheck {
   fee: number
@@ -63,12 +87,22 @@ export interface DeliveryCheck {
   detail: string
 }
 
+/** ข้อมูลระยะทางของงานนอกพื้นที่ — คำนวณแบบ async จากหน้าจอ (เรียก routeDistanceKm) แล้วส่งเข้า checkDelivery */
+export interface OutsideDeliveryContext {
+  /** ระยะทางถนนจริงจากร้านไปสถานที่งาน (กม., เที่ยวเดียว) — null = ยังคำนวณไม่ได้/คำนวณไม่สำเร็จ */
+  distanceKm: number | null
+  fuelCostPerKm: number
+  /** true = กำลังเรียก routeDistanceKm อยู่ */
+  loading?: boolean
+}
+
 /** สรุปเงื่อนไขพื้นที่ + ค่าขนส่งของงานหนึ่ง ๆ ไว้ให้หน้าจอนำไปแสดง */
 export const checkDelivery = (
   tables: number,
   zone: ServiceZone,
   deliveryFee: number = DEFAULT_DELIVERY_FEE,
-  minTables: number = DEFAULT_FREE_DELIVERY_MIN_TABLES
+  minTables: number = DEFAULT_FREE_DELIVERY_MIN_TABLES,
+  outside?: OutsideDeliveryContext
 ): DeliveryCheck => {
   if (zone === 'home') {
     return {
@@ -80,9 +114,8 @@ export const checkDelivery = (
     }
   }
 
-  const short = tables < minTables
-
   if (zone === 'metro') {
+    const short = tables < minTables
     return short
       ? {
           fee: deliveryFee,
@@ -96,25 +129,40 @@ export const checkDelivery = (
           blocked: false,
           tone: 'ok',
           title: 'ไม่มีค่าขนส่ง',
-          detail: `งานนี้ ${tables} โต๊ะ ครบขั้นต่ำ ${minTables} โต๊ะ ในเขตกรุงเทพและปริมณฑล`,
+          detail: `งานนี้ ${tables} โต๊ะ ครบขั้นต่ำ ${minTables} โต๊ะ ในเขตกรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง`,
         }
   }
 
-  return short
-    ? {
-        fee: 0,
-        blocked: true,
-        tone: 'blocked',
-        title: `พื้นที่นี้ต้องสั่งขั้นต่ำ ${minTables} โต๊ะ`,
-        detail: `งานนี้ ${tables} โต๊ะ — กรุณาเพิ่มเป็น ${minTables} โต๊ะขึ้นไป หรือติดต่อร้านเพื่อสอบถามเป็นกรณีพิเศษ`,
-      }
-    : {
-        fee: 0,
-        blocked: false,
-        tone: 'info',
-        title: 'นอกพื้นที่ให้บริการปกติ',
-        detail: `งานนี้ ${tables} โต๊ะ ครบขั้นต่ำแล้ว — ทีมงานจะติดต่อแจ้งค่าเดินทางอีกครั้ง`,
-      }
+  // zone === 'outside' — รับจัดกี่โต๊ะก็ได้ ไม่มีขั้นต่ำ คิดค่าเดินทางไป-กลับตามระยะทางถนนจริง
+  if (!outside || outside.loading) {
+    return {
+      fee: 0,
+      blocked: false,
+      tone: 'info',
+      title: 'กำลังคำนวณระยะทาง...',
+      detail: `งานนี้ ${tables} โต๊ะ — นอกพื้นที่ให้บริการปกติ ไม่มีขั้นต่ำจำนวนโต๊ะ คิดค่าเดินทางตามระยะทางจริง (ไป-กลับ) คูณค่าน้ำมันต่อกิโลเมตร`,
+    }
+  }
+
+  if (outside.distanceKm == null) {
+    return {
+      fee: 0,
+      blocked: false,
+      tone: 'info',
+      title: 'คำนวณระยะทางไม่สำเร็จ',
+      detail: `งานนี้ ${tables} โต๊ะ — จองได้ปกติ ไม่มีขั้นต่ำ แต่ทีมงานจะติดต่อแจ้งค่าเดินทางอีกครั้ง`,
+    }
+  }
+
+  const roundTripKm = outside.distanceKm * 2
+  const fee = outsideDeliveryFeeFor(outside.distanceKm, outside.fuelCostPerKm)
+  return {
+    fee,
+    blocked: false,
+    tone: 'fee',
+    title: `ค่าเดินทาง ${fee.toLocaleString()} บาท`,
+    detail: `ระยะทาง ${outside.distanceKm.toFixed(1)} กม. ไป-กลับ ${roundTripKm.toFixed(1)} กม. × ค่าน้ำมัน ${outside.fuelCostPerKm.toLocaleString()} บาท/กม. — ไม่มีขั้นต่ำจำนวนโต๊ะ`,
+  }
 }
 
 export const emptyDetail = (): LocationDetail => ({
@@ -131,6 +179,32 @@ export const formatFullAddress = (loc: EventLocation): string => {
   const prefix = [houseNo, building, village].filter(Boolean).join(' ')
   const base = [prefix, loc.address].filter(Boolean).join(' ')
   return landmark ? `${base} (จุดสังเกต: ${landmark})` : base
+}
+
+/* ------------------------------------------------------------------ *
+ * Routing ผ่าน OSRM (public demo server) — ใช้หาระยะทางถนนจริง (ไม่ใช่เส้นตรง)
+ * สำหรับคิดค่าเดินทางงานนอกพื้นที่ ไม่ต้องใช้ API key เหมือน Nominatim ด้านล่าง
+ * ------------------------------------------------------------------ */
+const OSRM = 'https://router.project-osrm.org'
+
+interface OsrmRouteResponse {
+  code: string
+  routes?: { distance: number }[]
+}
+
+/** ระยะทางถนนจริงจากจุดหนึ่งไปอีกจุดหนึ่ง (กม., เที่ยวเดียว) */
+export async function routeDistanceKm(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  signal?: AbortSignal
+): Promise<number> {
+  const url = `${OSRM}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`
+  const res = await fetch(url, { signal })
+  if (!res.ok) throw new Error(`คำนวณระยะทางไม่สำเร็จ (${res.status})`)
+  const data: OsrmRouteResponse = await res.json()
+  const meters = data.routes?.[0]?.distance
+  if (data.code !== 'Ok' || typeof meters !== 'number') throw new Error('ไม่พบเส้นทางไปยังสถานที่นี้')
+  return meters / 1000
 }
 
 /* ------------------------------------------------------------------ *

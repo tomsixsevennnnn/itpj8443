@@ -75,7 +75,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
   }
 
   const filtered = allBookings.filter(b => {
-    const matchSearch = b.id.toLowerCase().includes(search.toLowerCase()) ||
+    const matchSearch = docNumber(b, 'booking').toLowerCase().includes(search.toLowerCase()) ||
       b.customerName.includes(search) || search === ''
     const matchStatus = statusFilter === 'all' || b.status === statusFilter
     return matchSearch && matchStatus
@@ -152,7 +152,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
                   return (
                     <tr key={booking.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-4">
-                        <span className="font-mono text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg">{booking.id}</span>
+                        <span className="font-mono text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg">{docNumber(booking, 'booking')}</span>
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-700">
                         {new Date(booking.date + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -209,7 +209,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
               return (
                 <div key={booking.id} className="p-4">
                   <div className="flex items-start justify-between mb-3">
-                    <span className="font-mono text-xs font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg">{booking.id}</span>
+                    <span className="font-mono text-xs font-bold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg">{docNumber(booking, 'booking')}</span>
                     <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full ${sc.bg} ${sc.text}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                       {sc.label}

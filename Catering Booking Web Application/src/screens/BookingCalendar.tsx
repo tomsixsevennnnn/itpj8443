@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Booking, Screen, UserProfile } from '../types'
+import type { QueueBooking, Screen, UserProfile } from '../types'
 import {
   BOOKABLE_SLOTS,
   DAY_STATUS_INFO,
@@ -12,7 +12,8 @@ import {
 interface BookingCalendarProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
-  bookings: Booking[]
+  /** คิวรับงานของ "ทุกลูกค้า" (ไม่ใช่แค่ของตัวเอง) — ใช้เช็คว่าวันไหนเต็มแล้วบ้าง ดึงจาก /bookings/availability */
+  bookings: QueueBooking[]
   onSelectDateTime: (date: string, timeSlot: string) => void
 }
 

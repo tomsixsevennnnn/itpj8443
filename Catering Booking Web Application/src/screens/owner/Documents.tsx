@@ -17,7 +17,7 @@ export default function Documents({ bookings, menus, settings }: DocumentsProps)
   const [previewBooking, setPreviewBooking] = useState<Booking | null>(null)
 
   const filtered = bookings.filter(b =>
-    b.customerName.includes(search) || b.id.includes(search) || search === ''
+    b.customerName.includes(search) || docNumber(b, activeTab).toLowerCase().includes(search.toLowerCase()) || search === ''
   )
 
   const docLabel = DOC_LABEL[activeTab]

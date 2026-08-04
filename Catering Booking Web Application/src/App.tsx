@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { LayoutDashboard } from 'lucide-react'
-import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package } from './types'
-import { includedItems } from './data'
+import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package, QueueBooking } from './types'
+import { DEFAULT_CATEGORY_ORDER, includedItems } from './data'
 import { DEFAULT_DEPOSIT_RATE, DEFAULT_SHOP_INFO } from './documents'
-import { DEFAULT_DELIVERY_FEE, DEFAULT_FREE_DELIVERY_MIN_TABLES, deliveryFeeFor, formatFullAddress } from './geo'
+import {
+  DEFAULT_DELIVERY_FEE,
+  DEFAULT_FREE_DELIVERY_MIN_TABLES,
+  DEFAULT_FUEL_COST_PER_KM,
+  DEFAULT_SHOP_LOCATION,
+  deliveryFeeFor,
+  formatFullAddress,
+} from './geo'
 import {
   DEFAULT_WAGE_ASSISTANT,
   DEFAULT_WAGE_CHEF,
@@ -33,11 +40,12 @@ import Packages from './screens/owner/Packages'
 import Menus from './screens/owner/Menus'
 import Documents from './screens/owner/Documents'
 import Customers from './screens/owner/Customers'
+import Reports from './screens/owner/Reports'
 import Settings from './screens/owner/Settings'
 
 const OWNER_SCREENS: Screen[] = [
   'owner-dashboard', 'owner-orders', 'owner-calendar', 'owner-packages', 'owner-menus', 'owner-documents',
-  'owner-customers', 'owner-settings',
+  'owner-customers', 'owner-reports', 'owner-settings',
 ]
 
 const initialSettings: AppSettings = {
@@ -49,6 +57,9 @@ const initialSettings: AppSettings = {
   wageAssistant: DEFAULT_WAGE_ASSISTANT,
   wageServerPerTable: DEFAULT_WAGE_SERVER_PER_TABLE,
   wageDishwasher: DEFAULT_WAGE_DISHWASHER,
+  categoryOrder: DEFAULT_CATEGORY_ORDER,
+  shopLocation: DEFAULT_SHOP_LOCATION,
+  fuelCostPerKm: DEFAULT_FUEL_COST_PER_KM,
 }
 
 const initialBooking: BookingData = {
@@ -70,8 +81,10 @@ export default function App() {
   const { isAuthenticated, isLoading, user: auth0User, logout, getAccessTokenSilently } = useAuth0()
   const [screen, setScreen] = useState<Screen>('login')
   const [booking, setBooking] = useState<BookingData>(initialBooking)
-  // รายการจองทั้งหมด — ใช้ร่วมกันทั้งปฏิทินลูกค้า ปฏิทินร้าน ประวัติ และเอกสาร (มาจาก backend ทั้งหมด)
+  // รายการจองทั้งหมด — ใช้ร่วมกันทั้งปฏิทินร้าน ประวัติ และเอกสาร (owner เห็นทุกใบจอง, customer เห็นเฉพาะของตัวเอง)
   const [bookings, setBookings] = useState<Booking[]>([])
+  // คิวรับงานของ "ทุกลูกค้า" แบบไม่มีข้อมูลส่วนตัว — ใช้เฉพาะหน้าเลือกวันจัดงาน กันลูกค้าเลือกวันที่คนอื่นจองเต็มไปแล้ว
+  const [availability, setAvailability] = useState<QueueBooking[]>([])
   // แพ็กเกจและคลังเมนูอยู่ที่นี่ เพื่อให้เจ้าของร้านแก้แล้วฝั่งลูกค้าเห็นผลทันที
   const [packages, setPackages] = useState<Package[]>([])
   const [menus, setMenus] = useState<MenuItem[]>([])
@@ -95,7 +108,7 @@ export default function App() {
       try {
         const token = await getAccessTokenSilently()
         // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
-        const [me, bks, pkgs, mns, sttgs] = await Promise.all([
+        const [me, bks, avail, pkgs, mns, sttgs] = await Promise.all([
           api.syncProfile(token, {
             name: auth0User?.given_name || auth0User?.name?.split(' ')[0] || 'ผู้ใช้',
             surname: auth0User?.family_name || auth0User?.name?.split(' ').slice(1).join(' ') || '',
@@ -103,6 +116,7 @@ export default function App() {
             avatar: auth0User?.picture ?? '',
           }),
           api.bookings(token),
+          api.bookingsAvailability(token),
           api.packages(token),
           api.menus(token),
           api.settings(token),
@@ -110,6 +124,7 @@ export default function App() {
         if (cancelled) return
         setBackendUser(me)
         setBookings(bks)
+        setAvailability(avail)
         setPackages(pkgs)
         setMenus(mns)
         setSettings(sttgs)
@@ -276,7 +291,13 @@ export default function App() {
     runAction(async () => {
       // คิดยอดแบบเดียวกับหน้าตะกร้า เพื่อให้ใบเสนอราคา/ใบจองตรงกัน
       const subtotal = booking.packagePrice * booking.tables
-      const deliveryFee = deliveryFeeFor(booking.tables, booking.location, settings.deliveryFee, settings.freeDeliveryMinTables)
+      const deliveryFee = deliveryFeeFor(
+        booking.tables,
+        booking.location,
+        settings.deliveryFee,
+        settings.freeDeliveryMinTables,
+        settings.fuelCostPerKm,
+      )
 
       const token = await withToken()
       const created = await api.createBooking(token, {
@@ -294,6 +315,11 @@ export default function App() {
         lineId: user?.lineId || undefined,
       })
       setBookings(prev => [created, ...prev])
+      // เพิ่มเข้าคิวรับงานทันที กันตัวเองเผลอเลือกวัน/ช่วงเวลาเดิมซ้ำถ้ากลับไปจองอีกใบ
+      setAvailability(prev => [
+        { date: created.date, timeSlot: created.timeSlot, tables: created.tables, status: created.status },
+        ...prev,
+      ])
       setBooking(initialBooking)
     })
 
@@ -311,6 +337,8 @@ export default function App() {
               staffNote: patch.staffNote,
             })
       setBookings(prev => prev.map(b => (b.id === id ? updated : b)))
+      // เปลี่ยนสถานะ (เช่นยกเลิกงาน) กระทบคิวรับงานที่ลูกค้าเห็น — ดึงใหม่ให้ตรงกัน กันวันนั้นค้างว่า "เต็ม" อยู่
+      if (patch.status !== undefined) setAvailability(await api.bookingsAvailability(token))
     })
 
   // กำลังตรวจสอบ session ของ Auth0 (โหลดครั้งแรก / กลับจาก redirect)
@@ -354,6 +382,7 @@ export default function App() {
         {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
         <CompleteProfile
           name={backendUser?.name || ''}
+          surname={backendUser?.surname || ''}
           onComplete={(profile) =>
             runAction(async () => {
               const token = await withToken()
@@ -385,6 +414,7 @@ export default function App() {
           <Packages
             packages={packages}
             menus={menus}
+            settings={settings}
             onCreatePackage={handleCreatePackage}
             onUpdatePackage={handleUpdatePackage}
             onDeletePackage={handleDeletePackage}
@@ -394,6 +424,7 @@ export default function App() {
           <Menus
             menus={menus}
             packages={packages}
+            settings={settings}
             onSaveMenu={handleSaveMenu}
             onDeleteMenu={handleDeleteMenu}
           />
@@ -401,7 +432,12 @@ export default function App() {
         {effectiveScreen === 'owner-documents' && (
           <Documents bookings={bookings} menus={menus} settings={settings} />
         )}
-        {effectiveScreen === 'owner-customers' && <Customers bookings={bookings} />}
+        {effectiveScreen === 'owner-customers' && (
+          <Customers bookings={bookings} menus={menus} settings={settings} />
+        )}
+        {effectiveScreen === 'owner-reports' && (
+          <Reports bookings={bookings} menus={menus} settings={settings} />
+        )}
         {effectiveScreen === 'owner-settings' && (
           <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
         )}
@@ -417,7 +453,7 @@ export default function App() {
       {role === 'owner' && (
         <button
           onClick={() => navigate('owner-dashboard')}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-4 py-3 rounded-2xl shadow-lg text-sm font-medium transition-colors"
+          className="fixed top-3 right-4 sm:right-6 lg:right-8 z-[60] flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white px-3 py-2 rounded-xl shadow-lg text-sm font-medium transition-colors"
         >
           <LayoutDashboard size={16} />
           กลับสู่แดชบอร์ด
@@ -430,7 +466,7 @@ export default function App() {
         <BookingCalendar
           navigate={navigate}
           user={user}
-          bookings={bookings}
+          bookings={availability}
           onSelectDateTime={handleSelectDateTime}
         />
       )}
@@ -457,6 +493,8 @@ export default function App() {
           onSetLocation={handleSetLocation}
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
+          shopLocation={settings.shopLocation}
+          fuelCostPerKm={settings.fuelCostPerKm}
         />
       )}
       {effectiveScreen === 'select-package' && (
@@ -488,6 +526,7 @@ export default function App() {
           onConfirm={handleConfirm}
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
+          fuelCostPerKm={settings.fuelCostPerKm}
         />
       )}
       {effectiveScreen === 'history' && (

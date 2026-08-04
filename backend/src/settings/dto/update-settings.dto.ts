@@ -1,4 +1,4 @@
-import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator'
+import { IsArray, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator'
 
 export class UpdateSettingsDto {
   @IsOptional() @IsString() shopName?: string
@@ -16,4 +16,10 @@ export class UpdateSettingsDto {
   @IsOptional() @IsInt() @Min(0) wageAssistant?: number
   @IsOptional() @IsInt() @Min(0) wageServerPerTable?: number
   @IsOptional() @IsInt() @Min(0) wageDishwasher?: number
+
+  @IsOptional() @IsArray() @IsString({ each: true }) categoryOrder?: string[]
+
+  @IsOptional() @IsNumber() shopLocationLat?: number
+  @IsOptional() @IsNumber() shopLocationLng?: number
+  @IsOptional() @IsNumber() @Min(0) fuelCostPerKm?: number
 }

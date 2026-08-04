@@ -28,6 +28,12 @@ export class BookingsController {
     return this.bookings.findAllForCustomer(user.id)
   }
 
+  /** คิวรับงานทุกใบจอง (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควัน/ช่วงเวลาที่เต็มแล้วตอนลูกค้าเลือกวันจัดงาน */
+  @Get('availability')
+  findAvailability() {
+    return this.bookings.findAvailability()
+  }
+
   @Post()
   @Roles('customer')
   async create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreateBookingDto) {

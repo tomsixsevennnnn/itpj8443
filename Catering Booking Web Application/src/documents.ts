@@ -17,9 +17,11 @@ export const DOC_LABEL: Record<DocType, string> = {
   booking: 'ใบจอง',
 }
 
-/** เลขที่เอกสาร — ใบเสนอราคาใช้ QT- นำหน้า ส่วนใบจองใช้เลขที่จองเดิม */
+/** เลขที่เอกสาร — ใบเสนอราคาใช้ QT- นำหน้า ส่วนใบจองใช้เลขที่จองจริง BK-{ปี}-{เลขลำดับ} (คงที่ ไม่เปลี่ยนตาม id ฐานข้อมูล) */
 export const docNumber = (booking: Booking, type: DocType): string =>
-  type === 'quotation' ? `QT-${booking.id.slice(-8).toUpperCase()}` : booking.id
+  type === 'quotation'
+    ? `QT-${booking.id.slice(-8).toUpperCase()}`
+    : `BK-${booking.bookingYear}-${String(booking.bookingNo).padStart(3, '0')}`
 
 export const formatThaiDate = (iso: string, long = false): string =>
   new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso).toLocaleDateString(

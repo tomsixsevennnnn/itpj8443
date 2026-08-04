@@ -1,4 +1,4 @@
-import type { Booking } from './types'
+import type { Booking, QueueBooking } from './types'
 
 /* ------------------------------------------------------------------ *
  * สถานะคิวงานของแต่ละวัน — คำนวณจากรายการจองจริง
@@ -45,7 +45,7 @@ export const slotIdOf = (timeSlot: string): SlotId => {
 export type SlotUsage = Record<BaseSlotId, number>
 
 /** จำนวนโต๊ะที่ถูกจองไปแล้วในแต่ละช่วงของวันนั้น */
-export const slotUsage = (bookings: Booking[], date: string): SlotUsage => {
+export const slotUsage = (bookings: QueueBooking[], date: string): SlotUsage => {
   const usage: SlotUsage = { morning: 0, noon: 0, evening: 0 }
   for (const b of bookings) {
     if (b.date !== date || !OCCUPIES_QUEUE.includes(b.status)) continue
@@ -62,7 +62,7 @@ export const slotUsage = (bookings: Booking[], date: string): SlotUsage => {
 }
 
 /** จำนวนโต๊ะที่ยังรับได้ในช่วงเวลานั้น */
-export const remainingFor = (bookings: Booking[], date: string, slot: SlotId): number => {
+export const remainingFor = (bookings: QueueBooking[], date: string, slot: SlotId): number => {
   const usage = slotUsage(bookings, date)
   const used = slot === 'allday' ? Math.max(usage.morning, usage.noon, usage.evening) : usage[slot]
   return Math.max(0, SLOT_CAPACITY - used)
@@ -71,7 +71,7 @@ export const remainingFor = (bookings: Booking[], date: string, slot: SlotId): n
 export type DayStatus = 'available' | 'full'
 
 /** มีงานจองอยู่แล้วในวันนั้นหรือยัง — จองแล้ว 1 งาน (ช่วงใดก็ได้) ถือว่าเต็มทั้งวัน ไม่รับซ้อนช่วงอื่น */
-export const dayStatus = (bookings: Booking[], date: string): DayStatus =>
+export const dayStatus = (bookings: QueueBooking[], date: string): DayStatus =>
   bookings.some(b => b.date === date && OCCUPIES_QUEUE.includes(b.status)) ? 'full' : 'available'
 
 export const DAY_STATUS_INFO: Record<DayStatus, { label: string; dot: string; chip: string }> = {

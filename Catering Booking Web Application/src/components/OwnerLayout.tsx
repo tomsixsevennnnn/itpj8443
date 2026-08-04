@@ -5,12 +5,12 @@ import {
   Calendar,
   ChefHat,
   ClipboardList,
+  FileBarChart,
   FileText,
   LayoutDashboard,
   LogOut,
   Package,
   Settings,
-  Users,
 } from 'lucide-react'
 import type { Screen, UserProfile } from '../types'
 import type { ReactNode } from 'react'
@@ -29,7 +29,7 @@ const sidebarItems = [
   { label: 'แพ็กเกจ', screen: 'owner-packages' as Screen, icon: Package },
   { label: 'เมนูอาหาร', screen: 'owner-menus' as Screen, icon: Book },
   { label: 'เอกสาร', screen: 'owner-documents' as Screen, icon: FileText },
-  { label: 'ลูกค้า', screen: 'owner-customers' as Screen, icon: Users },
+  { label: 'รายงาน', screen: 'owner-reports' as Screen, icon: FileBarChart },
   { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
 

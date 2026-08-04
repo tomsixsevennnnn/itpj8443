@@ -1,4 +1,4 @@
-import type { AppSettings, Booking, MenuItem, Package } from './types'
+import type { AppSettings, Booking, MenuItem, Package, QueueBooking } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
@@ -39,6 +39,13 @@ const toFrontendBooking = (b: BackendBooking): Booking => ({
 
 const toBackendStatus = (status: Booking['status']): BackendStatus => status.toUpperCase() as BackendStatus
 
+type BackendQueueBooking = Omit<QueueBooking, 'status'> & { status: BackendStatus }
+
+const toFrontendQueueBooking = (b: BackendQueueBooking): QueueBooking => ({
+  ...b,
+  status: b.status.toLowerCase() as QueueBooking['status'],
+})
+
 interface BackendSettings {
   shopName: string
   shopNameEn: string
@@ -53,6 +60,10 @@ interface BackendSettings {
   wageAssistant: number
   wageServerPerTable: number
   wageDishwasher: number
+  categoryOrder: string[]
+  shopLocationLat: number
+  shopLocationLng: number
+  fuelCostPerKm: number
 }
 
 const toFrontendSettings = (s: BackendSettings): AppSettings => ({
@@ -71,6 +82,9 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   wageAssistant: s.wageAssistant,
   wageServerPerTable: s.wageServerPerTable,
   wageDishwasher: s.wageDishwasher,
+  categoryOrder: s.categoryOrder,
+  shopLocation: { lat: s.shopLocationLat, lng: s.shopLocationLng },
+  fuelCostPerKm: s.fuelCostPerKm,
 })
 
 const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unknown> => {
@@ -89,6 +103,10 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (patch.wageAssistant !== undefined) out.wageAssistant = patch.wageAssistant
   if (patch.wageServerPerTable !== undefined) out.wageServerPerTable = patch.wageServerPerTable
   if (patch.wageDishwasher !== undefined) out.wageDishwasher = patch.wageDishwasher
+  if (patch.categoryOrder !== undefined) out.categoryOrder = patch.categoryOrder
+  if (patch.shopLocation?.lat !== undefined) out.shopLocationLat = patch.shopLocation.lat
+  if (patch.shopLocation?.lng !== undefined) out.shopLocationLng = patch.shopLocation.lng
+  if (patch.fuelCostPerKm !== undefined) out.fuelCostPerKm = patch.fuelCostPerKm
   return out
 }
 
@@ -152,11 +170,15 @@ export const api = {
   syncProfile: (token: string, input: SyncProfileInput) =>
     request<BackendUser>(token, '/users/me', { method: 'POST', body: JSON.stringify(input) }),
 
-  updateProfile: (token: string, patch: { phone?: string; lineId?: string }) =>
+  updateProfile: (token: string, patch: { name?: string; surname?: string; phone?: string; lineId?: string }) =>
     request<BackendUser>(token, '/users/me', { method: 'PATCH', body: JSON.stringify(patch) }),
 
   bookings: async (token: string): Promise<Booking[]> =>
     (await request<BackendBooking[]>(token, '/bookings')).map(toFrontendBooking),
+
+  /** คิวรับงานของทุกลูกค้า (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควันที่เต็มแล้วตอนเลือกวันจัดงาน ต่างจาก bookings() ที่ลูกค้าเห็นแค่ของตัวเอง */
+  bookingsAvailability: async (token: string): Promise<QueueBooking[]> =>
+    (await request<BackendQueueBooking[]>(token, '/bookings/availability')).map(toFrontendQueueBooking),
 
   createBooking: async (token: string, input: CreateBookingInput): Promise<Booking> =>
     toFrontendBooking(

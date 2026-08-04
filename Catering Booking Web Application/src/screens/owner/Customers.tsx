@@ -1,9 +1,12 @@
-import { useState } from 'react'
-import { Calendar, MessageCircle, Phone, Search, ShoppingBag, User, Wallet, X } from 'lucide-react'
-import type { Booking } from '../../types'
+import { useMemo, useState } from 'react'
+import { MapPin, MessageCircle, Phone, TrendingUp, User, Users, Wallet } from 'lucide-react'
+import type { AppSettings, Booking, MenuItem } from '../../types'
+import { bookingCostSummary } from '../../costing'
 
 interface CustomersProps {
   bookings: Booking[]
+  menus: MenuItem[]
+  settings: AppSettings
 }
 
 const STATUS_CONFIG = {
@@ -13,210 +16,151 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-interface CustomerSummary {
-  key: string
-  name: string
-  phone: string
-  lineId: string
-  bookings: Booking[]
-  totalSpent: number
-  lastDate: string
-}
+export default function Customers({ bookings, menus, settings }: CustomersProps) {
+  const [nameFilter, setNameFilter] = useState('')
+  const [phoneFilter, setPhoneFilter] = useState('')
+  const [lineIdFilter, setLineIdFilter] = useState('')
 
-/** รวมใบจองเป็นรายลูกค้า — ระบบยังไม่มีระบบสมาชิก จึงอ้างอิงจากเบอร์โทร (ถ้าไม่มีค่อยใช้ชื่อ) */
-const groupByCustomer = (bookings: Booking[]): CustomerSummary[] => {
-  const map = new Map<string, CustomerSummary>()
-  for (const b of bookings) {
-    const key = b.phone && b.phone !== '—' ? b.phone : `name:${b.customerName}`
-    const existing = map.get(key)
-    if (existing) {
-      existing.bookings.push(b)
-      if (b.status !== 'cancelled') existing.totalSpent += b.totalPrice
-      if (b.date > existing.lastDate) existing.lastDate = b.date
-      if (b.lineId && b.lineId !== '—') existing.lineId = b.lineId
-    } else {
-      map.set(key, {
-        key,
-        name: b.customerName,
-        phone: b.phone,
-        lineId: b.lineId || '—',
-        bookings: [b],
-        totalSpent: b.status !== 'cancelled' ? b.totalPrice : 0,
-        lastDate: b.date,
-      })
-    }
-  }
-  return [...map.values()].sort((a, b) => b.lastDate.localeCompare(a.lastDate))
-}
+  const rows = useMemo(() => {
+    const filtered = bookings.filter(b =>
+      b.customerName.toLowerCase().includes(nameFilter.trim().toLowerCase()) &&
+      b.phone.includes(phoneFilter.trim()) &&
+      (b.lineId ?? '').toLowerCase().includes(lineIdFilter.trim().toLowerCase())
+    )
+    return filtered
+      .map(b => ({ booking: b, cost: bookingCostSummary(b, menus, settings) }))
+      .sort((a, b) => b.booking.date.localeCompare(a.booking.date))
+  }, [bookings, nameFilter, phoneFilter, lineIdFilter, menus, settings])
 
-export default function Customers({ bookings }: CustomersProps) {
-  const [search, setSearch] = useState('')
-  const [selectedKey, setSelectedKey] = useState<string | null>(null)
-
-  const customers = groupByCustomer(bookings)
-  const filtered = customers.filter(c =>
-    c.name.includes(search) || c.phone.includes(search) || c.lineId.includes(search) || search === ''
-  )
-  const selected = selectedKey ? customers.find(c => c.key === selectedKey) ?? null : null
+  // งานที่ยกเลิกไม่นับรวมในยอดรายได้/ต้นทุน/กำไร
+  const totals = useMemo(() => {
+    return rows.reduce(
+      (acc, { booking, cost }) => {
+        if (booking.status === 'cancelled') return acc
+        acc.revenue += booking.totalPrice
+        acc.cost += cost.totalCost
+        acc.profit += cost.profit
+        return acc
+      },
+      { revenue: 0, cost: 0, profit: 0 }
+    )
+  }, [rows])
 
   return (
     <div>
-      {/* Search */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="ค้นหาชื่อลูกค้า, เบอร์โทร หรือ Line ID..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-        </div>
-      </div>
-
       {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
         {[
-          { label: 'ลูกค้าทั้งหมด', value: `${customers.length} คน` },
-          { label: 'ลูกค้าที่จองมากกว่า 1 ครั้ง', value: `${customers.filter(c => c.bookings.length > 1).length} คน` },
-          { label: 'ยอดใช้จ่ายรวมทั้งหมด', value: `฿${customers.reduce((s, c) => s + c.totalSpent, 0).toLocaleString()}` },
-        ].map(({ label, value }) => (
-          <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-            <p className="text-xs text-gray-400">{label}</p>
-            <p className="text-lg font-bold mt-0.5 text-gray-900">{value}</p>
+          { label: 'รายได้รวม', value: totals.revenue, icon: Wallet, color: 'from-green-400 to-green-600' },
+          { label: 'ต้นทุนรวม', value: totals.cost, icon: Users, color: 'from-rose-400 to-rose-600' },
+          { label: 'กำไรรวม', value: totals.profit, icon: TrendingUp, color: 'from-teal-400 to-teal-600' },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+            <div className={`w-10 h-10 bg-gradient-to-br ${color} rounded-xl flex items-center justify-center flex-shrink-0`}>
+              <Icon size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">{label}</p>
+              <p className="text-lg font-bold mt-0.5 text-gray-900">฿{value.toLocaleString()}</p>
+            </div>
           </div>
         ))}
       </div>
 
+      {/* Filters */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="relative">
+            <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="ชื่อลูกค้า"
+              value={nameFilter}
+              onChange={e => setNameFilter(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          <div className="relative">
+            <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="เบอร์โทร"
+              value={phoneFilter}
+              onChange={e => setPhoneFilter(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          <div className="relative">
+            <MessageCircle size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Line ID"
+              value={lineIdFilter}
+              onChange={e => setLineIdFilter(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['ลูกค้า', 'เบอร์โทร', 'Line ID', 'จำนวนครั้งที่จอง', 'ยอดใช้จ่ายรวม', 'จองล่าสุด', ''].map(col => (
-                <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500">{col}</th>
+              {['ลูกค้า', 'เบอร์โทร', 'จำนวนโต๊ะ', 'สถานที่', 'วันที่', 'ต้นทุนต่องาน', 'รายได้', 'กำไร', 'สถานะ'].map(col => (
+                <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{col}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {filtered.map(c => (
-              <tr
-                key={c.key}
-                onClick={() => setSelectedKey(c.key)}
-                className="hover:bg-orange-50/30 transition-colors cursor-pointer"
-              >
-                <td className="px-4 py-3.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-orange-100 rounded-lg text-xs font-bold text-orange-600 flex items-center justify-center">
-                      {c.name[0]}
+            {rows.map(({ booking: b, cost }) => {
+              const sc = STATUS_CONFIG[b.status]
+              return (
+                <tr key={b.id} className="hover:bg-orange-50/30 transition-colors">
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-orange-100 rounded-lg text-xs font-bold text-orange-600 flex items-center justify-center flex-shrink-0">
+                        {b.customerName[0]}
+                      </div>
+                      <p className="text-sm font-semibold text-gray-800 whitespace-nowrap">{b.customerName}</p>
                     </div>
-                    <p className="text-sm font-semibold text-gray-800">{c.name}</p>
-                  </div>
-                </td>
-                <td className="px-4 py-3.5 text-sm text-gray-600">{c.phone}</td>
-                <td className="px-4 py-3.5 text-sm text-gray-600">{c.lineId}</td>
-                <td className="px-4 py-3.5 text-sm text-gray-700">{c.bookings.length} ครั้ง</td>
-                <td className="px-4 py-3.5">
-                  <span className="font-bold text-orange-600">{c.totalSpent.toLocaleString()}</span>
-                  <span className="text-xs text-gray-400 ml-0.5">฿</span>
-                </td>
-                <td className="px-4 py-3.5 text-sm text-gray-600">
-                  {new Date(c.lastDate + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
-                </td>
-                <td className="px-4 py-3.5">
-                  <button className="text-xs text-orange-600 hover:text-orange-700 font-medium">ดู →</button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{b.phone}</td>
+                  <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">{b.tables} โต๊ะ</td>
+                  <td className="px-4 py-3.5 text-sm text-gray-600 max-w-[220px] truncate">
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin size={12} className="text-gray-400 flex-shrink-0" />
+                      {b.location}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">
+                    {new Date(b.date + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
+                  </td>
+                  <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{cost.totalCost.toLocaleString()}</td>
+                  <td className="px-4 py-3.5 text-sm font-semibold text-gray-800 whitespace-nowrap">฿{b.totalPrice.toLocaleString()}</td>
+                  <td className={`px-4 py-3.5 text-sm font-bold whitespace-nowrap ${cost.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    ฿{cost.profit.toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3.5">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${sc.bg} ${sc.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      {sc.label}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
 
-        {filtered.length === 0 && (
+        {rows.length === 0 && (
           <div className="text-center py-16 text-gray-400">
             <User size={40} className="mx-auto mb-3 opacity-30" />
             <p>ไม่พบลูกค้า</p>
           </div>
         )}
       </div>
-
-      {/* Detail modal — ประวัติการจองของลูกค้ารายนี้ */}
-      {selected && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 flex items-center justify-between sticky top-0">
-              <div>
-                <h3 className="text-lg font-bold text-white">{selected.name}</h3>
-                <p className="text-orange-100 text-sm flex items-center gap-1.5">
-                  <Phone size={12} />
-                  {selected.phone}
-                </p>
-                {selected.lineId !== '—' && (
-                  <p className="text-orange-100 text-sm flex items-center gap-1.5 mt-0.5">
-                    <MessageCircle size={12} />
-                    {selected.lineId}
-                  </p>
-                )}
-              </div>
-              <button
-                onClick={() => setSelectedKey(null)}
-                className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <div className="bg-gray-50 rounded-xl p-3.5 flex items-center gap-2.5">
-                  <ShoppingBag size={16} className="text-orange-500" />
-                  <div>
-                    <p className="text-[10px] text-gray-400">จำนวนครั้งที่จอง</p>
-                    <p className="text-sm font-bold text-gray-800">{selected.bookings.length} ครั้ง</p>
-                  </div>
-                </div>
-                <div className="bg-orange-50 rounded-xl p-3.5 flex items-center gap-2.5">
-                  <Wallet size={16} className="text-orange-500" />
-                  <div>
-                    <p className="text-[10px] text-orange-500">ยอดใช้จ่ายรวม</p>
-                    <p className="text-sm font-bold text-orange-700">฿{selected.totalSpent.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">ประวัติการจอง</p>
-              <div className="space-y-2.5">
-                {[...selected.bookings]
-                  .sort((a, b) => b.date.localeCompare(a.date))
-                  .map(b => {
-                    const sc = STATUS_CONFIG[b.status]
-                    return (
-                      <div key={b.id} className="border border-gray-100 rounded-xl p-3.5">
-                        <div className="flex items-start justify-between mb-1.5">
-                          <span className="font-mono text-xs font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded-lg">
-                            {b.id}
-                          </span>
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${sc.bg} ${sc.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                            {sc.label}
-                          </span>
-                        </div>
-                        <p className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-                          <Calendar size={12} className="text-gray-400" />
-                          {new Date(b.date + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
-                          {' · '}{b.timeSlot}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {b.tables} โต๊ะ · {b.packageName} · ฿{b.totalPrice.toLocaleString()}
-                        </p>
-                      </div>
-                    )
-                  })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

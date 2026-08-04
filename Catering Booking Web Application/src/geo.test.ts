@@ -11,6 +11,13 @@ describe('zoneFor', () => {
     expect(zoneFor('นนทบุรี')).toBe('metro')
   })
 
+  it('จังหวัดที่ติดกับนครปฐม = metro', () => {
+    expect(zoneFor('สุพรรณบุรี')).toBe('metro')
+    expect(zoneFor('ราชบุรี')).toBe('metro')
+    expect(zoneFor('กาญจนบุรี')).toBe('metro')
+    expect(zoneFor('สมุทรสงคราม')).toBe('metro')
+  })
+
   it('จังหวัดอื่น = นอกพื้นที่', () => {
     expect(zoneFor('เชียงใหม่')).toBe('outside')
   })
@@ -34,8 +41,17 @@ describe('deliveryFeeFor', () => {
     expect(deliveryFeeFor(30, { zone: 'metro' }, 2000, 30)).toBe(0)
   })
 
-  it('นอกพื้นที่ไม่คิดค่าขนส่งจากฟังก์ชันนี้ (ทีมงานแจ้งเป็นรายงานแทน)', () => {
-    expect(deliveryFeeFor(10, { zone: 'outside' }, 2000, 30)).toBe(0)
+  it('นอกพื้นที่ ยังไม่รู้ระยะทาง = ยังไม่คิดค่าเดินทาง', () => {
+    expect(deliveryFeeFor(10, { zone: 'outside' }, 2000, 30, 8)).toBe(0)
+  })
+
+  it('นอกพื้นที่ รู้ระยะทางแล้ว = คิดค่าเดินทางไป-กลับ (ระยะทาง×2) คูณค่าน้ำมัน/กม.', () => {
+    expect(deliveryFeeFor(10, { zone: 'outside', distanceKm: 50 }, 2000, 30, 8)).toBe(800)
+  })
+
+  it('นอกพื้นที่ ไม่ว่าจำนวนโต๊ะเท่าไหร่ก็คิดตามระยะทางเหมือนกัน (ไม่มีขั้นต่ำ)', () => {
+    expect(deliveryFeeFor(1, { zone: 'outside', distanceKm: 50 }, 2000, 30, 8)).toBe(800)
+    expect(deliveryFeeFor(100, { zone: 'outside', distanceKm: 50 }, 2000, 30, 8)).toBe(800)
   })
 
   it('ไม่มีสถานที่ = ไม่คิดค่าขนส่ง', () => {
@@ -44,15 +60,29 @@ describe('deliveryFeeFor', () => {
 })
 
 describe('checkDelivery', () => {
-  it('นอกพื้นที่และไม่ถึงขั้นต่ำ = blocked', () => {
-    const result = checkDelivery(10, 'outside', 2000, 30)
-    expect(result.blocked).toBe(true)
-    expect(result.tone).toBe('blocked')
+  it('นอกพื้นที่ ไม่บล็อกไม่ว่าจำนวนโต๊ะเท่าไหร่ (ไม่มีขั้นต่ำ)', () => {
+    const result = checkDelivery(1, 'outside', 2000, 30)
+    expect(result.blocked).toBe(false)
   })
 
-  it('นอกพื้นที่แต่ถึงขั้นต่ำ = จองได้ (info)', () => {
-    const result = checkDelivery(30, 'outside', 2000, 30)
+  it('นอกพื้นที่ ยังไม่รู้ระยะทาง = แจ้งว่ากำลังคำนวณ ยังไม่คิดค่าเดินทาง', () => {
+    const result = checkDelivery(10, 'outside', 2000, 30)
     expect(result.blocked).toBe(false)
+    expect(result.fee).toBe(0)
+    expect(result.tone).toBe('info')
+  })
+
+  it('นอกพื้นที่ คำนวณระยะทางได้แล้ว = คิดค่าเดินทางไป-กลับ × ค่าน้ำมัน/กม.', () => {
+    const result = checkDelivery(10, 'outside', 2000, 30, { distanceKm: 50, fuelCostPerKm: 8 })
+    expect(result.blocked).toBe(false)
+    expect(result.fee).toBe(800)
+    expect(result.tone).toBe('fee')
+  })
+
+  it('นอกพื้นที่ คำนวณระยะทางไม่สำเร็จ = ไม่บล็อก แจ้งทีมงานติดต่อกลับ', () => {
+    const result = checkDelivery(10, 'outside', 2000, 30, { distanceKm: null, fuelCostPerKm: 8 })
+    expect(result.blocked).toBe(false)
+    expect(result.fee).toBe(0)
     expect(result.tone).toBe('info')
   })
 

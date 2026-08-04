@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { AlertCircle, Check, ChevronDown, Edit2, Plus, Trash2, X } from 'lucide-react'
-import type { MenuItem, Package, PackageCourse } from '../../types'
-import { CATEGORIES, CATEGORY_MAP, requiredCourses } from '../../data'
+import { AlertCircle, Check, ChevronDown, Edit2, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import type { AppSettings, MenuItem, Package, PackageCourse } from '../../types'
+import { CATEGORY_MAP, orderedCategories, requiredCourses } from '../../data'
 import type { CreatePackageInput, UpdatePackageInput } from '../../api'
 
 interface PackagesProps {
   packages: Package[]
   /** คลังเมนูของร้าน — มาจากหน้า "เมนูอาหาร" */
   menus: MenuItem[]
+  settings: AppSettings
   onCreatePackage: (input: CreatePackageInput) => void
   onUpdatePackage: (id: string, input: UpdatePackageInput) => void
   onDeletePackage: (id: string) => void
@@ -25,21 +26,31 @@ const newCourse = (no: number, categoryId: string): PackageCourse => ({
   items: [],
 })
 
-/** แพ็กเกจใหม่เริ่มต้นด้วย 9 ข้อ ตามประเภทอาหารทั้งหมด */
-const blankCourses = (): PackageCourse[] => CATEGORIES.map((c, i) => newCourse(i + 1, c.id))
+/** แพ็กเกจใหม่เริ่มต้นด้วย 9 ข้อ ตามประเภทอาหารทั้งหมด เรียงตามที่เจ้าของร้านตั้งไว้ */
+const blankCourses = (categoryOrder: string[]): PackageCourse[] =>
+  orderedCategories(categoryOrder).map((c, i) => newCourse(i + 1, c.id))
 
-export default function Packages({ packages, menus, onCreatePackage, onUpdatePackage, onDeletePackage }: PackagesProps) {
+export default function Packages({
+  packages,
+  menus,
+  settings,
+  onCreatePackage,
+  onUpdatePackage,
+  onDeletePackage,
+}: PackagesProps) {
+  const categories = orderedCategories(settings.categoryOrder)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Package | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [courses, setCourses] = useState<PackageCourse[]>([])
   const [openCourse, setOpenCourse] = useState<number | null>(null)
   const [showAllCats, setShowAllCats] = useState(false)
+  const [dragCourseNo, setDragCourseNo] = useState<number | null>(null)
 
   const openAdd = () => {
     setEditing(null)
     setForm(emptyForm)
-    setCourses(blankCourses())
+    setCourses(blankCourses(settings.categoryOrder))
     setOpenCourse(1)
     setShowAllCats(false)
     setShowModal(true)
@@ -78,7 +89,7 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
 
   const addCourse = () => {
     setCourses(prev => {
-      const next = [...prev, newCourse(prev.length + 1, CATEGORIES[0].id)]
+      const next = [...prev, newCourse(prev.length + 1, categories[0].id)]
       setOpenCourse(next.length)
       return next
     })
@@ -92,6 +103,32 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
   const dishesFor = (course: PackageCourse) => {
     const selected = new Set(course.items.map(i => i.id))
     return menus.filter(m => showAllCats || m.category === course.category || selected.has(m.id))
+  }
+
+  /* --- ลากจัดเรียงหัวข้อประเภทอาหาร (ข้อ) ในแพ็กเกจนี้ --- */
+
+  const handleCourseDragStart = (no: number) => setDragCourseNo(no)
+
+  const handleCourseDragOver = (e: React.DragEvent) => e.preventDefault()
+
+  const handleCourseDrop = (targetNo: number) => {
+    const dragNo = dragCourseNo
+    setDragCourseNo(null)
+    if (dragNo == null || dragNo === targetNo) return
+    setCourses(prev => {
+      const from = prev.findIndex(c => c.no === dragNo)
+      const to = prev.findIndex(c => c.no === targetNo)
+      if (from === -1 || to === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      // เลข "ข้อ" ของทุกอันเปลี่ยนหลังลาก — ตามข้อที่เปิดอยู่ให้ไปที่ตำแหน่งใหม่ ไม่ให้พาเนลที่โชว์เพี้ยนไปข้อผิด
+      if (openCourse != null) {
+        const openIndex = next.findIndex(c => c.no === openCourse)
+        if (openIndex !== -1) setOpenCourse(openIndex + 1)
+      }
+      return next.map((c, i) => ({ ...c, no: i + 1 }))
+    })
   }
 
   const emptyCourses = courses.filter(c => c.items.length === 0)
@@ -285,6 +322,9 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
                     </label>
                   </div>
 
+                  {courses.length > 1 && (
+                    <p className="text-[11px] text-gray-400 mb-2">ลากหัวข้อเพื่อสลับลำดับประเภทอาหารในแพ็กเกจนี้</p>
+                  )}
                   <div className="space-y-2">
                     {courses.map((course, index) => {
                       const cat = CATEGORY_MAP[course.category]
@@ -294,8 +334,17 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
                       return (
                         <div
                           key={index}
-                          className={`rounded-2xl border overflow-hidden transition-colors ${
-                            isEmpty ? 'border-red-200 bg-red-50/40' : 'border-gray-200'
+                          draggable
+                          onDragStart={() => handleCourseDragStart(course.no)}
+                          onDragOver={handleCourseDragOver}
+                          onDrop={() => handleCourseDrop(course.no)}
+                          onDragEnd={() => setDragCourseNo(null)}
+                          className={`rounded-2xl border overflow-hidden transition-colors cursor-grab active:cursor-grabbing ${
+                            dragCourseNo === course.no
+                              ? 'opacity-40'
+                              : isEmpty
+                              ? 'border-red-200 bg-red-50/40'
+                              : 'border-gray-200'
                           }`}
                         >
                           {/* หัวข้อ */}
@@ -303,6 +352,7 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
                             onClick={() => setOpenCourse(isOpen ? null : course.no)}
                             className="w-full flex items-center gap-2.5 px-3.5 py-3 text-left hover:bg-gray-50 transition-colors"
                           >
+                            <GripVertical size={13} className="text-gray-300 flex-shrink-0" />
                             <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                               {index + 1}
                             </span>
@@ -341,7 +391,7 @@ export default function Packages({ packages, menus, onCreatePackage, onUpdatePac
                                   }}
                                   className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
                                 >
-                                  {CATEGORIES.map(c => (
+                                  {categories.map(c => (
                                     <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
                                   ))}
                                 </select>

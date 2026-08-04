@@ -16,6 +16,7 @@ export type Screen =
   | 'owner-menus'
   | 'owner-documents'
   | 'owner-customers'
+  | 'owner-reports'
   | 'owner-settings'
 
 export interface Category {
@@ -73,7 +74,7 @@ export interface LocationDetail {
   accessNote: string
 }
 
-/** โซนบริการของร้าน — home = นครปฐม, metro = กรุงเทพและปริมณฑล */
+/** โซนบริการของร้าน — home = นครปฐม, metro = กรุงเทพ ปริมณฑล และจังหวัดที่ติดกับนครปฐม */
 export type ServiceZone = 'home' | 'metro' | 'outside'
 
 /** สถานที่จัดงาน — พิกัดจากแผนที่ + รายละเอียดที่ลูกค้ากรอก */
@@ -85,9 +86,17 @@ export interface EventLocation {
   /** ที่อยู่เต็มจากแผนที่ */
   address: string
   province: string
-  /** โซนบริการ: นครปฐม (พื้นที่ร้าน) / กรุงเทพและปริมณฑล / นอกพื้นที่ — ใช้คิดค่าขนส่ง */
+  /** โซนบริการ: นครปฐม (พื้นที่ร้าน) / กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง / นอกพื้นที่ — ใช้คิดค่าขนส่ง */
   zone: ServiceZone
   detail: LocationDetail
+  /** ระยะทางถนนจริงจากร้านไปสถานที่งาน (กม., เที่ยวเดียว) — คำนวณเฉพาะ zone = 'outside' ใช้คิดค่าเดินทาง */
+  distanceKm?: number
+}
+
+/** พิกัดที่ตั้งร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ */
+export interface ShopLocation {
+  lat: number
+  lng: number
 }
 
 export interface BookingData {
@@ -119,6 +128,10 @@ export interface StaffCalculation extends StaffPlan {
 export interface Booking {
   id: string
   customerName: string
+  /** ปีที่ออกเลขที่ใบจอง — คู่กับ bookingNo ใช้ประกอบเลขที่ใบจอง BK-{bookingYear}-{bookingNo} */
+  bookingYear: number
+  /** เลขลำดับใบจองภายในปีนั้น เริ่ม 1 ทุกปี */
+  bookingNo: number
   date: string
   timeSlot: string
   tables: number
@@ -150,6 +163,12 @@ export interface Booking {
   paymentSlipUploadedAt?: string
 }
 
+/**
+ * ข้อมูลคิวรับงานแบบไม่มีรายละเอียดส่วนตัว — ใช้เช็คว่าวัน/ช่วงเวลาไหนเต็มแล้วบ้าง (ทุกลูกค้า ไม่ใช่แค่ของตัวเอง)
+ * ดึงจาก endpoint แยก (`/bookings/availability`) เพราะ `/bookings` ปกติ ลูกค้าเห็นเฉพาะใบจองของตัวเอง
+ */
+export type QueueBooking = Pick<Booking, 'date' | 'timeSlot' | 'tables' | 'status'>
+
 export interface UserProfile {
   name: string
   surname: string
@@ -174,7 +193,7 @@ export interface AppSettings {
   shopInfo: ShopInfo
   /** อัตรามัดจำ 0–1 เช่น 0.5 = 50% */
   depositRate: number
-  /** ค่าขนส่งสำหรับกรุงเทพและปริมณฑลที่จองไม่ถึงขั้นต่ำ (บาท) */
+  /** ค่าขนส่งสำหรับกรุงเทพ ปริมณฑล และจังหวัดใกล้เคียงที่จองไม่ถึงขั้นต่ำ (บาท) */
   deliveryFee: number
   /** จำนวนโต๊ะขั้นต่ำสำหรับงานนอกพื้นที่ร้าน */
   freeDeliveryMinTables: number
@@ -186,4 +205,10 @@ export interface AppSettings {
   wageServerPerTable: number
   /** ค่าแรงพนักงานล้างจาน (บาท/คน/งาน) */
   wageDishwasher: number
+  /** ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง */
+  categoryOrder: string[]
+  /** พิกัดร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ (zone = 'outside') */
+  shopLocation: ShopLocation
+  /** ค่าน้ำมัน (บาท/กิโลเมตร) — ใช้คูณระยะทางไป-กลับคำนวณค่าเดินทางงานนอกพื้นที่ */
+  fuelCostPerKm: number
 }

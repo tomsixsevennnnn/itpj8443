@@ -5,6 +5,8 @@ import type { Booking } from './types'
 const makeBooking = (overrides: Partial<Booking>): Booking => ({
   id: overrides.id ?? 'BK-1',
   customerName: 'ทดสอบ',
+  bookingYear: 2026,
+  bookingNo: 1,
   date: '2026-01-15',
   timeSlot: 'เย็น (17:00-21:00)',
   tables: 5,

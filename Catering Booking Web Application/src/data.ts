@@ -19,6 +19,16 @@ export const CATEGORY_MAP: Record<string, Category> = Object.fromEntries(
   CATEGORIES.map(c => [c.id, c])
 )
 
+/** ลำดับประเภทอาหารเริ่มต้น — ใช้เป็นค่าเริ่มต้นของ AppSettings.categoryOrder */
+export const DEFAULT_CATEGORY_ORDER: string[] = CATEGORIES.map(c => c.id)
+
+/** เรียง CATEGORIES ตามลำดับที่เจ้าของร้านตั้งไว้ — id ที่ตกหล่นจาก order (เช่น เพิ่มประเภทใหม่ในโค้ดทีหลัง) จะต่อท้ายให้ */
+export const orderedCategories = (order: string[]): Category[] => {
+  const known = order.map(id => CATEGORY_MAP[id]).filter((c): c is Category => c != null)
+  const missing = CATEGORIES.filter(c => !order.includes(c.id))
+  return [...known, ...missing]
+}
+
 /** ข้อที่ลูกค้าต้องเลือกเอง (choose > 0) */
 export const requiredCourses = (pkg: Package) => pkg.courses.filter(c => c.choose > 0)
 

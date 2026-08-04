@@ -3,15 +3,16 @@ import { ChefHat } from 'lucide-react'
 
 interface CompleteProfileProps {
   name: string
-  onComplete: (profile: { phone: string; lineId: string }) => void
+  surname: string
+  onComplete: (profile: { name: string; surname: string; phone: string; lineId: string }) => void
 }
 
-/** ขอเบอร์โทร/Line ID ครั้งแรกหลัง login ด้วย Google — ข้อมูลอื่น (ชื่อ, อีเมล, รูป) มากับบัญชี Google แล้ว */
-export default function CompleteProfile({ name, onComplete }: CompleteProfileProps) {
-  const [form, setForm] = useState({ phone: '', lineId: '' })
+/** ขอชื่อจริง/นามสกุล/เบอร์โทร/Line ID ครั้งแรกหลัง login ด้วย Google — เผื่อกรณีบัญชี Google ไม่มีนามสกุลหรือชื่อไม่ตรงกับที่ใช้ติดต่อจริง */
+export default function CompleteProfile({ name, surname, onComplete }: CompleteProfileProps) {
+  const [form, setForm] = useState({ name, surname, phone: '', lineId: '' })
 
   const handleSave = () => {
-    if (!form.phone) return
+    if (!form.name.trim() || !form.surname.trim() || !form.phone) return
     onComplete(form)
   }
 
@@ -30,6 +31,8 @@ export default function CompleteProfile({ name, onComplete }: CompleteProfilePro
 
         <div className="space-y-4">
           {[
+            { key: 'name', label: 'ชื่อจริง *', placeholder: 'ชื่อจริง', type: 'text' },
+            { key: 'surname', label: 'นามสกุล *', placeholder: 'นามสกุล', type: 'text' },
             { key: 'phone', label: 'เบอร์โทรศัพท์ *', placeholder: '08X-XXX-XXXX', type: 'tel' },
             { key: 'lineId', label: 'Line ID', placeholder: '@yourid', type: 'text' },
           ].map(({ key, label, placeholder, type }) => (
@@ -48,7 +51,7 @@ export default function CompleteProfile({ name, onComplete }: CompleteProfilePro
 
         <button
           onClick={handleSave}
-          disabled={!form.phone}
+          disabled={!form.name.trim() || !form.surname.trim() || !form.phone}
           className="mt-6 w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl py-3.5 font-semibold transition-colors"
         >
           บันทึกและเริ่มใช้งาน

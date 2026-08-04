@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react'
 import { AlertTriangle, Edit2, Eye, EyeOff, ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react'
 import DishTile from '../../components/DishTile'
-import type { MenuItem, Package } from '../../types'
-import { CATEGORIES, CATEGORY_MAP } from '../../data'
+import type { AppSettings, MenuItem, Package } from '../../types'
+import { CATEGORY_MAP, orderedCategories } from '../../data'
 import { pickImageAsDataUrl } from '../../imageUpload'
 import { menuProfitPerPlate } from '../../costing'
 
 interface MenusProps {
   menus: MenuItem[]
   packages: Package[]
+  settings: AppSettings
   onSaveMenu: (item: MenuItem) => void
   onDeleteMenu: (id: string) => void
 }
@@ -33,11 +34,12 @@ const emptyForm = (category: string): MenuForm => ({
   image: '',
 })
 
-export default function Menus({ menus, packages, onSaveMenu, onDeleteMenu }: MenusProps) {
-  const [activeCategory, setActiveCategory] = useState(CATEGORIES[0].id)
+export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteMenu }: MenusProps) {
+  const categories = orderedCategories(settings.categoryOrder)
+  const [activeCategory, setActiveCategory] = useState(categories[0].id)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<MenuItem | null>(null)
-  const [form, setForm] = useState<MenuForm>(emptyForm(CATEGORIES[0].id))
+  const [form, setForm] = useState<MenuForm>(emptyForm(categories[0].id))
   const [confirmDelete, setConfirmDelete] = useState<MenuItem | null>(null)
   const [uploading, setUploading] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
@@ -124,7 +126,7 @@ export default function Menus({ menus, packages, onSaveMenu, onDeleteMenu }: Men
       {/* Category sidebar */}
       <div className="w-40 flex-shrink-0">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const count = menus.filter(m => m.category === cat.id).length
             return (
               <button
@@ -309,7 +311,7 @@ export default function Menus({ menus, packages, onSaveMenu, onDeleteMenu }: Men
                   onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
                 >
-                  {CATEGORIES.map(c => (
+                  {categories.map(c => (
                     <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
                   ))}
                 </select>

@@ -148,14 +148,12 @@ export default function SelectTable({ navigate, user, tables, guestCount, onSetT
               • ใน{HOME_PROVINCE} (พื้นที่ร้าน) รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง
             </p>
             <p>
-              • นอก{HOME_PROVINCE} ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ — กรุงเทพและปริมณฑลไม่ถึงขั้นต่ำ จองได้แต่มีค่าขนส่ง{' '}
-              {deliveryFee.toLocaleString()} บาท
+              • กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ — ไม่ถึงขั้นต่ำ
+              จองได้แต่มีค่าขนส่ง {deliveryFee.toLocaleString()} บาท
             </p>
-            {tables < freeDeliveryMinTables && (
-              <p className="mt-1.5 font-semibold">
-                งานนี้ {tables} โต๊ะ — จัดได้เฉพาะใน{HOME_PROVINCE} หรือกรุงเทพและปริมณฑล (มีค่าขนส่ง)
-              </p>
-            )}
+            <p>
+              • จังหวัดอื่นนอกเหนือจากนี้ รับจัดกี่โต๊ะก็ได้ ไม่มีขั้นต่ำ คิดค่าเดินทางตามระยะทางจริง (กิโลเมตร)
+            </p>
           </div>
         </div>
 

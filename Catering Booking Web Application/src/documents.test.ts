@@ -5,6 +5,8 @@ import type { Booking } from './types'
 const makeBooking = (overrides: Partial<Booking>): Booking => ({
   id: 'clx1234567890abcdef',
   customerName: 'ทดสอบ',
+  bookingYear: 2026,
+  bookingNo: 7,
   date: '2026-01-15',
   timeSlot: 'เย็น (17:00-21:00)',
   tables: 5,
@@ -38,9 +40,9 @@ describe('docNumber', () => {
     expect(docNumber(booking, 'quotation')).toBe('QT-90ABCDEF')
   })
 
-  it('ใบจองใช้เลขที่จองเดิมตรงๆ', () => {
-    const booking = makeBooking({ id: 'clx1234567890abcdef' })
-    expect(docNumber(booking, 'booking')).toBe('clx1234567890abcdef')
+  it('ใบจองใช้เลขที่จองจริง BK-{ปี}-{เลขลำดับ} ไม่ผูกกับ id ฐานข้อมูล', () => {
+    const booking = makeBooking({ bookingYear: 2026, bookingNo: 7 })
+    expect(docNumber(booking, 'booking')).toBe('BK-2026-007')
   })
 })
 

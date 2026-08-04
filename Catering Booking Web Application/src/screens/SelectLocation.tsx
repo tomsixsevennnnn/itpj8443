@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, MapPin, Navigation, Search, Truck, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import LocationMap from '../components/LocationMap'
-import type { EventLocation, LocationDetail, Screen, UserProfile } from '../types'
+import type { EventLocation, LocationDetail, Screen, ShopLocation, UserProfile } from '../types'
 import {
   HOME_PROVINCE,
   PRESET_LOCATIONS,
@@ -10,6 +10,7 @@ import {
   checkDelivery,
   emptyDetail,
   reverseGeocode,
+  routeDistanceKm,
   searchPlaces,
   searchPresets,
   zoneFor,
@@ -24,6 +25,8 @@ interface SelectLocationProps {
   onSetLocation: (loc: EventLocation) => void
   deliveryFee: number
   freeDeliveryMinTables: number
+  shopLocation: ShopLocation
+  fuelCostPerKm: number
 }
 
 /** กลางกรุงเทพฯ — ใช้เป็นจุดเริ่มต้นเมื่อยังไม่เคยเลือกสถานที่ */
@@ -42,7 +45,17 @@ const DETAIL_FIELDS: { key: keyof LocationDetail; label: string; placeholder: st
   },
 ]
 
-export default function SelectLocation({ navigate, user, tables, location, onSetLocation, deliveryFee, freeDeliveryMinTables }: SelectLocationProps) {
+export default function SelectLocation({
+  navigate,
+  user,
+  tables,
+  location,
+  onSetLocation,
+  deliveryFee,
+  freeDeliveryMinTables,
+  shopLocation,
+  fuelCostPerKm,
+}: SelectLocationProps) {
   const [pos, setPos] = useState(location ? { lat: location.lat, lng: location.lng } : DEFAULT_CENTER)
   const [focusKey, setFocusKey] = useState(0)
   const [place, setPlace] = useState({
@@ -154,8 +167,37 @@ export default function SelectLocation({ navigate, user, tables, location, onSet
   }
 
   const zone = zoneFor(place.province, place.address)
-  const check = checkDelivery(tables, zone, deliveryFee, freeDeliveryMinTables)
   const hasPlace = place.address.trim().length > 0
+
+  /** งานนอกพื้นที่ — คำนวณระยะทางถนนจริงจากร้านไปหมุดที่เลือก ใช้คิดค่าเดินทาง (ไป-กลับ) */
+  const [outsideDistanceKm, setOutsideDistanceKm] = useState<number | null>(null)
+  const [outsideLoading, setOutsideLoading] = useState(false)
+
+  useEffect(() => {
+    if (zone !== 'outside' || !hasPlace) {
+      setOutsideDistanceKm(null)
+      setOutsideLoading(false)
+      return
+    }
+    const ctrl = new AbortController()
+    setOutsideLoading(true)
+    setOutsideDistanceKm(null)
+    routeDistanceKm(shopLocation, pos, ctrl.signal)
+      .then(km => setOutsideDistanceKm(km))
+      .catch((err: Error) => {
+        if (err.name === 'AbortError') return
+        setOutsideDistanceKm(null)
+      })
+      .finally(() => setOutsideLoading(false))
+    return () => ctrl.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zone, hasPlace, pos.lat, pos.lng])
+
+  const check = checkDelivery(tables, zone, deliveryFee, freeDeliveryMinTables, {
+    distanceKm: outsideDistanceKm,
+    fuelCostPerKm,
+    loading: outsideLoading,
+  })
 
   const handleNext = () => {
     if (check.blocked) return
@@ -164,6 +206,7 @@ export default function SelectLocation({ navigate, user, tables, location, onSet
       lng: pos.lng,
       name: place.name || 'สถานที่จัดงาน',
       address: place.address,
+      distanceKm: zone === 'outside' ? outsideDistanceKm ?? undefined : undefined,
       province: place.province,
       zone,
       detail,
@@ -328,8 +371,8 @@ export default function SelectLocation({ navigate, user, tables, location, onSet
                   <Truck size={15} className="flex-shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
                     เลือกสถานที่เพื่อตรวจเงื่อนไขพื้นที่ — ใน {HOME_PROVINCE} รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง ·
-                    นอก {HOME_PROVINCE} ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ (กรุงเทพและปริมณฑล ไม่ถึงขั้นต่ำ
-                    คิดค่าขนส่ง {deliveryFee.toLocaleString()} บาท)
+                    กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ ไม่ถึงขั้นต่ำคิดค่าขนส่ง{' '}
+                    {deliveryFee.toLocaleString()} บาท · จังหวัดอื่นรับจัดกี่โต๊ะก็ได้ คิดค่าเดินทางตามระยะทางจริง (กิโลเมตร)
                   </div>
                 </div>
               ) : (
@@ -347,6 +390,8 @@ export default function SelectLocation({ navigate, user, tables, location, onSet
                   <div className="flex items-start gap-2.5">
                     {check.tone === 'blocked' ? (
                       <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+                    ) : zone === 'outside' && outsideLoading ? (
+                      <Loader2 size={15} className="flex-shrink-0 mt-0.5 animate-spin" />
                     ) : (
                       <Truck size={15} className="flex-shrink-0 mt-0.5" />
                     )}
@@ -408,7 +453,7 @@ export default function SelectLocation({ navigate, user, tables, location, onSet
               </button>
               <button
                 onClick={handleNext}
-                disabled={!hasPlace || check.blocked}
+                disabled={!hasPlace || check.blocked || (zone === 'outside' && outsideLoading)}
                 className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl py-3.5 font-semibold transition-all shadow-lg shadow-orange-200 disabled:shadow-none"
               >
                 บันทึกสถานที่

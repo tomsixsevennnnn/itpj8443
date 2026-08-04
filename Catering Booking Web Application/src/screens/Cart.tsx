@@ -14,16 +14,30 @@ interface CartProps {
   onConfirm: () => void
   deliveryFee: number
   freeDeliveryMinTables: number
+  fuelCostPerKm: number
 }
 
-export default function Cart({ navigate, user, packages, booking, onConfirm, deliveryFee: deliveryFeeAmount, freeDeliveryMinTables }: CartProps) {
+export default function Cart({
+  navigate,
+  user,
+  packages,
+  booking,
+  onConfirm,
+  deliveryFee: deliveryFeeAmount,
+  freeDeliveryMinTables,
+  fuelCostPerKm,
+}: CartProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const pkg = packages.find(p => p.id === booking.packageId) ?? null
   /** จับคู่เมนูที่เลือกกับ "ข้อ" ของแพ็กเกจ เพื่อแสดงตามลำดับเสิร์ฟ */
   const courseOf = (menuId: string) => pkg?.courses.find(c => c.items.some(i => i.id === menuId)) ?? null
   const subtotal = booking.packagePrice * booking.tables
-  const deliveryFee = deliveryFeeFor(booking.tables, booking.location, deliveryFeeAmount, freeDeliveryMinTables)
+  const deliveryFee = deliveryFeeFor(booking.tables, booking.location, deliveryFeeAmount, freeDeliveryMinTables, fuelCostPerKm)
   const total = subtotal + deliveryFee
+  const deliveryLabel =
+    booking.location?.zone === 'outside'
+      ? `ค่าเดินทาง (ระยะทาง ${((booking.location.distanceKm ?? 0) * 2).toFixed(1)} กม. ไป-กลับ)`
+      : `ค่าขนส่ง (นอก${HOME_PROVINCE} ไม่ถึง ${freeDeliveryMinTables} โต๊ะ)`
 
   const handleConfirm = () => {
     setShowConfirm(false)
@@ -193,9 +207,7 @@ export default function Cart({ navigate, user, packages, booking, onConfirm, del
                 </div>
                 {deliveryFee > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">
-                      ค่าขนส่ง (นอก{HOME_PROVINCE} ไม่ถึง {freeDeliveryMinTables} โต๊ะ)
-                    </span>
+                    <span className="text-gray-500">{deliveryLabel}</span>
                     <span className="text-gray-700">{deliveryFee.toLocaleString()} ฿</span>
                   </div>
                 )}
