@@ -1,4 +1,5 @@
 import type { AppSettings, Booking, MenuItem, Package, QueueBooking } from './types'
+import { DEFAULT_CATEGORY_ORDER } from './data'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
@@ -82,7 +83,8 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   wageAssistant: s.wageAssistant,
   wageServerPerTable: s.wageServerPerTable,
   wageDishwasher: s.wageDishwasher,
-  categoryOrder: s.categoryOrder,
+  // เผื่อ backend เก่า/ยังไม่ migrate ที่ส่ง settings มาโดยไม่มีฟิลด์นี้ — กันหน้าแพ็กเกจ/เมนูพังทั้งหน้า
+  categoryOrder: s.categoryOrder ?? DEFAULT_CATEGORY_ORDER,
   shopLocation: { lat: s.shopLocationLat, lng: s.shopLocationLng },
   fuelCostPerKm: s.fuelCostPerKm,
 })

@@ -183,28 +183,24 @@ export default function Reports({ bookings, menus, settings }: ReportsProps) {
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {[mode === 'month' ? 'เดือน' : 'ปี', 'จำนวนงาน', 'จำนวนโต๊ะ', 'รายได้', 'ต้นทุน', 'กำไร', 'มาร์จิ้น'].map(col => (
+              {[mode === 'month' ? 'เดือน' : 'ปี', 'จำนวนงาน', 'จำนวนโต๊ะ', 'รายได้', 'ต้นทุน', 'กำไร'].map(col => (
                 <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{col}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {rows.map(r => {
-              const margin = r.revenue > 0 ? Math.round((r.profit / r.revenue) * 100) : null
-              return (
-                <tr key={r.key} className={`hover:bg-orange-50/30 transition-colors ${r.count === 0 ? 'opacity-40' : ''}`}>
-                  <td className="px-4 py-3.5 text-sm font-semibold text-gray-800 whitespace-nowrap">{r.label}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.count} งาน</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.tables.toLocaleString()} โต๊ะ</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.revenue.toLocaleString()}</td>
-                  <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.cost.toLocaleString()}</td>
-                  <td className={`px-4 py-3.5 text-sm font-bold whitespace-nowrap ${r.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    ฿{r.profit.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3.5 text-sm text-gray-500 whitespace-nowrap">{margin != null ? `${margin}%` : '—'}</td>
-                </tr>
-              )
-            })}
+            {rows.map(r => (
+              <tr key={r.key} className={`hover:bg-orange-50/30 transition-colors ${r.count === 0 ? 'opacity-40' : ''}`}>
+                <td className="px-4 py-3.5 text-sm font-semibold text-gray-800 whitespace-nowrap">{r.label}</td>
+                <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.count} งาน</td>
+                <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.tables.toLocaleString()} โต๊ะ</td>
+                <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.revenue.toLocaleString()}</td>
+                <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.cost.toLocaleString()}</td>
+                <td className={`px-4 py-3.5 text-sm font-bold whitespace-nowrap ${r.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  ฿{r.profit.toLocaleString()}
+                </td>
+              </tr>
+            ))}
           </tbody>
           <tfoot>
             <tr className="bg-gray-50 border-t border-gray-100 font-bold text-gray-900">
@@ -215,9 +211,6 @@ export default function Reports({ bookings, menus, settings }: ReportsProps) {
               <td className="px-4 py-3.5 text-sm whitespace-nowrap">฿{totals.cost.toLocaleString()}</td>
               <td className={`px-4 py-3.5 text-sm whitespace-nowrap ${totals.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                 ฿{totals.profit.toLocaleString()}
-              </td>
-              <td className="px-4 py-3.5 text-sm whitespace-nowrap">
-                {totals.revenue > 0 ? `${Math.round((totals.profit / totals.revenue) * 100)}%` : '—'}
               </td>
             </tr>
           </tfoot>
