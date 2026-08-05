@@ -36,8 +36,6 @@ export interface MenuItem {
   extraPrice?: number
   /** ราคาทุนต่อจาน (บาท) — กรอกตรงๆ ไม่คำนวณจากวัตถุดิบ */
   costPrice?: number
-  /** ราคาขายต่อจาน (บาท) — ใช้คิดกำไรต่อจาน */
-  sellPrice?: number
   /** เปิด/ปิดการแสดงในคลังเมนูของร้าน (ไม่ตั้งค่า = เปิด) */
   active?: boolean
 }

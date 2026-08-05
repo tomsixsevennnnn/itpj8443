@@ -2,8 +2,8 @@ import type { AppSettings, Booking, MenuItem } from './types'
 import { calculateStaff, toPlan } from './staffing'
 
 /* ------------------------------------------------------------------ *
- * ต้นทุน/ราคาขายต่อจาน + ค่าแรงคน — ดู newfeature.md สำหรับที่มาของสูตร
- *   - ต้นทุนเมนู: เจ้าของร้านกรอกราคาทุน/ราคาขายต่อจานตรงๆ ไม่คำนวณจากวัตถุดิบ
+ * ต้นทุนต่อจาน + ค่าแรงคน — ดู newfeature.md สำหรับที่มาของสูตร
+ *   - ต้นทุนเมนู: เจ้าของร้านกรอกราคาทุนต่อจานตรงๆ ไม่คำนวณจากวัตถุดิบ
  *   - ค่าแรง: flat rate ต่อคนต่อตำแหน่ง ยกเว้นเสิร์ฟที่คิดตรงตามจำนวนโต๊ะ
  * ------------------------------------------------------------------ */
 
@@ -12,10 +12,6 @@ export const DEFAULT_WAGE_CHEF = 1200
 export const DEFAULT_WAGE_ASSISTANT = 1000
 export const DEFAULT_WAGE_SERVER_PER_TABLE = 100
 export const DEFAULT_WAGE_DISHWASHER = 500
-
-/** กำไรต่อจานของเมนู — null ถ้ายังไม่ได้กรอกราคาทุนหรือราคาขาย */
-export const menuProfitPerPlate = (menu: MenuItem): number | null =>
-  menu.costPrice != null && menu.sellPrice != null ? menu.sellPrice - menu.costPrice : null
 
 type WageRates = Pick<AppSettings, 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 'wageDishwasher'>
 

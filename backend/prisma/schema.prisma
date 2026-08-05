@@ -42,8 +42,6 @@ model MenuItem {
   extraPrice  Int?
   /** ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ */
   costPrice   Int?
-  /** ราคาขายต่อจาน (บาท) — ใช้คำนวณกำไรต่อจาน */
-  sellPrice   Int?
   active      Boolean         @default(true)
   courses     PackageCourse[] @relation("CourseItems")
 }

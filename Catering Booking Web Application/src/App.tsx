@@ -163,7 +163,6 @@ export default function App() {
         image: item.image,
         extraPrice: item.extraPrice,
         costPrice: item.costPrice,
-        sellPrice: item.sellPrice,
         active: item.active,
       }
       const saved = isExisting ? await api.updateMenu(token, item.id, input) : await api.createMenu(token, input)
@@ -254,10 +253,6 @@ export default function App() {
 
   const handleSetTables = (n: number) => {
     setBooking(b => ({ ...b, tables: n }))
-  }
-
-  const handleSetGuestCount = (n: number) => {
-    setBooking(b => ({ ...b, guestCount: n }))
   }
 
   const handleSetLocation = (loc: EventLocation) => {
@@ -475,9 +470,7 @@ export default function App() {
           navigate={navigate}
           user={user}
           tables={booking.tables}
-          guestCount={booking.guestCount}
           onSetTables={handleSetTables}
-          onSetGuestCount={handleSetGuestCount}
           date={booking.date}
           timeSlot={booking.timeSlot}
           deliveryFee={settings.deliveryFee}
