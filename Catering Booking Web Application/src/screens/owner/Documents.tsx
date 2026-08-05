@@ -23,7 +23,7 @@ export default function Documents({ bookings, menus, settings }: DocumentsProps)
   const docLabel = DOC_LABEL[activeTab]
 
   return (
-    <div className="grid xl:grid-cols-2 gap-5">
+    <div className="grid lg:grid-cols-2 gap-5">
       {/* List panel */}
       <div>
         {/* Tabs */}

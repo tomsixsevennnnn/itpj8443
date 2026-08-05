@@ -190,7 +190,7 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
       {/* Event popup */}
       {popup && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden">
             <div className={`p-5 flex items-start justify-between ${BOOKING_STATUS_INFO[popup.status].chip}`}>
               <div>
                 <p className="font-bold text-gray-900">{popup.customerName}</p>

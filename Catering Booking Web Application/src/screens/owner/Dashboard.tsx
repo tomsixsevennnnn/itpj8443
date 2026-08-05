@@ -198,7 +198,7 @@ export default function Dashboard({ bookings, menus, settings }: DashboardProps)
   return (
     <div className="space-y-6">
       {/* Stat cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map((card) => {
           const Icon = card.icon
           const up = card.change != null && card.change >= 0
@@ -231,9 +231,9 @@ export default function Dashboard({ bookings, menus, settings }: DashboardProps)
       </div>
 
       {/* Charts row */}
-      <div className="grid xl:grid-cols-3 gap-5">
+      <div className="grid lg:grid-cols-3 gap-5">
         {/* Revenue area chart */}
-        <div className="xl:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="font-bold text-gray-900">รายได้ย้อนหลัง {MONTHS_SHOWN} เดือน</h3>

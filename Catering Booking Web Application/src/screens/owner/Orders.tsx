@@ -86,7 +86,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
 
       <div className="flex gap-5 flex-1">
         {/* Table */}
-        <div className={`flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all ${selected ? 'hidden xl:block' : ''}`}>
+        <div className={`flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto transition-all ${selected ? 'hidden lg:block' : ''}`}>
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
@@ -152,7 +152,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
 
         {/* Drawer */}
         {selected && (
-          <div className="w-96 flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="w-full lg:w-96 lg:flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
             {/* Drawer header */}
             <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 flex items-start justify-between">
               <div>

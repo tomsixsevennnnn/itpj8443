@@ -7,18 +7,15 @@ interface SelectTableProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
   tables: number
-  guestCount: number
   onSetTables: (n: number) => void
-  onSetGuestCount: (n: number) => void
   date: string | null
   timeSlot: string | null
   deliveryFee: number
   freeDeliveryMinTables: number
 }
 
-export default function SelectTable({ navigate, user, tables, guestCount, onSetTables, onSetGuestCount, date, timeSlot, deliveryFee, freeDeliveryMinTables }: SelectTableProps) {
+export default function SelectTable({ navigate, user, tables, onSetTables, date, timeSlot, deliveryFee, freeDeliveryMinTables }: SelectTableProps) {
   const totalGuests = tables * 10
-  const overCapacity = guestCount > totalGuests
 
   const handleTableInput = (value: string) => {
     const parsed = Number(value)
@@ -93,29 +90,6 @@ export default function SelectTable({ navigate, user, tables, guestCount, onSetT
 
           {/* Divider */}
           <div className="border-t border-dashed border-gray-200 my-6" />
-
-          <div className="grid gap-4 mb-6">
-            {/* <div className="bg-gray-50 rounded-2xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-xs text-gray-400">จำนวนคนที่ร่วมงาน</p>
-                  <p className="text-sm font-semibold text-gray-900">{guestCount} คน</p>
-                </div>
-              </div>
-              <input
-                type="number"
-                min="1"
-                max="5000"
-                value={guestCount}
-                onChange={(e) => onSetGuestCount(Math.max(1, Math.min(5000, Math.floor(Number(e.target.value) || 1))))}
-                className="w-full rounded-2xl border border-gray-200 px-4 py-3 text-center text-lg font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              />
-              {overCapacity && (
-                <p className="mt-2 text-xs text-red-500">จำนวนคนเกินความจุของโต๊ะปัจจุบัน ({totalGuests} ที่นั่ง)</p>
-              )}
-            </div> */}
-            
-          </div>
 
           {/* Summary */}
           <div className="grid grid-cols-2 gap-4">
