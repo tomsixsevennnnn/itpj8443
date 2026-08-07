@@ -22,7 +22,8 @@ import type { Booking, Screen, ShopInfo, UserProfile } from '../types'
 import type { ReactNode } from 'react'
 
 const NOTIF_PREVIEW_LIMIT = 6
-const NOTIF_SEEN_KEY = 'ownerNotifSeenAt'
+/** เก็บ per-browser ไม่ใช่ per-account — ต้องล้างตอน logout ไม่งั้น owner คนถัดไปที่ใช้เครื่องเดียวกันจะเห็นค่าเก่าค้าง (ดู App.tsx) */
+export const OWNER_NOTIF_SEEN_KEY = 'ownerNotifSeenAt'
 
 interface OwnerLayoutProps {
   navigate: (s: Screen) => void
@@ -51,7 +52,7 @@ export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, b
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifSeenAt, setNotifSeenAt] = useState<string>(() => {
     try {
-      return localStorage.getItem(NOTIF_SEEN_KEY) ?? ''
+      return localStorage.getItem(OWNER_NOTIF_SEEN_KEY) ?? ''
     } catch {
       return ''
     }
@@ -70,7 +71,7 @@ export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, b
     const now = new Date().toISOString()
     setNotifSeenAt(now)
     try {
-      localStorage.setItem(NOTIF_SEEN_KEY, now)
+      localStorage.setItem(OWNER_NOTIF_SEEN_KEY, now)
     } catch {
       // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode) — แค่ตัวเลขจะไม่คงอยู่ข้ามเซสชัน
     }

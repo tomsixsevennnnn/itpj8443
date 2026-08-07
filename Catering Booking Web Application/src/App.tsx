@@ -34,7 +34,7 @@ import SelectMenu from './screens/SelectMenu'
 import Cart from './screens/Cart'
 import BookingHistory from './screens/BookingHistory'
 import Notifications from './screens/Notifications'
-import OwnerLayout from './components/OwnerLayout'
+import OwnerLayout, { OWNER_NOTIF_SEEN_KEY } from './components/OwnerLayout'
 import Dashboard from './screens/owner/Dashboard'
 import Orders from './screens/owner/Orders'
 import CalendarView from './screens/owner/CalendarView'
@@ -252,6 +252,17 @@ export default function App() {
   /** navigate('login') คือปุ่ม "ออกจากระบบ" เดิมทุกจุดในแอป — ผูกเข้ากับ Auth0 logout จริงตรงนี้ที่เดียว */
   const navigate = (s: Screen) => {
     if (s === 'login') {
+      // cacheLocation="localstorage" (main.tsx) แปลว่า session ของ Auth0 SDK เองก็อยู่ใน localStorage —
+      // ปกติ logout() จะล้างให้ แต่ถ้ามี request ค้าง (เช่น token refresh) ชนกับตอน logout อาจเขียนทับกลับมาได้
+      // ล้างเองซ้ำให้ชัวร์ก่อน redirect กันเคส "ออกจากระบบแล้วกลับเข้ามาเจอ session เดิมของ owner ค้างอยู่"
+      try {
+        Object.keys(localStorage)
+          .filter(key => key.startsWith('@@auth0spajs@@'))
+          .forEach(key => localStorage.removeItem(key))
+        localStorage.removeItem(OWNER_NOTIF_SEEN_KEY)
+      } catch {
+        // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode)
+      }
       logout({ logoutParams: { returnTo: window.location.origin } })
       return
     }

@@ -6,11 +6,12 @@ import { DEFAULT_SHOP_INFO } from '../documents'
 export default function Login() {
   const { loginWithRedirect, isLoading } = useAuth0()
 
+  // prompt: 'login' บังคับให้ Auth0 โชว์หน้า login ใหม่เสมอ กัน SSO session เดิมของบัญชีอื่น (เช่น owner) พาลอดผ่านเข้ามาเงียบๆ
   const loginAsCustomer = () =>
-    loginWithRedirect({ authorizationParams: { connection: AUTH0_CONNECTION.customer } })
+    loginWithRedirect({ authorizationParams: { connection: AUTH0_CONNECTION.customer, prompt: 'login' } })
 
   const loginAsOwner = () =>
-    loginWithRedirect({ authorizationParams: { connection: AUTH0_CONNECTION.owner } })
+    loginWithRedirect({ authorizationParams: { connection: AUTH0_CONNECTION.owner, prompt: 'login' } })
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex flex-col items-center justify-center p-4">
