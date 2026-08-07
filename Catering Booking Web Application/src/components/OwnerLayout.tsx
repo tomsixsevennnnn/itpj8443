@@ -9,19 +9,21 @@ import {
   FileBarChart,
   FileText,
   LayoutDashboard,
+  LayoutTemplate,
   LogOut,
   Menu,
   Package,
   Settings,
   X,
 } from 'lucide-react'
-import type { Screen, UserProfile } from '../types'
+import type { Screen, ShopInfo, UserProfile } from '../types'
 import type { ReactNode } from 'react'
 
 interface OwnerLayoutProps {
   navigate: (s: Screen) => void
   currentScreen: Screen
   user: UserProfile | null
+  shopInfo: ShopInfo
   children: ReactNode
 }
 
@@ -33,10 +35,11 @@ const sidebarItems = [
   { label: 'เมนูอาหาร', screen: 'owner-menus' as Screen, icon: Book },
   { label: 'เอกสาร', screen: 'owner-documents' as Screen, icon: FileText },
   { label: 'รายงาน', screen: 'owner-reports' as Screen, icon: FileBarChart },
+  { label: 'แก้ไขหน้าเว็บ', screen: 'owner-page-content' as Screen, icon: LayoutTemplate },
   { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
 
-export default function OwnerLayout({ navigate, currentScreen, user, children }: OwnerLayoutProps) {
+export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, children }: OwnerLayoutProps) {
   // ต่ำกว่า lg (จอแท็บเล็ตแนวตั้งอย่าง iPad) sidebar ซ่อนเป็น off-canvas drawer เปิดผ่านปุ่มแฮมเบอร์เกอร์
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -64,7 +67,7 @@ export default function OwnerLayout({ navigate, currentScreen, user, children }:
               <ChefHat size={20} className="text-white" />
             </div>
             <div>
-              <p className="font-bold text-white leading-tight text-sm">ครัวไทย</p>
+              <p className="font-bold text-white leading-tight text-sm">{shopInfo.name}</p>
               <p className="text-[10px] text-gray-400 leading-tight">Owner Dashboard</p>
             </div>
           </div>

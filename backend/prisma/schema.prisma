@@ -141,4 +141,6 @@ model Settings {
   shopLocationLng        Float  @default(100.0603)
   /** ค่าน้ำมัน (บาท/กิโลเมตร) — คูณระยะทางไป-กลับคำนวณค่าเดินทางงานนอกพื้นที่ */
   fuelCostPerKm          Float  @default(8)
+  /** เนื้อหาหน้าแรก (Hero, การ์ดจุดเด่น, ขั้นตอนการจอง, แกลเลอรี, CTA) — โครงสร้างคือ HomeContent ฝั่ง frontend, null = ยังไม่เคย customize ใช้ค่า default ในโค้ด */
+  homeContent            Json?
 }

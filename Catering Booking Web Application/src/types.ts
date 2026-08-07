@@ -1,3 +1,5 @@
+import type { HomeContent } from './homeContent'
+
 export type Screen =
   | 'login'
   | 'home'
@@ -18,6 +20,7 @@ export type Screen =
   | 'owner-customers'
   | 'owner-reports'
   | 'owner-settings'
+  | 'owner-page-content'
 
 export interface Category {
   id: string
@@ -209,4 +212,6 @@ export interface AppSettings {
   shopLocation: ShopLocation
   /** ค่าน้ำมัน (บาท/กิโลเมตร) — ใช้คูณระยะทางไป-กลับคำนวณค่าเดินทางงานนอกพื้นที่ */
   fuelCostPerKm: number
+  /** เนื้อหาหน้าแรก (Hero/การ์ดจุดเด่น/ขั้นตอน/แกลเลอรี/CTA) — แก้ได้จากหน้า "แก้ไขหน้าเว็บ" */
+  homeContent: HomeContent
 }

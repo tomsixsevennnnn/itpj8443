@@ -1,10 +1,11 @@
 import { Bell, Calendar, CheckCircle, Clock } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Screen, UserProfile } from '../types'
+import type { Screen, ShopInfo, UserProfile } from '../types'
 
 interface NotificationsProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  shopInfo: ShopInfo
 }
 
 const NOTIFICATIONS = [
@@ -65,10 +66,10 @@ const NOTIFICATIONS = [
   },
 ]
 
-export default function Notifications({ navigate, user }: NotificationsProps) {
+export default function Notifications({ navigate, user, shopInfo }: NotificationsProps) {
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="notifications" user={user} />
+      <Navbar navigate={navigate} currentScreen="notifications" user={user} shopInfo={shopInfo} />
 
       <div className="pt-24 pb-12 max-w-2xl mx-auto px-4">
         <div className="mb-8 flex items-center justify-between">

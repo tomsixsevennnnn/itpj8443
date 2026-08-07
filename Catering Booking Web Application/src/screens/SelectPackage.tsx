@@ -1,11 +1,12 @@
 import { Check, ChevronLeft, ChevronRight, Crown, Sparkles, Star } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Package, Screen, UserProfile } from '../types'
+import type { Package, Screen, ShopInfo, UserProfile } from '../types'
 import { CATEGORY_MAP, requiredCourses } from '../data'
 
 interface SelectPackageProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  shopInfo: ShopInfo
   packages: Package[]
   tables: number
   selectedPackageId: string | null
@@ -19,10 +20,10 @@ const PKG_COLORS = [
   { bg: 'bg-purple-50', border: 'border-purple-100', accent: 'text-purple-600', badge: 'bg-purple-100 text-purple-600', btn: 'bg-purple-600 hover:bg-purple-700' },
 ]
 
-export default function SelectPackage({ navigate, user, packages, tables, selectedPackageId, onSelectPackage }: SelectPackageProps) {
+export default function SelectPackage({ navigate, user, shopInfo, packages, tables, selectedPackageId, onSelectPackage }: SelectPackageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="select-package" user={user} />
+      <Navbar navigate={navigate} currentScreen="select-package" user={user} shopInfo={shopInfo} />
 
       <div className="pt-24 pb-12 max-w-5xl mx-auto px-4">
         <div className="text-center mb-10">

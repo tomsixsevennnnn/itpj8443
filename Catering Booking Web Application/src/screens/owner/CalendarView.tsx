@@ -1,6 +1,9 @@
-import { useState } from 'react'
-import { Check, ChevronLeft, ChevronRight, Users, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, MapPin, Navigation, Users, X } from 'lucide-react'
+import LocationMap from '../../components/LocationMap'
+import ImageLightbox from '../../components/ImageLightbox'
 import type { Booking } from '../../types'
+import { docNumber } from '../../documents'
 import {
   BASE_SLOTS,
   BOOKING_STATUS_INFO,
@@ -32,9 +35,34 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [popupId, setPopupId] = useState<string | null>(null)
+  /** วันที่กำลังดูรายการงานทั้งหมด (มีมากกว่า 1 งาน) — null = ไม่ได้เปิดหน้ารายการวัน */
+  const [dayPopupDate, setDayPopupDate] = useState<string | null>(null)
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
 
   const popup = popupId ? bookings.find(b => b.id === popupId) ?? null : null
+  const dayEvents = dayPopupDate ? bookingsOn(bookings, dayPopupDate) : []
+
+  /** กด Esc ปิด popup ที่เปิดอยู่ล่างขึ้นบน: ดูสลิป → รายละเอียดงาน → รายการวัน */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (slipZoom) setSlipZoom(null)
+      else if (popupId) setPopupId(null)
+      else if (dayPopupDate) setDayPopupDate(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [slipZoom, popupId, dayPopupDate])
+
+  /** กดที่ตัววันในปฏิทิน — งานเดียวเปิดรายละเอียดตรงๆ หลายงานเปิดรายการให้เลือกก่อน */
+  const openDay = (dateKey: string, events: Booking[]) => {
+    if (events.length === 0) return
+    if (events.length === 1) setPopupId(events[0].id)
+    else setDayPopupDate(dateKey)
+  }
+
+  /** ปิดรายละเอียดงาน — ถ้าเปิดมาจากรายการวัน ให้กลับไปที่รายการ ไม่ใช่ปิดทั้งหมด */
+  const closeDetail = () => setPopupId(null)
 
   const firstDay = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -134,8 +162,11 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
             return (
               <div
                 key={idx}
+                onClick={() => openDay(dateKey, events)}
                 className={`min-h-[118px] p-2 border-b border-r border-gray-50 ${
-                  !day ? 'bg-gray-50/50' : 'hover:bg-orange-50/20 transition-colors'
+                  !day ? 'bg-gray-50/50' : events.length > 0
+                    ? 'hover:bg-orange-50/40 transition-colors cursor-pointer'
+                    : 'hover:bg-orange-50/20 transition-colors'
                 }`}
               >
                 {day && (
@@ -162,7 +193,10 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
                         return (
                           <button
                             key={ev.id}
-                            onClick={() => setPopupId(ev.id)}
+                            onClick={e => {
+                              e.stopPropagation()
+                              setPopupId(ev.id)
+                            }}
                             className={`w-full text-left text-[10px] font-medium px-1.5 py-1 rounded-lg border truncate transition-all hover:opacity-80 ${info.chip} ${info.border}`}
                             title={`${ev.customerName} · ${SLOT_LABEL[slotIdOf(ev.timeSlot)]} · ${ev.tables} โต๊ะ · ${info.label}`}
                           >
@@ -171,7 +205,9 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
                         )
                       })}
                       {events.length > 3 && (
-                        <p className="text-[10px] text-gray-400 pl-1.5">+ อีก {events.length - 3} งาน</p>
+                        <p className="text-[10px] text-orange-600 font-medium pl-1.5 hover:underline">
+                          + อีก {events.length - 3} งาน
+                        </p>
                       )}
                       {usage && events.length > 0 && (
                         <p className="text-[9px] text-gray-400 pl-1.5">
@@ -187,16 +223,78 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
         </div>
       </div>
 
+      {/* รายการงานทั้งหมดในวันที่กด (วันที่มีมากกว่า 1 งาน) */}
+      {dayPopupDate && !popup && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setDayPopupDate(null)}
+        >
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 flex items-start justify-between bg-gray-50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Calendar size={16} className="text-orange-500" />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900">
+                    {new Date(dayPopupDate + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="text-xs text-gray-500">{dayEvents.length} งาน</p>
+                </div>
+              </div>
+              <button onClick={() => setDayPopupDate(null)} className="w-8 h-8 bg-white rounded-xl flex items-center justify-center hover:bg-gray-100 transition-colors flex-shrink-0">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="p-3 space-y-1.5 max-h-[65vh] overflow-y-auto">
+              {dayEvents.map(ev => {
+                const info = BOOKING_STATUS_INFO[ev.status]
+                return (
+                  <button
+                    key={ev.id}
+                    onClick={() => setPopupId(ev.id)}
+                    className={`w-full text-left px-3.5 py-3 rounded-2xl border transition-all hover:opacity-80 ${info.chip} ${info.border}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-sm truncate">{ev.customerName}</p>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/70 flex-shrink-0">{info.label}</span>
+                    </div>
+                    <p className="text-xs mt-1 opacity-80">
+                      {SLOT_LABEL[slotIdOf(ev.timeSlot)]} · {ev.tables} โต๊ะ · ฿{ev.totalPrice.toLocaleString()}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Event popup */}
       {popup && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden">
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={closeDetail}
+        >
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className={`p-5 flex items-start justify-between ${BOOKING_STATUS_INFO[popup.status].chip}`}>
-              <div>
-                <p className="font-bold text-gray-900">{popup.customerName}</p>
-                <p className="text-sm text-gray-600">{popup.id}</p>
+              <div className="flex items-center gap-2 min-w-0">
+                {dayPopupDate && (
+                  <button
+                    onClick={closeDetail}
+                    aria-label="กลับไปรายการวัน"
+                    className="w-8 h-8 bg-white/70 rounded-xl flex items-center justify-center hover:bg-white transition-colors flex-shrink-0"
+                  >
+                    <ArrowLeft size={14} />
+                  </button>
+                )}
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-900 truncate">{popup.customerName}</p>
+                  <p className="text-sm text-gray-600">{docNumber(popup, 'booking')}</p>
+                </div>
               </div>
-              <button onClick={() => setPopupId(null)} className="w-8 h-8 bg-white/70 rounded-xl flex items-center justify-center hover:bg-white transition-colors">
+              <button onClick={closeDetail} className="w-8 h-8 bg-white/70 rounded-xl flex items-center justify-center hover:bg-white transition-colors flex-shrink-0">
                 <X size={14} />
               </button>
             </div>
@@ -208,7 +306,6 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
                 { label: 'จำนวนโต๊ะ', value: `${popup.tables} โต๊ะ` },
                 { label: 'ผู้ร่วมงาน', value: `${popup.guestCount ?? popup.tables * 10} คน` },
                 { label: 'แพ็กเกจ', value: popup.packageName },
-                { label: 'สถานที่', value: popup.location },
                 { label: 'ราคารวม', value: `฿${popup.totalPrice.toLocaleString()}` },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between gap-4 text-sm border-b border-gray-50 pb-2.5">
@@ -216,6 +313,38 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
                   <span className="font-medium text-gray-800 text-right">{value}</span>
                 </div>
               ))}
+
+              {/* สถานที่ — มีพิกัดจริงก็โชว์แผนที่ย่อ + ปุ่มนำทางไปเลย */}
+              <div className="pb-2.5 border-b border-gray-50">
+                <div className="flex items-start gap-2 text-sm">
+                  <MapPin size={14} className="text-orange-500 mt-0.5 flex-shrink-0" />
+                  <span className="font-medium text-gray-800">{popup.location}</span>
+                </div>
+                {popup.locationDetail && (
+                  <>
+                    <LocationMap
+                      key={popup.id}
+                      position={{ lat: popup.locationDetail.lat, lng: popup.locationDetail.lng }}
+                      interactive={false}
+                      className="mt-2 h-28 rounded-xl overflow-hidden"
+                    />
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-[10px] font-mono text-gray-500">
+                        {popup.locationDetail.lat.toFixed(6)}, {popup.locationDetail.lng.toFixed(6)}
+                      </span>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${popup.locationDetail.lat},${popup.locationDetail.lng}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-medium text-orange-600 hover:text-orange-700"
+                      >
+                        <Navigation size={11} />
+                        นำทาง
+                      </a>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {popup.staffActual && (
                 <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5">
@@ -269,23 +398,12 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
 
       {/* Lightbox ดูสลิปแบบเต็มขนาด */}
       {slipZoom && (
-        <div
-          className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
-          onClick={() => setSlipZoom(null)}
-        >
-          <button
-            onClick={() => setSlipZoom(null)}
-            className="absolute top-4 right-4 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white"
-          >
-            <X size={18} />
-          </button>
-          <img
-            src={slipZoom}
-            alt="สลิปโอนเงิน (ขยาย)"
-            className="max-w-full max-h-full object-contain rounded-xl"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
+        <ImageLightbox
+          src={slipZoom}
+          alt="สลิปโอนเงิน (ขยาย)"
+          fileName={`สลิป-${popup ? docNumber(popup, 'booking') : 'booking'}.jpg`}
+          onClose={() => setSlipZoom(null)}
+        />
       )}
     </div>
   )

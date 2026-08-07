@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Calendar, Check, Eye, FileText, Filter, Loader2, Printer, Search, Send, Upload, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
+import ImageLightbox from '../components/ImageLightbox'
 import type { AppSettings, Booking, Screen, UserProfile } from '../types'
 import { DOC_LABEL, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
@@ -31,6 +32,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
   const [slipSent, setSlipSent] = useState(false)
   /** รูปที่เลือกไว้แต่ยังไม่ได้กดส่ง — ผูกกับ bookingId เพื่อกันเผลอโชว์ข้ามรายการ */
   const [slipDraft, setSlipDraft] = useState<{ id: string; dataUrl: string } | null>(null)
+  const [slipZoom, setSlipZoom] = useState<string | null>(null)
   const slipInputRef = useRef<HTMLInputElement>(null)
 
   const allBookings = bookings
@@ -47,6 +49,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
     setSlipDraft(null)
     setSlipError(null)
     setSlipSent(false)
+    setSlipZoom(null)
   }
 
   /** เลือกรูปสลิป — ย่อขนาดแล้วพักไว้เป็นตัวอย่าง ยังไม่บันทึกจนกว่าจะกด "ส่ง" */
@@ -86,7 +89,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="history" user={user} />
+      <Navbar navigate={navigate} currentScreen="history" user={user} shopInfo={settings.shopInfo} />
 
       <div className="pt-24 pb-12 max-w-6xl mx-auto px-4">
         <div className="mb-8">
@@ -309,7 +312,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
             <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 flex items-center justify-between sticky top-0">
               <div>
                 <h3 className="text-lg font-bold text-white">รายละเอียดการจอง</h3>
-                <p className="text-orange-100 text-sm">{detailBooking.id}</p>
+                <p className="text-orange-100 text-sm">{docNumber(detailBooking, 'booking')}</p>
               </div>
               <button
                 onClick={closeDetail}
@@ -361,11 +364,13 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
                 {slipDraft?.id === detailBooking.id ? (
                   // เลือกรูปไว้แล้วแต่ยังไม่ได้กดส่ง
                   <div className="space-y-2">
-                    <img
-                      src={slipDraft.dataUrl}
-                      alt="ตัวอย่างสลิปที่เลือก"
-                      className="w-full max-h-64 object-contain rounded-xl border-2 border-dashed border-orange-300 bg-gray-50"
-                    />
+                    <button type="button" onClick={() => setSlipZoom(slipDraft.dataUrl)} className="block w-full">
+                      <img
+                        src={slipDraft.dataUrl}
+                        alt="ตัวอย่างสลิปที่เลือก"
+                        className="w-full max-h-64 object-contain rounded-xl border-2 border-dashed border-orange-300 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                      />
+                    </button>
                     <p className="text-[11px] text-orange-600">ยังไม่ได้ส่ง — กด "ส่งสลิป" เพื่อแจ้งร้าน</p>
                     <div className="flex gap-2">
                       <button
@@ -386,11 +391,13 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
                   </div>
                 ) : detailBooking.paymentSlip ? (
                   <div className="space-y-2">
-                    <img
-                      src={detailBooking.paymentSlip}
-                      alt="สลิปโอนเงิน"
-                      className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50"
-                    />
+                    <button type="button" onClick={() => setSlipZoom(detailBooking.paymentSlip!)} className="block w-full">
+                      <img
+                        src={detailBooking.paymentSlip}
+                        alt="สลิปโอนเงิน"
+                        className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                      />
+                    </button>
                     {detailBooking.paymentSlipUploadedAt && (
                       <p className="text-[11px] text-gray-400">
                         {slipSent ? (
@@ -433,6 +440,16 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
             </div>
           </div>
         </div>
+      )}
+
+      {/* Lightbox ดูสลิปแบบเต็มขนาด */}
+      {slipZoom && (
+        <ImageLightbox
+          src={slipZoom}
+          alt="สลิปโอนเงิน (ขยาย)"
+          fileName={`สลิป-${detailBooking ? docNumber(detailBooking, 'booking') : 'booking'}.jpg`}
+          onClose={() => setSlipZoom(null)}
+        />
       )}
     </div>
   )

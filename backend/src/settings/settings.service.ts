@@ -36,6 +36,6 @@ export class SettingsService {
 
   async update(dto: UpdateSettingsDto) {
     await this.get()
-    return this.prisma.settings.update({ where: { id: 1 }, data: dto })
+    return this.prisma.settings.update({ where: { id: 1 }, data: dto as any })
   }
 }

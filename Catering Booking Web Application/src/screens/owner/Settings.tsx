@@ -1,5 +1,19 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Building2, Check, Fuel, ListOrdered, Loader2, MapPin, Navigation, Percent, Save, Truck, Users } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Building2,
+  Check,
+  Fuel,
+  ListOrdered,
+  Loader2,
+  MapPin,
+  Navigation,
+  Percent,
+  Save,
+  Truck,
+  Users,
+} from 'lucide-react'
 import type { AppSettings } from '../../types'
 import { orderedCategories } from '../../data'
 import LocationMap from '../../components/LocationMap'

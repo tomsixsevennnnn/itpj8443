@@ -1,6 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react'
 import { ChefHat } from 'lucide-react'
 import { AUTH0_CONNECTION } from '../auth'
+import { DEFAULT_SHOP_INFO } from '../documents'
 
 export default function Login() {
   const { loginWithRedirect, isLoading } = useAuth0()
@@ -25,7 +26,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl shadow-lg shadow-orange-200 mb-4">
             <ChefHat size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">ร้านพิพัฒน์โภชนา</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{DEFAULT_SHOP_INFO.name}</h1>
           <p className="text-gray-500 mt-1 text-sm">ระบบจองจัดเลี้ยงนอกสถานที่</p>
         </div>
 

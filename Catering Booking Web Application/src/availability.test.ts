@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayStatus, remainingFor, slotIdOf, slotUsage, toDateKey } from './availability'
+import { dayStatus, slotIdOf, slotUsage, toDateKey } from './availability'
 import type { Booking } from './types'
 
 const makeBooking = (overrides: Partial<Booking>): Booking => ({
@@ -52,18 +52,6 @@ describe('slotUsage', () => {
     expect(usage.morning).toBe(20)
     expect(usage.noon).toBe(20)
     expect(usage.evening).toBe(20)
-  })
-})
-
-describe('remainingFor', () => {
-  it('ความจุ 500 โต๊ะต่อช่วง หักด้วยที่จองไปแล้ว', () => {
-    const bookings = [makeBooking({ date: '2026-01-15', timeSlot: 'เช้า (08:00-12:00)', tables: 100 })]
-    expect(remainingFor(bookings, '2026-01-15', 'morning')).toBe(400)
-  })
-
-  it('ไม่ติดลบแม้จองเกินความจุ', () => {
-    const bookings = [makeBooking({ date: '2026-01-15', timeSlot: 'เช้า (08:00-12:00)', tables: 600 })]
-    expect(remainingFor(bookings, '2026-01-15', 'morning')).toBe(0)
   })
 })
 

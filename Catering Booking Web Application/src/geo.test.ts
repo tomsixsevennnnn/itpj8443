@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkDelivery, deliveryFeeFor, zoneFor } from './geo'
+import { checkDelivery, deliveryFeeFor, isGoogleMapsShortLink, isGoogleMapsUrl, parseGoogleMapsUrl, zoneFor } from './geo'
 
 describe('zoneFor', () => {
   it('นครปฐม = พื้นที่ร้าน', () => {
@@ -98,5 +98,63 @@ describe('checkDelivery', () => {
     expect(result.blocked).toBe(false)
     expect(result.fee).toBe(0)
     expect(result.tone).toBe('ok')
+  })
+})
+
+describe('isGoogleMapsUrl / isGoogleMapsShortLink', () => {
+  it('ลิงก์เต็ม google.com/maps = true, ไม่ใช่ลิงก์สั้น', () => {
+    expect(isGoogleMapsUrl('https://www.google.com/maps/@13.7466,100.5396,17z')).toBe(true)
+    expect(isGoogleMapsShortLink('https://www.google.com/maps/@13.7466,100.5396,17z')).toBe(false)
+  })
+
+  it('ลิงก์สั้น maps.app.goo.gl = true ทั้งคู่', () => {
+    expect(isGoogleMapsUrl('https://maps.app.goo.gl/AbCdEf123')).toBe(true)
+    expect(isGoogleMapsShortLink('https://maps.app.goo.gl/AbCdEf123')).toBe(true)
+  })
+
+  it('ข้อความค้นหาธรรมดา หรือ URL เว็บอื่น = false', () => {
+    expect(isGoogleMapsUrl('โรงเรียนสารสิทธิ์')).toBe(false)
+    expect(isGoogleMapsUrl('https://example.com/maps')).toBe(false)
+  })
+
+  it('maps.google.com ที่ path ไม่มีคำว่า /maps (เช่น /?q=...) ก็ต้องนับเป็นลิงก์ Google Maps', () => {
+    expect(isGoogleMapsUrl('https://maps.google.com/?q=13.7466,100.5396')).toBe(true)
+  })
+
+  it('โดเมน google ประเทศอื่น (google.co.th) ก็ใช้ได้', () => {
+    expect(isGoogleMapsUrl('https://www.google.co.th/maps/@13.7466,100.5396,17z')).toBe(true)
+  })
+
+  it('วางลิงก์มาโดยไม่มี https:// นำหน้า ก็ยังตรวจจับได้', () => {
+    expect(isGoogleMapsUrl('www.google.com/maps/@13.7466,100.5396,17z')).toBe(true)
+  })
+
+  it('โดเมนหน้าตาคล้าย google แต่ไม่ใช่ = false', () => {
+    expect(isGoogleMapsUrl('https://notgoogle.com/maps/@13.7466,100.5396,17z')).toBe(false)
+  })
+})
+
+describe('parseGoogleMapsUrl', () => {
+  it('แกะพิกัดจาก !3d!4d (หมุดจริง) ก่อนเสมอถ้ามี', () => {
+    const url = 'https://www.google.com/maps/place/X/@13.0,100.0,17z/data=!3m1!4b1!4m6!3m5!1s0x0!8m2!3d13.7466!4d100.5396'
+    expect(parseGoogleMapsUrl(url)).toEqual({ lat: 13.7466, lng: 100.5396 })
+  })
+
+  it('แกะพิกัดจาก ?q=lat,lng', () => {
+    expect(parseGoogleMapsUrl('https://www.google.com/maps/search/?api=1&query=13.7466,100.5396')).toEqual({
+      lat: 13.7466,
+      lng: 100.5396,
+    })
+  })
+
+  it('แกะพิกัดจาก @lat,lng,zoom ถ้าไม่มีรูปแบบอื่น', () => {
+    expect(parseGoogleMapsUrl('https://www.google.com/maps/@13.7466,100.5396,17z')).toEqual({
+      lat: 13.7466,
+      lng: 100.5396,
+    })
+  })
+
+  it('แกะพิกัดไม่ได้ = null', () => {
+    expect(parseGoogleMapsUrl('https://www.google.com/maps/place/ไม่มีพิกัด')).toBeNull()
   })
 })

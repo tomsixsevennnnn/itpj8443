@@ -22,4 +22,7 @@ export class UpdateSettingsDto {
   @IsOptional() @IsNumber() shopLocationLat?: number
   @IsOptional() @IsNumber() shopLocationLng?: number
   @IsOptional() @IsNumber() @Min(0) fuelCostPerKm?: number
+
+  /** เนื้อหาหน้าแรก (Hero/การ์ดจุดเด่น/ขั้นตอน/แกลเลอรี/CTA) — โครงสร้างคือ HomeContent ฝั่ง frontend ไม่ deep-validate ที่นี่ */
+  @IsOptional() homeContent?: unknown
 }

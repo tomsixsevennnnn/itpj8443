@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, MapPin, Navigation, Search, Truck, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import LocationMap from '../components/LocationMap'
-import type { EventLocation, LocationDetail, Screen, ShopLocation, UserProfile } from '../types'
+import LocationMap, { type LocationMapHandle } from '../components/LocationMap'
+import type { EventLocation, LocationDetail, Screen, ShopInfo, ShopLocation, UserProfile } from '../types'
 import {
   HOME_PROVINCE,
   PRESET_LOCATIONS,
   ZONE_LABEL,
   checkDelivery,
   emptyDetail,
+  isGoogleMapsShortLink,
+  isGoogleMapsUrl,
+  parseGoogleMapsUrl,
   reverseGeocode,
   routeDistanceKm,
   searchPlaces,
@@ -20,9 +23,12 @@ import {
 interface SelectLocationProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  shopInfo: ShopInfo
   tables: number
   location: EventLocation | null
   onSetLocation: (loc: EventLocation) => void
+  /** ตามลิงก์ย่อ Google Maps (maps.app.goo.gl) ผ่าน backend — browser เรียกตรงไม่ได้เพราะ Google ไม่เปิด CORS */
+  onResolveMapsLink: (url: string) => Promise<string>
   deliveryFee: number
   freeDeliveryMinTables: number
   shopLocation: ShopLocation
@@ -48,16 +54,18 @@ const DETAIL_FIELDS: { key: keyof LocationDetail; label: string; placeholder: st
 export default function SelectLocation({
   navigate,
   user,
+  shopInfo,
   tables,
   location,
   onSetLocation,
+  onResolveMapsLink,
   deliveryFee,
   freeDeliveryMinTables,
   shopLocation,
   fuelCostPerKm,
 }: SelectLocationProps) {
   const [pos, setPos] = useState(location ? { lat: location.lat, lng: location.lng } : DEFAULT_CENTER)
-  const [focusKey, setFocusKey] = useState(0)
+  const mapRef = useRef<LocationMapHandle>(null)
   const [place, setPlace] = useState({
     name: location?.name ?? '',
     address: location?.address ?? '',
@@ -75,7 +83,7 @@ export default function SelectLocation({
   const [locating, setLocating] = useState(false)
   const reverseCtrl = useRef<AbortController | null>(null)
 
-  /* ค้นหาสถานที่แบบ debounce — ถ้าเรียกออนไลน์ไม่ได้ จะสำรองด้วยสถานที่ยอดนิยม */
+  /* ค้นหาสถานที่แบบ debounce — ถ้าวางลิงก์ Google Maps มาให้แกะพิกัดแทนค้นหา ถ้าค้นหาออนไลน์ไม่ได้จะสำรองด้วยสถานที่ยอดนิยม */
   useEffect(() => {
     const q = search.trim()
     if (q.length < 2) {
@@ -83,13 +91,45 @@ export default function SelectLocation({
       setSearching(false)
       return
     }
+
+    // Nominatim แยกคำภาษาไทยไม่แม่น (ค้นหาชื่อสถานที่เฉพาะเจาะจงมักพลาด) — วางลิงก์ Google Maps มาแทนได้ แม่นกว่าเยอะ
+    if (isGoogleMapsUrl(q)) {
+      let cancelled = false
+      setSearching(true)
+      setNotice(null)
+      ;(async () => {
+        try {
+          // ลิงก์สั้นจากปุ่ม "แชร์" ต้องให้ backend ตาม redirect ก่อน (Google ไม่เปิด CORS ให้ browser ยิงตรง)
+          const fullUrl = isGoogleMapsShortLink(q) ? await onResolveMapsLink(q) : q
+          const coords = parseGoogleMapsUrl(fullUrl)
+          if (cancelled) return
+          if (!coords) {
+            setNotice('อ่านพิกัดจากลิงก์นี้ไม่ได้ — ลองคัดลอกลิงก์ใหม่จาก Google Maps หรือปักหมุดเอง')
+            return
+          }
+          setSearch('')
+          setResults([])
+          setShowResults(false)
+          applyPin(coords.lat, coords.lng)
+          mapRef.current?.flyToPosition(coords.lat, coords.lng)
+        } catch {
+          if (!cancelled) setNotice('เปิดลิงก์นี้ไม่ได้ — ลองคัดลอกลิงก์ใหม่จาก Google Maps หรือปักหมุดเอง')
+        } finally {
+          if (!cancelled) setSearching(false)
+        }
+      })()
+      return () => {
+        cancelled = true
+      }
+    }
+
     const ctrl = new AbortController()
     const timer = setTimeout(() => {
       setSearching(true)
       searchPlaces(q, ctrl.signal)
         .then(found => {
           setResults(found.length > 0 ? found : searchPresets(q))
-          setNotice(found.length > 0 ? null : 'ไม่พบสถานที่ตามคำค้นหา')
+          setNotice(found.length > 0 ? null : 'ไม่พบสถานที่ตามคำค้นหา — ลองวางลิงก์ Google Maps แทน')
         })
         .catch((err: Error) => {
           if (err.name === 'AbortError') return
@@ -103,6 +143,7 @@ export default function SelectLocation({
       clearTimeout(timer)
       ctrl.abort()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 
   /** ปักหมุดใหม่แล้วแปลงพิกัดกลับเป็นชื่อสถานที่/ที่อยู่ */
@@ -137,7 +178,7 @@ export default function SelectLocation({
     setSearch(r.name)
     setShowResults(false)
     setNotice(null)
-    setFocusKey(k => k + 1)
+    mapRef.current?.flyToPosition(r.lat, r.lng)
   }
 
   /** ใช้ตำแหน่งปัจจุบันจาก GPS แล้วปักหมุดอัตโนมัติ */
@@ -152,7 +193,7 @@ export default function SelectLocation({
       p => {
         setLocating(false)
         applyPin(p.coords.latitude, p.coords.longitude)
-        setFocusKey(k => k + 1)
+        mapRef.current?.flyToPosition(p.coords.latitude, p.coords.longitude)
       },
       err => {
         setLocating(false)
@@ -216,7 +257,7 @@ export default function SelectLocation({
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="select-location" user={user} />
+      <Navbar navigate={navigate} currentScreen="select-location" user={user} shopInfo={shopInfo} />
 
       {/* มือถือ: Navbar มีแถวเมนูล่างเพิ่ม จึงต้องเว้นบนมากกว่าจอใหญ่ */}
       <div className="pt-[7.25rem] md:pt-16 flex flex-col flex-1 overflow-hidden">
@@ -232,7 +273,7 @@ export default function SelectLocation({
               <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="ค้นหาจากชื่อสถานที่หรือที่อยู่..."
+                placeholder="ค้นหาชื่อสถานที่/ที่อยู่ หรือวางลิงก์ Google Maps..."
                 value={search}
                 onChange={e => {
                   setSearch(e.target.value)
@@ -302,8 +343,8 @@ export default function SelectLocation({
         {/* Map + details */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden" onClick={() => setShowResults(false)}>
           <LocationMap
+            ref={mapRef}
             position={pos}
-            focusKey={focusKey}
             onPinChange={applyPin}
             onLocate={handleLocate}
             locating={locating}

@@ -1,5 +1,6 @@
 import type { AppSettings, Booking, MenuItem, Package, QueueBooking } from './types'
 import { DEFAULT_CATEGORY_ORDER } from './data'
+import { DEFAULT_HOME_CONTENT, type HomeContent } from './homeContent'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
@@ -65,6 +66,7 @@ interface BackendSettings {
   shopLocationLat: number
   shopLocationLng: number
   fuelCostPerKm: number
+  homeContent: HomeContent | null
 }
 
 const toFrontendSettings = (s: BackendSettings): AppSettings => ({
@@ -87,6 +89,8 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   categoryOrder: s.categoryOrder ?? DEFAULT_CATEGORY_ORDER,
   shopLocation: { lat: s.shopLocationLat, lng: s.shopLocationLng },
   fuelCostPerKm: s.fuelCostPerKm,
+  // ยังไม่เคย customize (หรือ backend เก่ายังไม่มีคอลัมน์นี้) — ใช้เนื้อหาเริ่มต้นเดิมของหน้าแรก
+  homeContent: s.homeContent ?? DEFAULT_HOME_CONTENT,
 })
 
 const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unknown> => {
@@ -109,6 +113,7 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (patch.shopLocation?.lat !== undefined) out.shopLocationLat = patch.shopLocation.lat
   if (patch.shopLocation?.lng !== undefined) out.shopLocationLng = patch.shopLocation.lng
   if (patch.fuelCostPerKm !== undefined) out.fuelCostPerKm = patch.fuelCostPerKm
+  if (patch.homeContent !== undefined) out.homeContent = patch.homeContent
   return out
 }
 
@@ -226,6 +231,10 @@ export const api = {
     request<MenuItem>(token, `/menus/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
 
   deleteMenu: (token: string, id: string) => request<void>(token, `/menus/${id}`, { method: 'DELETE' }),
+
+  /** ตามลิงก์ย่อ Google Maps (maps.app.goo.gl) ฝั่ง backend แล้วคืนลิงก์เต็มที่มีพิกัดอยู่ในตัว */
+  resolveMapsLink: async (token: string, url: string): Promise<string> =>
+    (await request<{ url: string }>(token, `/geo/resolve-maps-link?url=${encodeURIComponent(url)}`)).url,
 
   settings: async (token: string): Promise<AppSettings> =>
     toFrontendSettings(await request<BackendSettings>(token, '/settings')),

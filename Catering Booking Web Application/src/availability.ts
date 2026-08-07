@@ -61,13 +61,6 @@ export const slotUsage = (bookings: QueueBooking[], date: string): SlotUsage => 
   return usage
 }
 
-/** จำนวนโต๊ะที่ยังรับได้ในช่วงเวลานั้น */
-export const remainingFor = (bookings: QueueBooking[], date: string, slot: SlotId): number => {
-  const usage = slotUsage(bookings, date)
-  const used = slot === 'allday' ? Math.max(usage.morning, usage.noon, usage.evening) : usage[slot]
-  return Math.max(0, SLOT_CAPACITY - used)
-}
-
 export type DayStatus = 'available' | 'full'
 
 /** มีงานจองอยู่แล้วในวันนั้นหรือยัง — จองแล้ว 1 งาน (ช่วงใดก็ได้) ถือว่าเต็มทั้งวัน ไม่รับซ้อนช่วงอื่น */

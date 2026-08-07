@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { QueueBooking, Screen, UserProfile } from '../types'
+import type { QueueBooking, Screen, ShopInfo, UserProfile } from '../types'
 import {
   BOOKABLE_SLOTS,
   DAY_STATUS_INFO,
@@ -12,6 +12,7 @@ import {
 interface BookingCalendarProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  shopInfo: ShopInfo
   /** คิวรับงานของ "ทุกลูกค้า" (ไม่ใช่แค่ของตัวเอง) — ใช้เช็คว่าวันไหนเต็มแล้วบ้าง ดึงจาก /bookings/availability */
   bookings: QueueBooking[]
   onSelectDateTime: (date: string, timeSlot: string) => void
@@ -23,7 +24,7 @@ const MONTHS_TH = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ]
 
-export default function BookingCalendar({ navigate, user, bookings, onSelectDateTime }: BookingCalendarProps) {
+export default function BookingCalendar({ navigate, user, shopInfo, bookings, onSelectDateTime }: BookingCalendarProps) {
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
@@ -63,7 +64,7 @@ export default function BookingCalendar({ navigate, user, bookings, onSelectDate
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="booking-calendar" user={user} />
+      <Navbar navigate={navigate} currentScreen="booking-calendar" user={user} shopInfo={shopInfo} />
 
       <div className="pt-24 pb-12 max-w-6xl mx-auto px-4">
         <div className="mb-8">

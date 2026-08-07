@@ -324,3 +324,65 @@ export const searchPresets = (query: string): GeoResult[] => {
     l => l.name.toLowerCase().includes(q) || l.address.toLowerCase().includes(q)
   )
 }
+
+/* ------------------------------------------------------------------ *
+ * วางลิงก์ Google Maps แทนค้นหา — Nominatim แยกคำภาษาไทยไม่แม่น (tokenizer ไม่รองรับภาษาไทย)
+ * ลิงก์เต็ม (คัดลอกจาก address bar) แกะพิกัดจาก URL ได้ตรงๆ ฝั่งนี้ ไม่ต้องเรียก API ใดๆ
+ * ลิงก์สั้นจากปุ่ม "แชร์" (maps.app.goo.gl) ต้องให้ backend ตาม redirect ก่อน — Google ไม่เปิด CORS ให้ยิงตรงจาก browser
+ * ------------------------------------------------------------------ */
+const GOOGLE_MAPS_SHORT_HOSTS = ['maps.app.goo.gl', 'goo.gl']
+
+const parseUrlSafe = (text: string): URL | null => {
+  const trimmed = text.trim()
+  try {
+    return new URL(trimmed)
+  } catch {
+    // บางเบราว์เซอร์ copy จาก address bar มาโดยตัด https:// ออก — ลองเติมให้ก่อนยอมแพ้
+    try {
+      return new URL(`https://${trimmed}`)
+    } catch {
+      return null
+    }
+  }
+}
+
+export const isGoogleMapsShortLink = (text: string): boolean => {
+  const url = parseUrlSafe(text)
+  return url !== null && GOOGLE_MAPS_SHORT_HOSTS.includes(url.hostname)
+}
+
+/**
+ * true ทั้งลิงก์เต็มของ Google Maps (ทุกโดเมนย่อย/ประเทศ เช่น google.com, maps.google.com, google.co.th)
+ * และลิงก์สั้น maps.app.goo.gl / goo.gl
+ */
+export const isGoogleMapsUrl = (text: string): boolean => {
+  const url = parseUrlSafe(text)
+  if (!url) return false
+  if (GOOGLE_MAPS_SHORT_HOSTS.includes(url.hostname)) return true
+  // ครอบคลุม www.google.com, maps.google.com, google.co.th, www.google.de ฯลฯ — ไม่ใช่แค่ *.google.com เฉยๆ
+  if (!/(^|\.)google\.[a-z.]+$/.test(url.hostname)) return false
+  return url.hostname.startsWith('maps.') || url.pathname.includes('/maps')
+}
+
+/** แกะพิกัดจากลิงก์ Google Maps เต็มรูปแบบ — ลองรูปแบบที่แม่นสุดก่อน แล้วค่อยหยาบลงเรื่อยๆ */
+export const parseGoogleMapsUrl = (text: string): { lat: number; lng: number } | null => {
+  const url = text.trim()
+
+  // !3d<lat>!4d<lng> — พิกัดหมุดจริงที่ปักไว้ในหน้าสถานที่ แม่นที่สุด
+  const pin = url.match(/!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/)
+  if (pin) return { lat: parseFloat(pin[1]), lng: parseFloat(pin[2]) }
+
+  // ?q=<lat>,<lng> หรือ ?query=<lat>,<lng>
+  const query = url.match(/[?&](?:q|query)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
+  if (query) return { lat: parseFloat(query[1]), lng: parseFloat(query[2]) }
+
+  // ?ll=<lat>,<lng>
+  const ll = url.match(/[?&]ll=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
+  if (ll) return { lat: parseFloat(ll[1]), lng: parseFloat(ll[2]) }
+
+  // @<lat>,<lng>,<zoom> — จุดกึ่งกลางแผนที่ตอนคัดลอกลิงก์ มีอยู่เกือบทุกลิงก์แต่หยาบสุด
+  const center = url.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
+  if (center) return { lat: parseFloat(center[1]), lng: parseFloat(center[2]) }
+
+  return null
+}

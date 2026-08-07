@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { AuthModule } from './auth/auth.module'
 import { BookingsModule } from './bookings/bookings.module'
+import { GeoModule } from './geo/geo.module'
 import { MenusModule } from './menus/menus.module'
 import { PackagesModule } from './packages/packages.module'
 import { PrismaModule } from './prisma/prisma.module'
@@ -18,6 +19,7 @@ import { UsersModule } from './users/users.module'
     PackagesModule,
     MenusModule,
     SettingsModule,
+    GeoModule,
   ],
 })
 export class AppModule {}

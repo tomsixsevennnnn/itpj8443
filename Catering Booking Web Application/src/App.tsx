@@ -18,6 +18,7 @@ import {
   DEFAULT_WAGE_DISHWASHER,
   DEFAULT_WAGE_SERVER_PER_TABLE,
 } from './costing'
+import { DEFAULT_HOME_CONTENT } from './homeContent'
 import { roleFromAuth0User } from './auth'
 import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput } from './api'
 import ErrorBanner from './components/ErrorBanner'
@@ -42,10 +43,16 @@ import Documents from './screens/owner/Documents'
 import Customers from './screens/owner/Customers'
 import Reports from './screens/owner/Reports'
 import Settings from './screens/owner/Settings'
+import PageContent from './screens/owner/PageContent'
 
 const OWNER_SCREENS: Screen[] = [
   'owner-dashboard', 'owner-orders', 'owner-calendar', 'owner-packages', 'owner-menus', 'owner-documents',
-  'owner-customers', 'owner-reports', 'owner-settings',
+  'owner-customers', 'owner-reports', 'owner-settings', 'owner-page-content',
+]
+
+/** 6 ขั้นตอนการจอง — ออกจากช่วงนี้ไปหน้าอื่นผ่านแถบเมนูด้านบน (หน้าแรก/ประวัติการจอง) แล้วกลับมาต้องเริ่มเลือกใหม่ ไม่ resume ของเดิม */
+const BOOKING_FLOW_SCREENS: Screen[] = [
+  'booking-calendar', 'select-table', 'select-location', 'select-package', 'select-menu', 'cart',
 ]
 
 const initialSettings: AppSettings = {
@@ -60,6 +67,7 @@ const initialSettings: AppSettings = {
   categoryOrder: DEFAULT_CATEGORY_ORDER,
   shopLocation: DEFAULT_SHOP_LOCATION,
   fuelCostPerKm: DEFAULT_FUEL_COST_PER_KM,
+  homeContent: DEFAULT_HOME_CONTENT,
 }
 
 const initialBooking: BookingData = {
@@ -90,6 +98,12 @@ export default function App() {
   const [menus, setMenus] = useState<MenuItem[]>([])
   // ค่าตั้งค่าร้าน — แก้ได้จากหน้า "ตั้งค่า" ฝั่งเจ้าของร้าน มีผลกับค่าขนส่ง มัดจำ และข้อมูลบนเอกสารทันที
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
+
+  // ชื่อ tab เบราว์เซอร์ — title ใน index.html มาจาก .figma/make/site.json (static ตอน build)
+  // ส่วนนี้ sync ให้ตรงกับชื่อร้านจริงจากฐานข้อมูลทันทีที่โหลด settings เสร็จ
+  useEffect(() => {
+    document.title = settings.shopInfo.name || document.title
+  }, [settings.shopInfo.name])
   // โปรไฟล์ผู้ใช้จาก backend (ผูกกับ Auth0 sub) — เป็นแหล่งความจริงเดียวของ user profile
   const [backendUser, setBackendUser] = useState<BackendUser | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
@@ -236,6 +250,10 @@ export default function App() {
       logout({ logoutParams: { returnTo: window.location.origin } })
       return
     }
+    // ออกจากขั้นตอนการจอง (กดแถบเมนูด้านบนไปหน้าอื่น) ไปหน้าที่ไม่ใช่ส่วนหนึ่งของ flow — ล้างข้อมูลจองที่เลือกไว้ กลับมาต้องเริ่มใหม่
+    if (BOOKING_FLOW_SCREENS.includes(screen) && !BOOKING_FLOW_SCREENS.includes(s)) {
+      setBooking(initialBooking)
+    }
     setScreen(s)
   }
 
@@ -257,6 +275,12 @@ export default function App() {
 
   const handleSetLocation = (loc: EventLocation) => {
     setBooking(b => ({ ...b, location: loc }))
+  }
+
+  /** ตามลิงก์ย่อ Google Maps ฝั่ง backend (browser เรียกตรงไม่ได้ เพราะ Google ไม่เปิด CORS) */
+  const handleResolveMapsLink = async (url: string) => {
+    const token = await withToken()
+    return api.resolveMapsLink(token, url)
   }
 
   const handleSelectPackage = (pkg: Package) => {
@@ -394,7 +418,7 @@ export default function App() {
   // Owner screens
   if (OWNER_SCREENS.includes(effectiveScreen)) {
     return (
-      <OwnerLayout navigate={navigate} currentScreen={effectiveScreen} user={user}>
+      <OwnerLayout navigate={navigate} currentScreen={effectiveScreen} user={user} shopInfo={settings.shopInfo}>
         {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
         {effectiveScreen === 'owner-dashboard' && (
           <Dashboard bookings={bookings} menus={menus} settings={settings} />
@@ -436,6 +460,9 @@ export default function App() {
         {effectiveScreen === 'owner-settings' && (
           <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
         )}
+        {effectiveScreen === 'owner-page-content' && (
+          <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} />
+        )}
       </OwnerLayout>
     )
   }
@@ -455,12 +482,13 @@ export default function App() {
         </button>
       )}
       {effectiveScreen === 'home' && (
-        <Home navigate={navigate} user={user} />
+        <Home navigate={navigate} user={user} shopInfo={settings.shopInfo} homeContent={settings.homeContent} />
       )}
       {effectiveScreen === 'booking-calendar' && (
         <BookingCalendar
           navigate={navigate}
           user={user}
+          shopInfo={settings.shopInfo}
           bookings={availability}
           onSelectDateTime={handleSelectDateTime}
         />
@@ -469,6 +497,7 @@ export default function App() {
         <SelectTable
           navigate={navigate}
           user={user}
+          shopInfo={settings.shopInfo}
           tables={booking.tables}
           onSetTables={handleSetTables}
           date={booking.date}
@@ -481,9 +510,11 @@ export default function App() {
         <SelectLocation
           navigate={navigate}
           user={user}
+          shopInfo={settings.shopInfo}
           tables={booking.tables}
           location={booking.location}
           onSetLocation={handleSetLocation}
+          onResolveMapsLink={handleResolveMapsLink}
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
           shopLocation={settings.shopLocation}
@@ -494,6 +525,7 @@ export default function App() {
         <SelectPackage
           navigate={navigate}
           user={user}
+          shopInfo={settings.shopInfo}
           packages={packages}
           tables={booking.tables}
           selectedPackageId={booking.packageId}
@@ -504,6 +536,7 @@ export default function App() {
         <SelectMenu
           navigate={navigate}
           user={user}
+          shopInfo={settings.shopInfo}
           packages={packages}
           packageId={booking.packageId}
           selectedMenus={booking.selectedMenus}
@@ -514,6 +547,8 @@ export default function App() {
         <Cart
           navigate={navigate}
           user={user}
+          role={role}
+          shopInfo={settings.shopInfo}
           packages={packages}
           booking={booking}
           onConfirm={handleConfirm}
@@ -532,7 +567,7 @@ export default function App() {
         />
       )}
       {effectiveScreen === 'notifications' && (
-        <Notifications navigate={navigate} user={user} />
+        <Notifications navigate={navigate} user={user} shopInfo={settings.shopInfo} />
       )}
     </>
   )

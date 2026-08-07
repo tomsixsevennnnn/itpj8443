@@ -1,18 +1,37 @@
-import { useEffect, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import L from 'leaflet'
-import { Loader2, Minus, Navigation, Plus } from 'lucide-react'
+import { Layers, Loader2, Minus, Navigation, Plus } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
+
+/** ชั้นแผนที่ถนน (OpenStreetMap) กับดาวเทียม (Esri World Imagery) — ทั้งคู่ฟรี ไม่ต้องมี API key */
+const TILE_LAYERS = {
+  street: {
+    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap',
+    maxZoom: 19,
+  },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 19,
+  },
+} as const
+
+type MapLayer = keyof typeof TILE_LAYERS
 
 interface LocationMapProps {
   position: { lat: number; lng: number }
-  /** เพิ่มค่านี้เมื่อต้องการให้แผนที่บินไปยังตำแหน่งใหม่ (เช่น หลังค้นหา / กด GPS) */
-  focusKey?: number
   onPinChange?: (lat: number, lng: number) => void
   onLocate?: () => void
   locating?: boolean
   /** false = แผนที่แสดงอย่างเดียว ปักหมุด/ลากไม่ได้ (ใช้ในหน้าเจ้าของร้าน) */
   interactive?: boolean
   className?: string
+}
+
+export interface LocationMapHandle {
+  /** ย้ายหมุด + บินกล้องไปตำแหน่งที่ระบุทันที — เรียกตรงจาก parent (ค้นหา/GPS/วางลิงก์) ไม่ผ่าน state/effect เพื่อกันปัญหาจังหวะ re-render ที่ทำให้หมุดไม่ขยับ */
+  flyToPosition: (lat: number, lng: number) => void
 }
 
 /** หมุดสีส้มแบบ HTML — เลี่ยงปัญหารูป marker ของ Leaflet ที่ bundler หาไม่เจอ */
@@ -34,18 +53,18 @@ const pinIcon = L.divIcon({
   iconAnchor: [17, 44],
 })
 
-export default function LocationMap({
+export default forwardRef<LocationMapHandle, LocationMapProps>(function LocationMap({
   position,
-  focusKey = 0,
   onPinChange,
   onLocate,
   locating = false,
   interactive = true,
   className = '',
-}: LocationMapProps) {
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const markerRef = useRef<L.Marker | null>(null)
+  const [layer, setLayer] = useState<MapLayer>('street')
   // เก็บ callback ล่าสุดไว้ใน ref เพื่อไม่ต้องสร้างแผนที่ใหม่ทุกครั้งที่ parent re-render
   const onPinChangeRef = useRef(onPinChange)
   onPinChangeRef.current = onPinChange
@@ -62,11 +81,6 @@ export default function LocationMap({
       touchZoom: interactive,
       keyboard: interactive,
     }).setView([position.lat, position.lng], 16)
-
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map)
 
     const marker = L.marker([position.lat, position.lng], {
       draggable: interactive,
@@ -104,24 +118,52 @@ export default function LocationMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ย้ายหมุดตามตำแหน่งที่ parent กำหนด
+  // สลับชั้นแผนที่ถนน/ดาวเทียม — ใส่/ถอด tile layer ใหม่ทุกครั้งที่ layer เปลี่ยน
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const cfg = TILE_LAYERS[layer]
+    const tile = L.tileLayer(cfg.url, { maxZoom: cfg.maxZoom, attribution: cfg.attribution }).addTo(map)
+    return () => {
+      try {
+        map.removeLayer(tile)
+      } catch {
+        // แผนที่ถูก destroy ไปแล้วตอน unmount (map.remove() ในเอฟเฟกต์ mount ด้านบน) — ไม่ต้องทำอะไรต่อ
+      }
+    }
+  }, [layer])
+
+  // ย้ายหมุดตามตำแหน่งที่ parent กำหนด (เช่น หลังลากแล้ว parent normalize ค่ากลับมา)
   useEffect(() => {
     markerRef.current?.setLatLng([position.lat, position.lng])
   }, [position.lat, position.lng])
 
-  // บินไปยังตำแหน่งใหม่เมื่อ focusKey เปลี่ยน (ค้นหา / GPS / เลือกสถานที่ยอดนิยม)
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || focusKey === 0) return
-    map.flyTo([position.lat, position.lng], Math.max(map.getZoom(), 16), { duration: 0.7 })
-    // ตั้งใจไม่ใส่ position ใน deps เพื่อให้บินเฉพาะตอนที่ parent สั่งเท่านั้น
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusKey])
+  /**
+   * ย้ายหมุด + บินกล้องไปตำแหน่งใหม่ — เรียกตรงจาก parent (ค้นหา/GPS/วางลิงก์) ผ่าน ref แทนพึ่ง prop+effect
+   * เพราะพึ่ง state (focusKey) แล้วรอ effect รันตามหลัง เจอเคสที่หมุดไม่ขยับ (แข่งกับ setState ตัวอื่นในคิวเดียวกัน) — เรียกตรงชัวร์กว่า
+   */
+  useImperativeHandle(ref, () => ({
+    flyToPosition: (lat, lng) => {
+      const map = mapRef.current
+      if (!map) return
+      markerRef.current?.setLatLng([lat, lng])
+      map.flyTo([lat, lng], Math.max(map.getZoom(), 16), { duration: 0.7 })
+    },
+  }))
 
   // isolate = กัน z-index ภายในของ Leaflet ไม่ให้ทับ UI ส่วนอื่น
   return (
     <div className={`relative isolate ${className}`}>
       <div ref={containerRef} className="w-full h-full" style={{ background: '#e5e7eb' }} />
+
+      <button
+        onClick={() => setLayer(l => (l === 'street' ? 'satellite' : 'street'))}
+        aria-label="สลับมุมมองแผนที่/ดาวเทียม"
+        className="absolute top-3 left-3 z-[1000] flex items-center gap-1.5 bg-white rounded-xl shadow-md px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+      >
+        <Layers size={14} />
+        {layer === 'street' ? 'ดาวเทียม' : 'แผนที่'}
+      </button>
 
       {interactive && (
         <>
@@ -159,4 +201,4 @@ export default function LocationMap({
       )}
     </div>
   )
-}
+})

@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { Calendar, ChevronLeft, Clock, MapPin, Package, Pencil, ShoppingBag, Users, X } from 'lucide-react'
+import { Calendar, ChevronLeft, Clock, MapPin, Package, ShoppingBag, Users, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import DishTile from '../components/DishTile'
 import LocationMap from '../components/LocationMap'
-import type { BookingData, Package as PackageType, Screen, UserProfile } from '../types'
+import type { AppRole } from '../auth'
+import type { BookingData, Package as PackageType, Screen, ShopInfo, UserProfile } from '../types'
 import { HOME_PROVINCE, ZONE_LABEL, deliveryFeeFor, formatFullAddress } from '../geo'
 
 interface CartProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  role: AppRole
+  shopInfo: ShopInfo
   packages: PackageType[]
   booking: BookingData
   onConfirm: () => void
@@ -20,6 +23,8 @@ interface CartProps {
 export default function Cart({
   navigate,
   user,
+  role,
+  shopInfo,
   packages,
   booking,
   onConfirm,
@@ -28,6 +33,7 @@ export default function Cart({
   fuelCostPerKm,
 }: CartProps) {
   const [showConfirm, setShowConfirm] = useState(false)
+  const [ownerBlocked, setOwnerBlocked] = useState(false)
   const pkg = packages.find(p => p.id === booking.packageId) ?? null
   /** จับคู่เมนูที่เลือกกับ "ข้อ" ของแพ็กเกจ เพื่อแสดงตามลำดับเสิร์ฟ */
   const courseOf = (menuId: string) => pkg?.courses.find(c => c.items.some(i => i.id === menuId)) ?? null
@@ -40,6 +46,11 @@ export default function Cart({
       : `ค่าขนส่ง (นอก${HOME_PROVINCE} ไม่ถึง ${freeDeliveryMinTables} โต๊ะ)`
 
   const handleConfirm = () => {
+    // เจ้าของร้านที่กด "มุมมองลูกค้า" มาลองจอง — ห้ามจองจริง เพราะไม่มีข้อมูลลูกค้า (ชื่อ/เบอร์โทร) ผูกกับบัญชี owner
+    if (role === 'owner') {
+      setOwnerBlocked(true)
+      return
+    }
     setShowConfirm(false)
     onConfirm()
     navigate('history')
@@ -47,7 +58,7 @@ export default function Cart({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="cart" user={user} />
+      <Navbar navigate={navigate} currentScreen="cart" user={user} shopInfo={shopInfo} />
 
       <div className="pt-24 pb-12 max-w-5xl mx-auto px-4">
         <div className="mb-8">
@@ -97,18 +108,11 @@ export default function Cart({
             {/* Event location */}
             {booking.location && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="flex items-center justify-between p-6 pb-4">
+                <div className="p-6 pb-4">
                   <h2 className="font-bold text-gray-900 flex items-center gap-2">
                     <MapPin size={18} className="text-orange-500" />
                     สถานที่จัดงาน
                   </h2>
-                  <button
-                    onClick={() => navigate('select-location')}
-                    className="flex items-center gap-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-200 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Pencil size={12} />
-                    แก้ไข
-                  </button>
                 </div>
 
                 <LocationMap
@@ -223,7 +227,10 @@ export default function Cart({
               </div>
 
               <button
-                onClick={() => setShowConfirm(true)}
+                onClick={() => {
+                  setOwnerBlocked(false)
+                  setShowConfirm(true)
+                }}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-2xl py-4 font-bold text-lg transition-all shadow-lg shadow-orange-200"
               >
                 ยืนยันการจอง
@@ -278,6 +285,13 @@ export default function Cart({
                   <span className="font-bold text-orange-500 text-lg">{total.toLocaleString()} ฿</span>
                 </div>
               </div>
+
+              {ownerBlocked && (
+                <div className="mb-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl p-3">
+                  ไม่สามารถจองได้ เพราะคุณคือเจ้าของร้าน — "มุมมองลูกค้า" มีไว้ดูตัวอย่างหน้าจอเท่านั้น
+                  ต้อง login ด้วยบัญชีลูกค้าจริงเพื่อจอง
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <button

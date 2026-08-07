@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Check, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
+import ImageLightbox from '../../components/ImageLightbox'
 import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
 import { STAFF_ROLES, calculateStaff, isSamePlan, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
+import { docNumber } from '../../documents'
 
 const STATUS_CONFIG = {
   pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
@@ -157,7 +159,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
             <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 flex items-start justify-between">
               <div>
                 <p className="font-bold text-white text-lg">{selected.customerName}</p>
-                <p className="text-orange-100 text-xs">{selected.id}</p>
+                <p className="text-orange-100 text-xs">{docNumber(selected, 'booking')}</p>
               </div>
               <button
                 onClick={() => setSelectedId(null)}
@@ -455,23 +457,13 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
 
       {/* Lightbox ดูสลิปแบบเต็มขนาด */}
       {slipZoom && (
-        <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-          onClick={() => setSlipZoom(null)}
-        >
-          <button
-            onClick={() => setSlipZoom(null)}
-            className="absolute top-4 right-4 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white"
-          >
-            <X size={18} />
-          </button>
-          <img
-            src={slipZoom}
-            alt="สลิปโอนเงิน (ขยาย)"
-            className="max-w-full max-h-full object-contain rounded-xl"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
+        <ImageLightbox
+          src={slipZoom}
+          alt="สลิปโอนเงิน (ขยาย)"
+          fileName={`สลิป-${selected ? docNumber(selected, 'booking') : 'booking'}.jpg`}
+          onClose={() => setSlipZoom(null)}
+          zIndexClass="z-50"
+        />
       )}
     </div>
   )

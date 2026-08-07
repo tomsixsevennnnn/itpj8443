@@ -1,14 +1,15 @@
 import { Bell, Calendar, ChefHat, Home, LogOut, User } from 'lucide-react'
-import type { Screen, UserProfile } from '../types'
+import type { Screen, ShopInfo, UserProfile } from '../types'
 
 interface NavbarProps {
   navigate: (s: Screen) => void
   currentScreen: Screen
   user: UserProfile | null
+  shopInfo: ShopInfo
   notifCount?: number
 }
 
-export default function Navbar({ navigate, currentScreen, user, notifCount = 2 }: NavbarProps) {
+export default function Navbar({ navigate, currentScreen, user, shopInfo, notifCount = 2 }: NavbarProps) {
   const navItems = [
     { label: 'หน้าแรก', screen: 'home' as Screen, icon: Home },
     { label: 'ประวัติการจอง', screen: 'history' as Screen, icon: Calendar },
@@ -27,8 +28,8 @@ export default function Navbar({ navigate, currentScreen, user, notifCount = 2 }
               <ChefHat size={20} className="text-white" />
             </div>
             <div>
-              <p className="font-bold text-gray-900 leading-tight text-sm">ร้านพิพัฒน์โภชนา</p>
-              <p className="text-[10px] text-gray-400 leading-tight">Catering Service</p>
+              <p className="font-bold text-gray-900 leading-tight text-sm">{shopInfo.name}</p>
+              <p className="text-[10px] text-gray-400 leading-tight">{shopInfo.nameEn}</p>
             </div>
           </button>
 

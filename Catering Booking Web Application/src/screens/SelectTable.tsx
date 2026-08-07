@@ -1,11 +1,12 @@
 import { ChevronLeft, ChevronRight, Minus, Plus, Users } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Screen, UserProfile } from '../types'
+import type { Screen, ShopInfo, UserProfile } from '../types'
 import { HOME_PROVINCE } from '../geo'
 
 interface SelectTableProps {
   navigate: (s: Screen) => void
   user: UserProfile | null
+  shopInfo: ShopInfo
   tables: number
   onSetTables: (n: number) => void
   date: string | null
@@ -14,7 +15,7 @@ interface SelectTableProps {
   freeDeliveryMinTables: number
 }
 
-export default function SelectTable({ navigate, user, tables, onSetTables, date, timeSlot, deliveryFee, freeDeliveryMinTables }: SelectTableProps) {
+export default function SelectTable({ navigate, user, shopInfo, tables, onSetTables, date, timeSlot, deliveryFee, freeDeliveryMinTables }: SelectTableProps) {
   const totalGuests = tables * 10
 
   const handleTableInput = (value: string) => {
@@ -25,7 +26,7 @@ export default function SelectTable({ navigate, user, tables, onSetTables, date,
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="select-table" user={user} />
+      <Navbar navigate={navigate} currentScreen="select-table" user={user} shopInfo={shopInfo} />
 
       <div className="pt-24 pb-12 max-w-2xl mx-auto px-4">
         <div className="mb-8">
