@@ -33,6 +33,7 @@ interface SelectLocationProps {
   freeDeliveryMinTables: number
   shopLocation: ShopLocation
   fuelCostPerKm: number
+  notifCount: number
 }
 
 /** กลางกรุงเทพฯ — ใช้เป็นจุดเริ่มต้นเมื่อยังไม่เคยเลือกสถานที่ */
@@ -63,6 +64,7 @@ export default function SelectLocation({
   freeDeliveryMinTables,
   shopLocation,
   fuelCostPerKm,
+  notifCount,
 }: SelectLocationProps) {
   const [pos, setPos] = useState(location ? { lat: location.lat, lng: location.lng } : DEFAULT_CENTER)
   const mapRef = useRef<LocationMapHandle>(null)
@@ -257,7 +259,7 @@ export default function SelectLocation({
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="select-location" user={user} shopInfo={shopInfo} />
+      <Navbar navigate={navigate} currentScreen="select-location" user={user} shopInfo={shopInfo} notifCount={notifCount} />
 
       {/* มือถือ: Navbar มีแถวเมนูล่างเพิ่ม จึงต้องเว้นบนมากกว่าจอใหญ่ */}
       <div className="pt-[7.25rem] md:pt-16 flex flex-col flex-1 overflow-hidden">

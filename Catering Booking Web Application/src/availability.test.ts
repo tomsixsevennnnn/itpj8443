@@ -7,6 +7,7 @@ const makeBooking = (overrides: Partial<Booking>): Booking => ({
   customerName: 'ทดสอบ',
   bookingYear: 2026,
   bookingNo: 1,
+  createdAt: '2026-01-01T00:00:00.000Z',
   date: '2026-01-15',
   timeSlot: 'เย็น (17:00-21:00)',
   tables: 5,

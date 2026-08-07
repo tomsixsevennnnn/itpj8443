@@ -27,6 +27,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
   const [staffDraft, setStaffDraft] = useState<StaffPlan | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
   const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
@@ -48,6 +49,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
     setSelectedId(booking.id)
     setStaffDraft(booking.staffActual ?? toPlan(calculateStaff(booking.tables)))
     setNoteDraft(booking.staffNote ?? '')
+    setShowCancelConfirm(false)
   }
 
   const adjustStaff = (key: keyof StaffPlan, delta: number) => {
@@ -92,7 +94,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                {['ชื่อลูกค้า', 'วันที่', 'ช่วงเวลา', 'โต๊ะ', 'พนักงาน', 'แพ็กเกจ', 'ราคารวม', 'สถานะ', ''].map(col => (
+                {['ชื่อลูกค้า', 'วันที่', 'ช่วงเวลา', 'โต๊ะ', 'พนักงาน', 'แพ็กเกจ', 'ราคารวม', 'สถานะ'].map(col => (
                   <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500">{col}</th>
                 ))}
               </tr>
@@ -137,13 +139,10 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
                       <span className="text-xs text-gray-400 ml-0.5">฿</span>
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${sc.bg} ${sc.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium px-2.5 py-1 rounded-full ${sc.bg} ${sc.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
                         {sc.label}
                       </span>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <button className="text-xs text-orange-600 hover:text-orange-700 font-medium">ดู →</button>
                     </td>
                   </tr>
                 )
@@ -175,11 +174,14 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">ข้อมูลลูกค้า</p>
                 <div className="space-y-2.5">
                   {[
+                    { label: 'ชื่อ', value: selected.customer?.name || '-' },
+                    { label: 'นามสกุล', value: selected.customer?.surname || '-' },
+                    { label: 'อีเมล', value: selected.customer?.email || '-' },
+                    { label: 'LINE ID', value: selected.customer?.lineId || selected.lineId || '-' },
                     { label: 'เบอร์โทร', value: selected.phone },
                     { label: 'วันที่', value: new Date(selected.date + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) },
                     { label: 'ช่วงเวลา', value: selected.timeSlot },
                     { label: 'จำนวนโต๊ะ', value: `${selected.tables} โต๊ะ` },
-                    { label: 'จำนวนคนที่ร่วมงาน', value: `${selected.guestCount ?? selected.tables * 10} คน` },
                     { label: 'แพ็กเกจ', value: selected.packageName },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex justify-between text-sm">
@@ -432,28 +434,76 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
             {/* Status buttons */}
             <div className="p-5 border-t border-gray-100 space-y-2">
               <p className="text-xs font-semibold text-gray-400 mb-3">อัปเดตสถานะ</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(['pending', 'confirmed', 'completed'] as const).map(s => {
-                  const sc = STATUS_CONFIG[s]
-                  const isActive = selected.status === s
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => updateStatus(selected.id, s)}
-                      className={`flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        isActive ? `${sc.bg} ${sc.text} border-2 ${s === 'confirmed' ? 'border-green-300' : s === 'pending' ? 'border-yellow-300' : 'border-gray-300'}` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      {isActive && <Check size={12} />}
-                      {sc.label}
-                    </button>
-                  )
-                })}
-              </div>
+              {selected.status === 'cancelled' ? (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 rounded-xl px-3 py-2.5 text-sm font-medium">
+                  <X size={14} />
+                  การจองนี้ถูกยกเลิกแล้ว
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['pending', 'confirmed', 'completed'] as const).map(s => {
+                      const sc = STATUS_CONFIG[s]
+                      const isActive = selected.status === s
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => updateStatus(selected.id, s)}
+                          className={`flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                            isActive ? `${sc.bg} ${sc.text} border-2 ${s === 'confirmed' ? 'border-green-300' : s === 'pending' ? 'border-yellow-300' : 'border-gray-300'}` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {isActive && <Check size={12} />}
+                          {sc.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <button
+                    onClick={() => setShowCancelConfirm(true)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors"
+                  >
+                    <X size={12} />
+                    ยกเลิกการจอง
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* ยืนยันก่อนยกเลิกการจอง — แก้กลับไม่ได้ผ่านปุ่มนี้ ต้องระวังเพราะกระทบลูกค้าโดยตรง */}
+      {showCancelConfirm && selected && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-1.5">ยกเลิกการจองนี้?</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                การจองหมายเลข {docNumber(selected, 'booking')} ของ {selected.customerName} จะถูกยกเลิก
+                ลูกค้าจะเห็นสถานะ "ยกเลิก" ทันที
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelConfirm(false)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl py-3 font-semibold text-sm transition-colors"
+                >
+                  ไม่ยกเลิก
+                </button>
+                <button
+                  onClick={() => {
+                    updateStatus(selected.id, 'cancelled')
+                    setShowCancelConfirm(false)
+                  }}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-2xl py-3 font-semibold text-sm transition-colors"
+                >
+                  ยืนยันยกเลิก
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox ดูสลิปแบบเต็มขนาด */}
       {slipZoom && (

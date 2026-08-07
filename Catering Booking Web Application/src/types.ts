@@ -133,6 +133,8 @@ export interface Booking {
   bookingYear: number
   /** เลขลำดับใบจองภายในปีนั้น เริ่ม 1 ทุกปี */
   bookingNo: number
+  /** เวลาที่สร้างใบจอง (จาก backend) — ใช้เป็นฐานคำนวณการแจ้งเตือน "รอการยืนยัน" */
+  createdAt: string
   date: string
   timeSlot: string
   tables: number
@@ -150,6 +152,13 @@ export interface Booking {
   phone: string
   /** Line ID ของลูกค้า ณ ตอนจอง — ใช้ให้ร้านติดต่อ/ดูประวัติที่หน้า "ลูกค้า" */
   lineId?: string
+  /** ข้อมูลบัญชีลูกค้าปัจจุบัน (ไม่ใช่ snapshot ตอนจอง) — มีเฉพาะฝั่งเจ้าของร้าน (findAllForOwner join จาก User) */
+  customer?: {
+    name: string
+    surname: string
+    email: string
+    lineId: string
+  }
   /** จำนวนพนักงานที่ระบบคำนวณได้ ณ ตอนบันทึก (เก็บไว้อ้างอิง) */
   staffAuto?: StaffPlan
   /** จำนวนพนักงานที่เจ้าของร้านปรับแก้และใช้จริง */

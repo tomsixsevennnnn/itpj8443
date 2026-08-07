@@ -1,4 +1,5 @@
 import { Bell, Calendar, ChefHat, Home, LogOut, User } from 'lucide-react'
+import Avatar from './Avatar'
 import type { Screen, ShopInfo, UserProfile } from '../types'
 
 interface NavbarProps {
@@ -6,10 +7,10 @@ interface NavbarProps {
   currentScreen: Screen
   user: UserProfile | null
   shopInfo: ShopInfo
-  notifCount?: number
+  notifCount: number
 }
 
-export default function Navbar({ navigate, currentScreen, user, shopInfo, notifCount = 2 }: NavbarProps) {
+export default function Navbar({ navigate, currentScreen, user, shopInfo, notifCount }: NavbarProps) {
   const navItems = [
     { label: 'หน้าแรก', screen: 'home' as Screen, icon: Home },
     { label: 'ประวัติการจอง', screen: 'history' as Screen, icon: Calendar },
@@ -69,11 +70,7 @@ export default function Navbar({ navigate, currentScreen, user, shopInfo, notifC
 
             {user && (
               <div className="flex items-center gap-2 pl-2 border-l border-gray-100">
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-8 h-8 rounded-full object-cover"
-                />
+                <Avatar src={user.avatar} name={user.name} className="w-8 h-8 rounded-full text-sm" />
                 <span className="hidden sm:block text-sm font-medium text-gray-700">{user.name}</span>
               </div>
             )}

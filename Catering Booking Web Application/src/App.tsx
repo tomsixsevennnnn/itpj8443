@@ -19,6 +19,7 @@ import {
   DEFAULT_WAGE_SERVER_PER_TABLE,
 } from './costing'
 import { DEFAULT_HOME_CONTENT } from './homeContent'
+import { unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
 import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput } from './api'
 import ErrorBanner from './components/ErrorBanner'
@@ -82,8 +83,6 @@ const initialBooking: BookingData = {
   menuLimit: 9,
   selectedMenus: [],
 }
-
-const DEFAULT_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&auto=format'
 
 export default function App() {
   const { isAuthenticated, isLoading, user: auth0User, logout, getAccessTokenSilently } = useAuth0()
@@ -230,8 +229,12 @@ export default function App() {
 
   /** เข้าเว็บด้วย role จาก Auth0 (customer = Google, owner = username/password) ดู src/auth.ts */
   const role = roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
-  /** เบอร์โทร/Line ID เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ยังไม่กรอก = phone ว่าง */
-  const needsProfile = isAuthenticated && role === 'customer' && backendUser !== null && !backendUser.phone
+  /** เบอร์โทร/ชื่อ/นามสกุล เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ขาดตัวไหนก็ถือว่ายังกรอกไม่ครบ ต้องเด้งไปกรอกใหม่ทุกครั้งที่ login จนกว่าจะครบ */
+  const needsProfile =
+    isAuthenticated &&
+    role === 'customer' &&
+    backendUser !== null &&
+    (!backendUser.name || !backendUser.surname || !backendUser.phone)
 
   const user: UserProfile | null = backendUser
     ? {
@@ -240,9 +243,11 @@ export default function App() {
         phone: backendUser.phone,
         lineId: backendUser.lineId,
         email: backendUser.email,
-        avatar: backendUser.avatar || DEFAULT_AVATAR,
+        avatar: backendUser.avatar,
       }
     : null
+
+  const notifCount = unreadNotificationCount(bookings)
 
   /** navigate('login') คือปุ่ม "ออกจากระบบ" เดิมทุกจุดในแอป — ผูกเข้ากับ Auth0 logout จริงตรงนี้ที่เดียว */
   const navigate = (s: Screen) => {
@@ -402,6 +407,8 @@ export default function App() {
         <CompleteProfile
           name={backendUser?.name || ''}
           surname={backendUser?.surname || ''}
+          phone={backendUser?.phone || ''}
+          lineId={backendUser?.lineId || ''}
           onComplete={(profile) =>
             runAction(async () => {
               const token = await withToken()
@@ -418,7 +425,7 @@ export default function App() {
   // Owner screens
   if (OWNER_SCREENS.includes(effectiveScreen)) {
     return (
-      <OwnerLayout navigate={navigate} currentScreen={effectiveScreen} user={user} shopInfo={settings.shopInfo}>
+      <OwnerLayout navigate={navigate} currentScreen={effectiveScreen} user={user} shopInfo={settings.shopInfo} bookings={bookings}>
         {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
         {effectiveScreen === 'owner-dashboard' && (
           <Dashboard bookings={bookings} menus={menus} settings={settings} />
@@ -482,7 +489,7 @@ export default function App() {
         </button>
       )}
       {effectiveScreen === 'home' && (
-        <Home navigate={navigate} user={user} shopInfo={settings.shopInfo} homeContent={settings.homeContent} />
+        <Home navigate={navigate} user={user} shopInfo={settings.shopInfo} homeContent={settings.homeContent} notifCount={notifCount} />
       )}
       {effectiveScreen === 'booking-calendar' && (
         <BookingCalendar
@@ -491,6 +498,7 @@ export default function App() {
           shopInfo={settings.shopInfo}
           bookings={availability}
           onSelectDateTime={handleSelectDateTime}
+          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'select-table' && (
@@ -504,6 +512,7 @@ export default function App() {
           timeSlot={booking.timeSlot}
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
+          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'select-location' && (
@@ -519,6 +528,7 @@ export default function App() {
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
           shopLocation={settings.shopLocation}
           fuelCostPerKm={settings.fuelCostPerKm}
+          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'select-package' && (
@@ -530,6 +540,7 @@ export default function App() {
           tables={booking.tables}
           selectedPackageId={booking.packageId}
           onSelectPackage={handleSelectPackage}
+          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'select-menu' && (
@@ -541,6 +552,7 @@ export default function App() {
           packageId={booking.packageId}
           selectedMenus={booking.selectedMenus}
           onSetMenus={handleSetMenus}
+          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'cart' && (
@@ -555,6 +567,7 @@ export default function App() {
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
           fuelCostPerKm={settings.fuelCostPerKm}
+          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'history' && (
@@ -564,10 +577,11 @@ export default function App() {
           bookings={bookings}
           onUpdateBooking={handleUpdateBooking}
           settings={settings}
+          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'notifications' && (
-        <Notifications navigate={navigate} user={user} shopInfo={settings.shopInfo} />
+        <Notifications navigate={navigate} user={user} shopInfo={settings.shopInfo} bookings={bookings} />
       )}
     </>
   )

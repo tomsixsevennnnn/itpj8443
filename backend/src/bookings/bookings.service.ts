@@ -17,8 +17,12 @@ const isSerializationConflict = (err: unknown): boolean =>
 export class BookingsService {
   constructor(private prisma: PrismaService) {}
 
+  /** เจ้าของร้านต้องเห็นข้อมูลบัญชีลูกค้าปัจจุบัน (ชื่อ/นามสกุล/อีเมล/LINE ID) ไม่ใช่แค่ snapshot ตอนจอง — join จาก User ที่ผูกไว้ */
   findAllForOwner() {
-    return this.prisma.booking.findMany({ orderBy: { createdAt: 'desc' } })
+    return this.prisma.booking.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { customer: { select: { name: true, surname: true, email: true, lineId: true } } },
+    })
   }
 
   findAllForCustomer(customerId: string) {

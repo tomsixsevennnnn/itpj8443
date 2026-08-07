@@ -4,16 +4,27 @@ import { ChefHat } from 'lucide-react'
 interface CompleteProfileProps {
   name: string
   surname: string
+  phone: string
+  lineId: string
   onComplete: (profile: { name: string; surname: string; phone: string; lineId: string }) => void
 }
 
-/** ขอชื่อจริง/นามสกุล/เบอร์โทร/Line ID ครั้งแรกหลัง login ด้วย Google — เผื่อกรณีบัญชี Google ไม่มีนามสกุลหรือชื่อไม่ตรงกับที่ใช้ติดต่อจริง */
-export default function CompleteProfile({ name, surname, onComplete }: CompleteProfileProps) {
-  const [form, setForm] = useState({ name, surname, phone: '', lineId: '' })
+/**
+ * ขอชื่อจริง/นามสกุล/เบอร์โทร/Line ID — เด้งมาหน้านี้ทุกครั้งที่ login จนกว่าจะกรอกครบ (ดู needsProfile ใน App.tsx)
+ * ดึงค่าที่เคยกรอกไว้มาแสดงล่วงหน้าเสมอ (ไม่ใช่แค่ครั้งแรก) เผื่อกรอกไว้บางส่วนแล้วแค่ต้องมาเติมที่ขาด
+ */
+export default function CompleteProfile({ name, surname, phone, lineId, onComplete }: CompleteProfileProps) {
+  const [form, setForm] = useState({ name, surname, phone, lineId })
 
   const handleSave = () => {
     if (!form.name.trim() || !form.surname.trim() || !form.phone) return
     onComplete(form)
+  }
+
+  const handleChange = (key: keyof typeof form, value: string) => {
+    // เบอร์โทรกรอกได้แค่ตัวเลข ไม่เกิน 10 หลัก
+    const next = key === 'phone' ? value.replace(/\D/g, '').slice(0, 10) : value
+    setForm((f) => ({ ...f, [key]: next }))
   }
 
   return (
@@ -33,16 +44,18 @@ export default function CompleteProfile({ name, surname, onComplete }: CompleteP
           {[
             { key: 'name', label: 'ชื่อจริง *', placeholder: 'ชื่อจริง', type: 'text' },
             { key: 'surname', label: 'นามสกุล *', placeholder: 'นามสกุล', type: 'text' },
-            { key: 'phone', label: 'เบอร์โทรศัพท์ *', placeholder: '08X-XXX-XXXX', type: 'tel' },
+            { key: 'phone', label: 'เบอร์โทรศัพท์ *', placeholder: '08XXXXXXXX', type: 'tel', inputMode: 'numeric' as const, maxLength: 10 },
             { key: 'lineId', label: 'Line ID', placeholder: '@yourid', type: 'text' },
-          ].map(({ key, label, placeholder, type }) => (
+          ].map(({ key, label, placeholder, type, inputMode, maxLength }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
               <input
                 type={type}
+                inputMode={inputMode}
+                maxLength={maxLength}
                 placeholder={placeholder}
                 value={form[key as keyof typeof form]}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                onChange={(e) => handleChange(key as keyof typeof form, e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
             </div>

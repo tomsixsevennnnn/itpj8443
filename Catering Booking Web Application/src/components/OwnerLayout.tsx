@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   BarChart2,
   Bell,
@@ -16,14 +16,20 @@ import {
   Settings,
   X,
 } from 'lucide-react'
-import type { Screen, ShopInfo, UserProfile } from '../types'
+import Avatar from './Avatar'
+import { buildNotifications, isNotificationNew, timeAgo } from '../notifications'
+import type { Booking, Screen, ShopInfo, UserProfile } from '../types'
 import type { ReactNode } from 'react'
+
+const NOTIF_PREVIEW_LIMIT = 6
+const NOTIF_SEEN_KEY = 'ownerNotifSeenAt'
 
 interface OwnerLayoutProps {
   navigate: (s: Screen) => void
   currentScreen: Screen
   user: UserProfile | null
   shopInfo: ShopInfo
+  bookings: Booking[]
   children: ReactNode
 }
 
@@ -39,13 +45,35 @@ const sidebarItems = [
   { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
 
-export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, children }: OwnerLayoutProps) {
+export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, bookings, children }: OwnerLayoutProps) {
   // ต่ำกว่า lg (จอแท็บเล็ตแนวตั้งอย่าง iPad) sidebar ซ่อนเป็น off-canvas drawer เปิดผ่านปุ่มแฮมเบอร์เกอร์
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifSeenAt, setNotifSeenAt] = useState<string>(() => {
+    try {
+      return localStorage.getItem(NOTIF_SEEN_KEY) ?? ''
+    } catch {
+      return ''
+    }
+  })
+  const allNotifItems = useMemo(() => buildNotifications(bookings), [bookings])
+  const notifItems = useMemo(() => allNotifItems.slice(0, NOTIF_PREVIEW_LIMIT), [allNotifItems])
+  const unreadNotifCount = allNotifItems.filter(item => item.timestamp > notifSeenAt).length
 
   const handleNavigate = (screen: Screen) => {
     navigate(screen)
     setSidebarOpen(false)
+  }
+
+  const openNotifications = () => {
+    setNotifOpen(true)
+    const now = new Date().toISOString()
+    setNotifSeenAt(now)
+    try {
+      localStorage.setItem(NOTIF_SEEN_KEY, now)
+    } catch {
+      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode) — แค่ตัวเลขจะไม่คงอยู่ข้ามเซสชัน
+    }
   }
 
   return (
@@ -101,10 +129,10 @@ export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, c
         {/* Bottom section */}
         <div className="p-4 border-t border-gray-700/50 space-y-2">
           <div className="flex items-center gap-3 px-3 py-2">
-            <img
-              src={user?.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&auto=format'}
-              alt="Owner"
-              className="w-9 h-9 rounded-full object-cover"
+            <Avatar
+              src={user?.avatar}
+              name={user?.name || 'เจ้าของร้านพิพัฒน์โภชนา'}
+              className="w-9 h-9 rounded-full text-sm"
             />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{user?.name || 'เจ้าของร้านพิพัฒน์โภชนา'}</p>
@@ -138,10 +166,68 @@ export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, c
             </h1>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <button className="relative w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-50 transition-colors">
-              <Bell size={18} />
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">3</span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => (notifOpen ? setNotifOpen(false) : openNotifications())}
+                className={`relative w-9 h-9 flex items-center justify-center rounded-xl transition-colors ${
+                  notifOpen ? 'bg-orange-50 text-orange-600' : 'text-gray-500 hover:bg-gray-50'
+                }`}
+                title="การแจ้งเตือน"
+              >
+                <Bell size={18} />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {unreadNotifCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <>
+                  {/* คลิกนอกกล่องเพื่อปิด */}
+                  <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-2xl border border-gray-100 shadow-xl z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-bold text-gray-900">การแจ้งเตือน</p>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                      {notifItems.length === 0 ? (
+                        <p className="text-sm text-gray-400 text-center py-8">ไม่มีการแจ้งเตือน</p>
+                      ) : (
+                        notifItems.map(item => (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              setNotifOpen(false)
+                              navigate('owner-orders')
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                              {isNotificationNew(item) && (
+                                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full flex-shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{item.message}</p>
+                            <p className="text-[11px] text-gray-400 mt-1">{timeAgo(item.timestamp)}</p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setNotifOpen(false)
+                        navigate('owner-orders')
+                      }}
+                      className="w-full text-center text-xs font-medium text-orange-600 hover:text-orange-700 py-2.5 border-t border-gray-100 transition-colors"
+                    >
+                      ดูรายการจองทั้งหมด
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               onClick={() => navigate('home')}
               className="text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1 px-3 py-1.5 rounded-lg border border-orange-200 hover:bg-orange-50 transition-colors"

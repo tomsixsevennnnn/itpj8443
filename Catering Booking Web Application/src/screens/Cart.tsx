@@ -18,6 +18,7 @@ interface CartProps {
   deliveryFee: number
   freeDeliveryMinTables: number
   fuelCostPerKm: number
+  notifCount: number
 }
 
 export default function Cart({
@@ -31,6 +32,7 @@ export default function Cart({
   deliveryFee: deliveryFeeAmount,
   freeDeliveryMinTables,
   fuelCostPerKm,
+  notifCount,
 }: CartProps) {
   const [showConfirm, setShowConfirm] = useState(false)
   const [ownerBlocked, setOwnerBlocked] = useState(false)
@@ -58,7 +60,7 @@ export default function Cart({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="cart" user={user} shopInfo={shopInfo} />
+      <Navbar navigate={navigate} currentScreen="cart" user={user} shopInfo={shopInfo} notifCount={notifCount} />
 
       <div className="pt-24 pb-12 max-w-5xl mx-auto px-4">
         <div className="mb-8">

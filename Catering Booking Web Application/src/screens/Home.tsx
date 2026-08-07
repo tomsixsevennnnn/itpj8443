@@ -8,6 +8,7 @@ interface HomeProps {
   user: UserProfile | null
   shopInfo: ShopInfo
   homeContent: HomeContent
+  notifCount: number
 }
 
 /** ไอคอน/สีของการ์ดจุดเด่น — ตำแหน่งคงที่ในโค้ด ผูกกับ homeContent.featureBadges[i] ตามลำดับ (แก้ได้แค่ข้อความจากหน้าตั้งค่า) */
@@ -18,10 +19,10 @@ const FEATURE_ICONS = [
   { icon: Users, color: 'text-purple-500' },
 ]
 
-export default function Home({ navigate, user, shopInfo, homeContent }: HomeProps) {
+export default function Home({ navigate, user, shopInfo, homeContent, notifCount }: HomeProps) {
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="home" user={user} shopInfo={shopInfo} />
+      <Navbar navigate={navigate} currentScreen="home" user={user} shopInfo={shopInfo} notifCount={notifCount} />
 
       {/* Hero */}
       <section className="relative pt-16 overflow-hidden">

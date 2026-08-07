@@ -16,6 +16,7 @@ interface BookingCalendarProps {
   /** คิวรับงานของ "ทุกลูกค้า" (ไม่ใช่แค่ของตัวเอง) — ใช้เช็คว่าวันไหนเต็มแล้วบ้าง ดึงจาก /bookings/availability */
   bookings: QueueBooking[]
   onSelectDateTime: (date: string, timeSlot: string) => void
+  notifCount: number
 }
 
 const DAYS_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
@@ -24,7 +25,7 @@ const MONTHS_TH = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ]
 
-export default function BookingCalendar({ navigate, user, shopInfo, bookings, onSelectDateTime }: BookingCalendarProps) {
+export default function BookingCalendar({ navigate, user, shopInfo, bookings, onSelectDateTime, notifCount }: BookingCalendarProps) {
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
@@ -64,7 +65,7 @@ export default function BookingCalendar({ navigate, user, shopInfo, bookings, on
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="booking-calendar" user={user} shopInfo={shopInfo} />
+      <Navbar navigate={navigate} currentScreen="booking-calendar" user={user} shopInfo={shopInfo} notifCount={notifCount} />
 
       <div className="pt-24 pb-12 max-w-6xl mx-auto px-4">
         <div className="mb-8">
