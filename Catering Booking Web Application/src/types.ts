@@ -36,6 +36,10 @@ export interface MenuItem {
   category: string
   description: string
   image?: string
+  /** จุดโฟกัสของภาพ (%) ใช้กับ object-position — ค่าเริ่มต้นคือกึ่งกลาง (50, 50) */
+  imagePosition?: { x: number; y: number }
+  /** ระดับซูมของภาพ 1x–3x — ค่าเริ่มต้นคือ 1 */
+  imageScale?: number
   extraPrice?: number
   /** ราคาทุนต่อจาน (บาท) — กรอกตรงๆ ไม่คำนวณจากวัตถุดิบ */
   costPrice?: number

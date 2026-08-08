@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { AlertTriangle, Edit2, Eye, EyeOff, ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
+import { AlertTriangle, Edit2, Eye, EyeOff, ImagePlus, Loader2, Minus, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import DishTile from '../../components/DishTile'
 import type { AppSettings, MenuItem, Package } from '../../types'
 import { CATEGORY_MAP, orderedCategories } from '../../data'
@@ -20,7 +21,15 @@ interface MenuForm {
   extraPrice: number
   costPrice: number
   image: string
+  imagePosition: { x: number; y: number }
+  imageScale: number
 }
+
+const DEFAULT_IMAGE_POSITION = { x: 50, y: 50 }
+const MIN_ZOOM = 1
+const MAX_ZOOM = 3
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 const emptyForm = (category: string): MenuForm => ({
   name: '',
@@ -29,6 +38,8 @@ const emptyForm = (category: string): MenuForm => ({
   extraPrice: 0,
   costPrice: 0,
   image: '',
+  imagePosition: DEFAULT_IMAGE_POSITION,
+  imageScale: 1,
 })
 
 export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteMenu }: MenusProps) {
@@ -41,21 +52,63 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
   const [uploading, setUploading] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cropBoxRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; startPos: { x: number; y: number } } | null>(null)
 
-  /** เลือกรูปจากเครื่อง — ย่อขนาดแล้วเก็บเป็นรูปในเมนูเลย */
+  /** เลือกรูปจากเครื่อง — ย่อขนาดแล้วเก็บเป็นรูปในเมนูเลย (ตำแหน่ง/ซูมรีเซ็ตให้ใหม่เสมอ) */
   const handlePickImage = async (file: File | undefined) => {
     if (!file) return
     setUploading(true)
     setImageError(null)
     try {
       const dataUrl = await pickImageAsDataUrl(file)
-      setForm(f => ({ ...f, image: dataUrl }))
+      setForm(f => ({ ...f, image: dataUrl, imagePosition: DEFAULT_IMAGE_POSITION, imageScale: 1 }))
     } catch (err) {
       setImageError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  const isImageAdjusted =
+    form.imagePosition.x !== DEFAULT_IMAGE_POSITION.x ||
+    form.imagePosition.y !== DEFAULT_IMAGE_POSITION.y ||
+    form.imageScale !== 1
+
+  const resetImageAdjust = () => {
+    setForm(f => ({ ...f, imagePosition: DEFAULT_IMAGE_POSITION, imageScale: 1 }))
+  }
+
+  const setZoom = (value: number) => {
+    setForm(f => ({ ...f, imageScale: clamp(Number(value.toFixed(2)), MIN_ZOOM, MAX_ZOOM) }))
+  }
+
+  /** ลากภาพในกรอบตัวอย่างเพื่อเลื่อนโฟกัส — ระยะลากคิดสัมพันธ์กับระดับซูมให้ลื่นเท่ากันทุกระดับ */
+  const handleCropPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    cropBoxRef.current?.setPointerCapture(e.pointerId)
+    dragRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, startPos: form.imagePosition }
+  }
+
+  const handleCropPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== e.pointerId || !cropBoxRef.current) return
+    const rect = cropBoxRef.current.getBoundingClientRect()
+    const dxPct = ((e.clientX - drag.startX) / rect.width) * 100 / form.imageScale
+    const dyPct = ((e.clientY - drag.startY) / rect.height) * 100 / form.imageScale
+    setForm(f => ({
+      ...f,
+      imagePosition: {
+        x: clamp(drag.startPos.x - dxPct, 0, 100),
+        y: clamp(drag.startPos.y - dyPct, 0, 100),
+      },
+    }))
+  }
+
+  const handleCropPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== e.pointerId) return
+    dragRef.current = null
+    if (cropBoxRef.current?.hasPointerCapture(e.pointerId)) cropBoxRef.current.releasePointerCapture(e.pointerId)
   }
 
   const filtered = menus.filter(m => m.category === activeCategory)
@@ -80,6 +133,8 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
       extraPrice: item.extraPrice ?? 0,
       costPrice: item.costPrice ?? 0,
       image: item.image ?? '',
+      imagePosition: item.imagePosition ?? DEFAULT_IMAGE_POSITION,
+      imageScale: item.imageScale ?? 1,
     })
     setImageError(null)
     setShowModal(true)
@@ -98,6 +153,10 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
       ...(form.extraPrice > 0 ? { extraPrice: form.extraPrice } : {}),
       ...(form.costPrice > 0 ? { costPrice: form.costPrice } : {}),
       ...(form.image.trim() ? { image: form.image.trim() } : {}),
+      ...(form.image.trim() && (form.imagePosition.x !== DEFAULT_IMAGE_POSITION.x || form.imagePosition.y !== DEFAULT_IMAGE_POSITION.y)
+        ? { imagePosition: form.imagePosition }
+        : {}),
+      ...(form.image.trim() && form.imageScale !== 1 ? { imageScale: form.imageScale } : {}),
     }
     onSaveMenu(item)
     setActiveCategory(item.category)
@@ -113,7 +172,9 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
     name: form.name || 'ชื่อเมนู',
     category: form.category,
     description: form.description,
-    ...(form.image.trim() ? { image: form.image.trim() } : {}),
+    ...(form.image.trim()
+      ? { image: form.image.trim(), imagePosition: form.imagePosition, imageScale: form.imageScale }
+      : {}),
   }
 
   return (
@@ -345,13 +406,65 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                 />
 
                 {form.image ? (
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={form.image}
-                      alt="รูปเมนู"
-                      className="w-28 h-20 object-cover rounded-xl border border-gray-200 flex-shrink-0"
-                    />
-                    <div className="flex flex-col gap-2">
+                  <div>
+                    <div
+                      ref={cropBoxRef}
+                      onPointerDown={handleCropPointerDown}
+                      onPointerMove={handleCropPointerMove}
+                      onPointerUp={handleCropPointerUp}
+                      onPointerCancel={handleCropPointerUp}
+                      className="relative aspect-video w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-100 cursor-grab active:cursor-grabbing touch-none select-none"
+                    >
+                      <img
+                        src={form.image}
+                        alt="ลากเพื่อปรับตำแหน่งรูป"
+                        draggable={false}
+                        className="w-full h-full object-cover pointer-events-none"
+                        style={{
+                          objectPosition: `${form.imagePosition.x}% ${form.imagePosition.y}%`,
+                          transform: `scale(${form.imageScale})`,
+                          transformOrigin: `${form.imagePosition.x}% ${form.imagePosition.y}%`,
+                        }}
+                      />
+                      {isImageAdjusted && (
+                        <button
+                          onClick={resetImageAdjust}
+                          className="absolute top-2 right-2 flex items-center gap-1 text-[11px] font-medium bg-white/90 hover:bg-white text-gray-700 px-2.5 py-1.5 rounded-lg shadow-sm transition-colors"
+                        >
+                          <RotateCcw size={11} />
+                          รีเซ็ตตำแหน่ง
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2.5">
+                      <button
+                        onClick={() => setZoom(form.imageScale - 0.1)}
+                        disabled={form.imageScale <= MIN_ZOOM}
+                        className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 transition-colors"
+                      >
+                        <Minus size={13} />
+                      </button>
+                      <input
+                        type="range"
+                        min={MIN_ZOOM}
+                        max={MAX_ZOOM}
+                        step={0.01}
+                        value={form.imageScale}
+                        onChange={e => setZoom(Number(e.target.value))}
+                        className="flex-1 accent-orange-500"
+                      />
+                      <button
+                        onClick={() => setZoom(form.imageScale + 0.1)}
+                        disabled={form.imageScale >= MAX_ZOOM}
+                        className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 transition-colors"
+                      >
+                        <Plus size={13} />
+                      </button>
+                      <span className="text-xs text-gray-400 w-9 text-right flex-shrink-0">{form.imageScale.toFixed(1)}x</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2.5">
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploading}
@@ -361,7 +474,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                         เปลี่ยนรูป
                       </button>
                       <button
-                        onClick={() => setForm(f => ({ ...f, image: '' }))}
+                        onClick={() => setForm(f => ({ ...f, image: '', imagePosition: DEFAULT_IMAGE_POSITION, imageScale: 1 }))}
                         className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg font-medium transition-colors"
                       >
                         <Trash2 size={13} />
@@ -433,7 +546,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
             <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
               <Trash2 size={20} className="text-red-500" />
             </div>
-            <h3 className="font-bold text-gray-900 mb-1">ลบ "{confirmDelete.name}"?</h3>
+            <h3 className="font-bold text-gray-900 mb-1">ลบเมนูนี้ ชื่อ "{confirmDelete.name}" ไหม?</h3>
             {usageOf(confirmDelete.id).length > 0 ? (
               <p className="text-sm text-gray-500 leading-relaxed">
                 เมนูนี้ถูกใช้ใน <span className="font-semibold text-red-600">{usageOf(confirmDelete.id).join(', ')}</span>{' '}

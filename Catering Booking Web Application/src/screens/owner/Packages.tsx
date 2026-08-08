@@ -46,6 +46,7 @@ export default function Packages({
   const [openCourse, setOpenCourse] = useState<number | null>(null)
   const [showAllCats, setShowAllCats] = useState(false)
   const [dragCourseNo, setDragCourseNo] = useState<number | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Package | null>(null)
 
   const openAdd = () => {
     setEditing(null)
@@ -161,10 +162,6 @@ export default function Packages({
     setShowModal(false)
   }
 
-  const handleDelete = (id: string) => {
-    onDeletePackage(id)
-  }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -225,7 +222,7 @@ export default function Packages({
                       <Edit2 size={14} />
                     </button>
                     <button
-                      onClick={() => handleDelete(pkg.id)}
+                      onClick={() => setConfirmDelete(pkg)}
                       className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       <Trash2 size={14} />
@@ -524,6 +521,41 @@ export default function Packages({
                 className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors shadow-lg shadow-orange-200 disabled:shadow-none"
               >
                 บันทึกแพ็กเกจ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6">
+            <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
+              <Trash2 size={20} className="text-red-500" />
+            </div>
+            <h3 className="font-bold text-gray-900 mb-1">
+              ลบแพ็กเกจนี้ ราคา {confirmDelete.pricePerTable.toLocaleString()}฿ ไหม?
+            </h3>
+            <p className="text-sm text-gray-500">
+              "{confirmDelete.name}" — ลบแล้วจะไม่สามารถกู้คืนได้
+            </p>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-semibold text-sm transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => {
+                  onDeletePackage(confirmDelete.id)
+                  setConfirmDelete(null)
+                }}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 font-semibold text-sm transition-colors"
+              >
+                ลบแพ็กเกจ
               </button>
             </div>
           </div>

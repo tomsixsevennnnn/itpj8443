@@ -11,8 +11,20 @@ interface DishTileProps {
 
 export default function DishTile({ item, category, emojiClass = 'text-4xl', className = '' }: DishTileProps) {
   if (item.image) {
+    const { x, y } = item.imagePosition ?? { x: 50, y: 50 }
+    const scale = item.imageScale ?? 1
     return (
-      <img src={item.image} alt={item.name} draggable={false} className={`w-full h-full object-cover ${className}`} />
+      <img
+        src={item.image}
+        alt={item.name}
+        draggable={false}
+        className={`w-full h-full object-cover ${className}`}
+        style={
+          x !== 50 || y !== 50 || scale !== 1
+            ? { objectPosition: `${x}% ${y}%`, transform: `scale(${scale})`, transformOrigin: `${x}% ${y}%` }
+            : undefined
+        }
+      />
     )
   }
 
