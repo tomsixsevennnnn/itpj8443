@@ -239,6 +239,24 @@ export const api = {
   settings: async (token: string): Promise<AppSettings> =>
     toFrontendSettings(await request<BackendSettings>(token, '/settings')),
 
+  /** ก่อน login — ใช้โชว์ชื่อร้าน/ข้อมูลติดต่อบนหน้า Login เท่านั้น ไม่ต้องใช้ token */
+  publicShopInfo: async (): Promise<AppSettings['shopInfo']> => {
+    const res = await fetch(`${API_BASE}/settings/public`)
+    if (!res.ok) throw new Error(`API GET /settings/public -> ${res.status}`)
+    const s = (await res.json()) as Pick<
+      BackendSettings,
+      'shopName' | 'shopNameEn' | 'shopInitials' | 'shopAddress' | 'shopPhone' | 'shopLine'
+    >
+    return {
+      name: s.shopName,
+      nameEn: s.shopNameEn,
+      initials: s.shopInitials,
+      address: s.shopAddress,
+      phone: s.shopPhone,
+      line: s.shopLine,
+    }
+  },
+
   updateSettings: async (token: string, patch: Partial<AppSettings>): Promise<AppSettings> =>
     toFrontendSettings(
       await request<BackendSettings>(token, '/settings', {

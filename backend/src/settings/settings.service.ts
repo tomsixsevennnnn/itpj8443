@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import type { Settings } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { UpdateSettingsDto } from './dto/update-settings.dto'
 
@@ -28,14 +29,33 @@ const DEFAULT_SETTINGS = {
 export class SettingsService {
   constructor(private prisma: PrismaService) {}
 
+  // แถวเดียว (id=1) แก้ไม่บ่อย — cache ไว้ในหน่วยความจำกัน round-trip ไป DB ที่โฮสต์ไกล (Railway)
+  // ทุกครั้งที่หน้า Login/หน้าอื่นเรียก /settings ซึ่งช้ากว่า cache hit หลายเท่าตัว
+  private cached: Settings | null = null
+
   async get() {
+    if (this.cached) return this.cached
     const existing = await this.prisma.settings.findUnique({ where: { id: 1 } })
-    if (existing) return existing
-    return this.prisma.settings.create({ data: DEFAULT_SETTINGS })
+    this.cached = existing ?? (await this.prisma.settings.create({ data: DEFAULT_SETTINGS }))
+    return this.cached
+  }
+
+  /** เฉพาะข้อมูลร้านที่โชว์หน้าตาได้ — ไม่มี auth guard จึงต้องไม่รวมค่ามัดจำ/ค่าแรง/พิกัดร้าน ฯลฯ */
+  async getPublicShopInfo() {
+    const s = await this.get()
+    return {
+      shopName: s.shopName,
+      shopNameEn: s.shopNameEn,
+      shopInitials: s.shopInitials,
+      shopAddress: s.shopAddress,
+      shopPhone: s.shopPhone,
+      shopLine: s.shopLine,
+    }
   }
 
   async update(dto: UpdateSettingsDto) {
     await this.get()
-    return this.prisma.settings.update({ where: { id: 1 }, data: dto as any })
+    this.cached = await this.prisma.settings.update({ where: { id: 1 }, data: dto as any })
+    return this.cached
   }
 }

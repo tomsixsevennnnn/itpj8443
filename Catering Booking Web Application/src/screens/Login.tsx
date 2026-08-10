@@ -1,10 +1,27 @@
+import { useEffect, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { ChefHat } from 'lucide-react'
 import { AUTH0_CONNECTION } from '../auth'
 import { DEFAULT_SHOP_INFO } from '../documents'
+import { api } from '../api'
 
 export default function Login() {
   const { loginWithRedirect, isLoading } = useAuth0()
+  // ค่าเริ่มต้นไว้โชว์ระหว่างโหลด/กันพัง ถ้าดึงจาก backend ไม่สำเร็จ — พอโหลดเสร็จจะได้ชื่อร้านล่าสุดจริง
+  const [shopName, setShopName] = useState(DEFAULT_SHOP_INFO.name)
+
+  useEffect(() => {
+    let cancelled = false
+    api
+      .publicShopInfo()
+      .then(info => {
+        if (!cancelled && info.name) setShopName(info.name)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // prompt: 'login' บังคับให้ Auth0 โชว์หน้า login ใหม่เสมอ กัน SSO session เดิมของบัญชีอื่น (เช่น owner) พาลอดผ่านเข้ามาเงียบๆ
   const loginAsCustomer = () =>
@@ -27,7 +44,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl shadow-lg shadow-orange-200 mb-4">
             <ChefHat size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">{DEFAULT_SHOP_INFO.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{shopName}</h1>
           <p className="text-gray-500 mt-1 text-sm">ระบบจองจัดเลี้ยงนอกสถานที่</p>
         </div>
 

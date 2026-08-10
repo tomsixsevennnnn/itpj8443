@@ -99,7 +99,21 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
 
   // ชื่อ tab เบราว์เซอร์ — title ใน index.html มาจาก .figma/make/site.json (static ตอน build)
-  // ส่วนนี้ sync ให้ตรงกับชื่อร้านจริงจากฐานข้อมูลทันทีที่โหลด settings เสร็จ
+  // ดึงจาก public endpoint ทันทีตอน mount (ไม่ต้องรอ login/โหลดข้อมูลเสร็จ) กันชื่อเก่าค้างตอนหน้า login
+  // หรือหน้า "กำลังโหลดข้อมูล" ซึ่งกว่าจะถึง setSettings จริงต้องรอ bookings/packages/menus โหลดพร้อมกันด้วย
+  useEffect(() => {
+    let cancelled = false
+    api
+      .publicShopInfo()
+      .then(info => {
+        if (!cancelled && info.name) document.title = info.name
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  // sync อีกรอบด้วยข้อมูลเต็มหลัง login โหลดเสร็จ เผื่อไม่ตรงกับที่ได้จาก public endpoint ตอนแรก
   useEffect(() => {
     document.title = settings.shopInfo.name || document.title
   }, [settings.shopInfo.name])
