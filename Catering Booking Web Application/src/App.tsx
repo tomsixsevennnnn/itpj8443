@@ -22,6 +22,7 @@ import { DEFAULT_HOME_CONTENT } from './homeContent'
 import { unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
 import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput } from './api'
+import { usePolling } from './usePolling'
 import ErrorBanner from './components/ErrorBanner'
 import Login from './screens/Login'
 import CompleteProfile from './screens/CompleteProfile'
@@ -71,6 +72,8 @@ const initialSettings: AppSettings = {
   homeContent: DEFAULT_HOME_CONTENT,
 }
 
+const SETTINGS_POLL_MS = 20_000
+
 const initialBooking: BookingData = {
   date: null,
   timeSlot: null,
@@ -99,21 +102,8 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
 
   // ชื่อ tab เบราว์เซอร์ — title ใน index.html มาจาก .figma/make/site.json (static ตอน build)
-  // ดึงจาก public endpoint ทันทีตอน mount (ไม่ต้องรอ login/โหลดข้อมูลเสร็จ) กันชื่อเก่าค้างตอนหน้า login
-  // หรือหน้า "กำลังโหลดข้อมูล" ซึ่งกว่าจะถึง setSettings จริงต้องรอ bookings/packages/menus โหลดพร้อมกันด้วย
-  useEffect(() => {
-    let cancelled = false
-    api
-      .publicShopInfo()
-      .then(info => {
-        if (!cancelled && info.name) document.title = info.name
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  // sync อีกรอบด้วยข้อมูลเต็มหลัง login โหลดเสร็จ เผื่อไม่ตรงกับที่ได้จาก public endpoint ตอนแรก
+  // ก่อน login หน้า Login เป็นคนดึง/ตั้ง title เอง (ดู screens/Login.tsx) ส่วนนี้ sync ต่อหลัง login โหลดเสร็จ
+  // และทุกครั้งที่ settings อัปเดตจาก polling ด้านล่าง
   useEffect(() => {
     document.title = settings.shopInfo.name || document.title
   }, [settings.shopInfo.name])
@@ -167,6 +157,16 @@ export default function App() {
   }, [isAuthenticated, getAccessTokenSilently, auth0User, retryKey])
 
   const withToken = () => getAccessTokenSilently()
+
+  // poll ค่าตั้งค่าร้านทุก 20 วิหลัง login (หยุดพักตอนสลับแท็บ) — เจ้าของร้านแก้ชื่อร้าน/ค่าอื่นๆ
+  // จากเครื่อง/แท็บอื่น หน้าที่เปิดค้างไว้จะเห็นการเปลี่ยนแปลงโดยไม่ต้องกด refresh เอง
+  usePolling(() => {
+    if (!isAuthenticated) return
+    withToken()
+      .then(token => api.settings(token))
+      .then(setSettings)
+      .catch(() => {})
+  }, SETTINGS_POLL_MS)
 
   /** ห่อ handler ที่ยิง API ทุกตัว — ถ้า error ให้เด้ง banner แจ้งผู้ใช้แทนที่จะเงียบ/พังไม่รู้สาเหตุ */
   const runAction = async (fn: () => Promise<void>) => {
@@ -241,6 +241,18 @@ export default function App() {
       const token = await withToken()
       await api.deletePackage(token, id)
       setPackages(prev => prev.filter(p => p.id !== id))
+    })
+
+  const handleReorderPackages = (ids: string[]) =>
+    runAction(async () => {
+      // จัดเรียงในจอทันทีตอนลากวาง ไม่ต้องรอ backend ตอบก่อนถึงจะเห็นผล
+      setPackages(prev => {
+        const byId = new Map(prev.map(p => [p.id, p]))
+        return ids.map(id => byId.get(id)).filter((p): p is Package => p != null)
+      })
+      const token = await withToken()
+      const reordered = await api.reorderPackages(token, ids)
+      setPackages(reordered)
     })
 
   /** เข้าเว็บด้วย role จาก Auth0 (customer = Google, owner = username/password) ดู src/auth.ts */
@@ -471,6 +483,7 @@ export default function App() {
             onCreatePackage={handleCreatePackage}
             onUpdatePackage={handleUpdatePackage}
             onDeletePackage={handleDeletePackage}
+            onReorderPackages={handleReorderPackages}
           />
         )}
         {effectiveScreen === 'owner-menus' && (

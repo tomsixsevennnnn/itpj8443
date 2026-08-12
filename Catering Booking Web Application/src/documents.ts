@@ -8,6 +8,10 @@ export const DEFAULT_SHOP_INFO: ShopInfo = {
   address: 'อ.เมืองนครปฐม จ.นครปฐม 73000',
   phone: '034-XXX-XXX',
   line: '@pipatphochana',
+  bankName: '',
+  bankAccountNumber: '',
+  bankAccountName: '',
+  promptPayQr: '',
 }
 
 export type DocType = 'quotation' | 'booking'

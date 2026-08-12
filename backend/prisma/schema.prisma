@@ -54,6 +54,8 @@ model Package {
   description   String          @default("")
   features      String[]
   badge         String?
+  /** ลำดับที่เจ้าของร้านลากจัดเรียงเอง — เลขน้อยแสดงก่อน ทั้งในหน้าจัดการและหน้าลูกค้าเลือกแพ็กเกจ */
+  sortOrder     Int             @default(0)
   courses       PackageCourse[]
 }
 
@@ -124,6 +126,12 @@ model Settings {
   shopAddress           String
   shopPhone             String
   shopLine              String
+  /** ข้อมูลบัญชี/QR พร้อมเพย์ให้ลูกค้าโอนมัดจำ — แสดงในใบเสนอราคา/ใบจองและตอนแนบสลิป */
+  bankName              String @default("")
+  bankAccountNumber     String @default("")
+  bankAccountName       String @default("")
+  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) */
+  promptPayQr           String @default("")
   /** 0–1 เช่น 0.5 = 50% */
   depositRate           Float
   deliveryFee           Int

@@ -4,7 +4,7 @@ import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
 import ImageLightbox from '../components/ImageLightbox'
 import type { AppSettings, Booking, Screen, UserProfile } from '../types'
-import { DOC_LABEL, docNumber, type DocType } from '../documents'
+import { DOC_LABEL, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
 
 interface BookingHistoryProps {
@@ -350,6 +350,40 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
                 <span className="font-bold text-gray-800">ราคารวม</span>
                 <span className="text-xl font-bold text-orange-600">{detailBooking.totalPrice.toLocaleString()} ฿</span>
               </div>
+
+              {/* ช่องทางการโอนมัดจำ — โชว์ตรงจุดที่ลูกค้าจะมาแนบสลิป กันต้องสลับไปเปิดใบเสนอราคาแยกเพื่อดูเลขบัญชี */}
+              {(settings.shopInfo.bankAccountNumber || settings.shopInfo.promptPayQr) && (
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-bold text-gray-800">ยอดมัดจำที่ต้องโอน</span>
+                    <span className="text-lg font-bold text-orange-600">
+                      {bookingPricing(detailBooking, settings.depositRate).deposit.toLocaleString()} ฿
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    {settings.shopInfo.bankAccountNumber && (
+                      <div className="flex-1 min-w-[180px] space-y-1">
+                        {settings.shopInfo.bankName && (
+                          <p className="text-sm font-semibold text-gray-700">{settings.shopInfo.bankName}</p>
+                        )}
+                        <p className="text-2xl font-bold font-mono tracking-wider text-gray-900 leading-tight">
+                          {settings.shopInfo.bankAccountNumber}
+                        </p>
+                        {settings.shopInfo.bankAccountName && (
+                          <p className="text-sm text-gray-600">{settings.shopInfo.bankAccountName}</p>
+                        )}
+                      </div>
+                    )}
+                    {settings.shopInfo.promptPayQr && (
+                      <img
+                        src={settings.shopInfo.promptPayQr}
+                        alt="QR พร้อมเพย์"
+                        className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* สลิปโอนเงินมัดจำ — ร้านจะตรวจสอบกับบัญชีเองแล้วเปลี่ยนสถานะให้ */}
               <div>

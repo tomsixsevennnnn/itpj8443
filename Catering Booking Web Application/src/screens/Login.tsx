@@ -1,27 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { ChefHat } from 'lucide-react'
 import { AUTH0_CONNECTION } from '../auth'
 import { DEFAULT_SHOP_INFO } from '../documents'
 import { api } from '../api'
+import { usePolling } from '../usePolling'
+
+const SETTINGS_POLL_MS = 20_000
 
 export default function Login() {
   const { loginWithRedirect, isLoading } = useAuth0()
   // ค่าเริ่มต้นไว้โชว์ระหว่างโหลด/กันพัง ถ้าดึงจาก backend ไม่สำเร็จ — พอโหลดเสร็จจะได้ชื่อร้านล่าสุดจริง
   const [shopName, setShopName] = useState(DEFAULT_SHOP_INFO.name)
 
-  useEffect(() => {
-    let cancelled = false
+  // poll ทุก 20 วิ (หยุดพักตอนสลับแท็บ) กันชื่อร้าน/tab title ค้างของเก่าถ้าเจ้าของร้านแก้ไว้ตอนหน้านี้เปิดอยู่
+  usePolling(() => {
     api
       .publicShopInfo()
       .then(info => {
-        if (!cancelled && info.name) setShopName(info.name)
+        if (!info.name) return
+        setShopName(info.name)
+        document.title = info.name
       })
       .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  }, SETTINGS_POLL_MS)
 
   // prompt: 'login' บังคับให้ Auth0 โชว์หน้า login ใหม่เสมอ กัน SSO session เดิมของบัญชีอื่น (เช่น owner) พาลอดผ่านเข้ามาเงียบๆ
   const loginAsCustomer = () =>

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { CourseInput, CreatePackageDto } from './dto/create-package.dto'
+import { ReorderPackagesDto } from './dto/reorder-packages.dto'
 import { UpdateCourseDto } from './dto/update-course.dto'
 import { UpdatePackageDto } from './dto/update-package.dto'
 
@@ -10,11 +11,13 @@ export class PackagesService {
 
   findAll() {
     return this.prisma.package.findMany({
+      orderBy: { sortOrder: 'asc' },
       include: { courses: { include: { items: true }, orderBy: { no: 'asc' } } },
     })
   }
 
-  create(dto: CreatePackageDto) {
+  async create(dto: CreatePackageDto) {
+    const count = await this.prisma.package.count()
     return this.prisma.package.create({
       data: {
         name: dto.name,
@@ -23,6 +26,8 @@ export class PackagesService {
         description: dto.description ?? '',
         features: dto.features ?? [],
         badge: dto.badge,
+        // แพ็กเกจใหม่ต่อท้ายลำดับที่มีอยู่เสมอ
+        sortOrder: count,
         courses: {
           create: dto.courses.map((c) => ({
             no: c.no,
@@ -36,6 +41,24 @@ export class PackagesService {
       },
       include: { courses: { include: { items: true } } },
     })
+  }
+
+  /** เจ้าของร้านลากจัดเรียงแพ็กเกจในหน้า "จัดการแพ็กเกจ" — ids ต้องครบและตรงกับแพ็กเกจที่มีอยู่ทั้งหมดพอดี */
+  async reorder(dto: ReorderPackagesDto) {
+    const existing = await this.prisma.package.findMany({ select: { id: true } })
+    const existingIds = new Set(existing.map((p) => p.id))
+    const uniqueIds = new Set(dto.ids)
+    const isValid =
+      uniqueIds.size === dto.ids.length &&
+      uniqueIds.size === existingIds.size &&
+      dto.ids.every((id) => existingIds.has(id))
+    if (!isValid) {
+      throw new BadRequestException('รายการ id ต้องตรงกับแพ็กเกจทั้งหมดที่มีอยู่พอดี ไม่ซ้ำ ไม่ขาด')
+    }
+    await this.prisma.$transaction(
+      dto.ids.map((id, index) => this.prisma.package.update({ where: { id }, data: { sortOrder: index } })),
+    )
+    return this.findAll()
   }
 
   async update(id: string, dto: UpdatePackageDto) {

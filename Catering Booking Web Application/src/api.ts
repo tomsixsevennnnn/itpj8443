@@ -55,6 +55,10 @@ interface BackendSettings {
   shopAddress: string
   shopPhone: string
   shopLine: string
+  bankName: string
+  bankAccountNumber: string
+  bankAccountName: string
+  promptPayQr: string
   depositRate: number
   deliveryFee: number
   freeDeliveryMinTables: number
@@ -77,6 +81,10 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
     address: s.shopAddress,
     phone: s.shopPhone,
     line: s.shopLine,
+    bankName: s.bankName,
+    bankAccountNumber: s.bankAccountNumber,
+    bankAccountName: s.bankAccountName,
+    promptPayQr: s.promptPayQr,
   },
   depositRate: s.depositRate,
   deliveryFee: s.deliveryFee,
@@ -102,6 +110,10 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (si?.address !== undefined) out.shopAddress = si.address
   if (si?.phone !== undefined) out.shopPhone = si.phone
   if (si?.line !== undefined) out.shopLine = si.line
+  if (si?.bankName !== undefined) out.bankName = si.bankName
+  if (si?.bankAccountNumber !== undefined) out.bankAccountNumber = si.bankAccountNumber
+  if (si?.bankAccountName !== undefined) out.bankAccountName = si.bankAccountName
+  if (si?.promptPayQr !== undefined) out.promptPayQr = si.promptPayQr
   if (patch.depositRate !== undefined) out.depositRate = patch.depositRate
   if (patch.deliveryFee !== undefined) out.deliveryFee = patch.deliveryFee
   if (patch.freeDeliveryMinTables !== undefined) out.freeDeliveryMinTables = patch.freeDeliveryMinTables
@@ -222,6 +234,10 @@ export const api = {
 
   deletePackage: (token: string, id: string) => request<void>(token, `/packages/${id}`, { method: 'DELETE' }),
 
+  /** ลากจัดเรียงแพ็กเกจในหน้า "จัดการแพ็กเกจ" — ids ต้องส่งครบทุกแพ็กเกจที่มีอยู่ ตามลำดับใหม่ */
+  reorderPackages: (token: string, ids: string[]) =>
+    request<Package[]>(token, '/packages/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
+
   menus: (token: string) => request<MenuItem[]>(token, '/menus'),
 
   createMenu: (token: string, input: Omit<MenuItem, 'id'>) =>
@@ -254,6 +270,11 @@ export const api = {
       address: s.shopAddress,
       phone: s.shopPhone,
       line: s.shopLine,
+      // ข้อมูลบัญชี/QR ไม่ส่งมาจาก endpoint นี้ (ไม่มี auth) — เว้นว่างไว้ก่อน login
+      bankName: '',
+      bankAccountNumber: '',
+      bankAccountName: '',
+      promptPayQr: '',
     }
   },
 

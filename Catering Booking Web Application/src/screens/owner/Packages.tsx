@@ -12,6 +12,7 @@ interface PackagesProps {
   onCreatePackage: (input: CreatePackageInput) => void
   onUpdatePackage: (id: string, input: UpdatePackageInput) => void
   onDeletePackage: (id: string) => void
+  onReorderPackages: (ids: string[]) => void
 }
 
 const emptyForm = { name: '', pricePerTable: 0, description: '', badge: '' }
@@ -37,6 +38,7 @@ export default function Packages({
   onCreatePackage,
   onUpdatePackage,
   onDeletePackage,
+  onReorderPackages,
 }: PackagesProps) {
   const categories = orderedCategories(settings.categoryOrder)
   const [showModal, setShowModal] = useState(false)
@@ -47,6 +49,7 @@ export default function Packages({
   const [showAllCats, setShowAllCats] = useState(false)
   const [dragCourseNo, setDragCourseNo] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Package | null>(null)
+  const [dragPkgId, setDragPkgId] = useState<string | null>(null)
 
   const openAdd = () => {
     setEditing(null)
@@ -132,6 +135,25 @@ export default function Packages({
     })
   }
 
+  /* --- ลากจัดเรียงแพ็กเกจในตาราง --- */
+
+  const handlePkgDragStart = (id: string) => setDragPkgId(id)
+
+  const handlePkgDragOver = (e: React.DragEvent) => e.preventDefault()
+
+  const handlePkgDrop = (targetId: string) => {
+    const dragId = dragPkgId
+    setDragPkgId(null)
+    if (dragId == null || dragId === targetId) return
+    const from = packages.findIndex(p => p.id === dragId)
+    const to = packages.findIndex(p => p.id === targetId)
+    if (from === -1 || to === -1) return
+    const next = [...packages]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    onReorderPackages(next.map(p => p.id))
+  }
+
   const emptyCourses = courses.filter(c => c.items.length === 0)
   const canSave = form.name.trim().length > 0 && courses.length > 0 && emptyCourses.length === 0
 
@@ -178,10 +200,14 @@ export default function Packages({
         </button>
       </div>
 
+      {packages.length > 1 && (
+        <p className="text-xs text-gray-400 mb-2">ลากแถวเพื่อจัดลำดับแพ็กเกจที่ลูกค้าจะเห็น</p>
+      )}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
+              <th className="w-10 px-3 py-4" />
               {['ชื่อแพ็กเกจ', 'ราคา/โต๊ะ', 'รายการอาหาร', 'ป้ายกำกับ', 'สถานะ', 'จัดการ'].map(col => (
                 <th key={col} className="px-5 py-4 text-left text-xs font-semibold text-gray-500">{col}</th>
               ))}
@@ -189,7 +215,20 @@ export default function Packages({
           </thead>
           <tbody className="divide-y divide-gray-50">
             {packages.map((pkg) => (
-              <tr key={pkg.id} className="hover:bg-gray-50/50 transition-colors">
+              <tr
+                key={pkg.id}
+                draggable
+                onDragStart={() => handlePkgDragStart(pkg.id)}
+                onDragOver={handlePkgDragOver}
+                onDrop={() => handlePkgDrop(pkg.id)}
+                onDragEnd={() => setDragPkgId(null)}
+                className={`hover:bg-gray-50/50 transition-colors cursor-grab active:cursor-grabbing ${
+                  dragPkgId === pkg.id ? 'opacity-40' : ''
+                }`}
+              >
+                <td className="px-3 py-4 text-gray-300">
+                  <GripVertical size={14} />
+                </td>
                 <td className="px-5 py-4">
                   <p className="font-semibold text-gray-800">{pkg.name}</p>
                   <p className="text-xs text-gray-400 mt-0.5">{pkg.description}</p>

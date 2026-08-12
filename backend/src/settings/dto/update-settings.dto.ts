@@ -8,6 +8,11 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString() shopPhone?: string
   @IsOptional() @IsString() shopLine?: string
 
+  @IsOptional() @IsString() bankName?: string
+  @IsOptional() @IsString() bankAccountNumber?: string
+  @IsOptional() @IsString() bankAccountName?: string
+  @IsOptional() @IsString() promptPayQr?: string
+
   @IsOptional() @IsNumber() @Min(0) @Max(1) depositRate?: number
   @IsOptional() @IsInt() @Min(0) deliveryFee?: number
   @IsOptional() @IsInt() @Min(0) freeDeliveryMinTables?: number

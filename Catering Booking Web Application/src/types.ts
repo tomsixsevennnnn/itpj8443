@@ -200,6 +200,11 @@ export interface ShopInfo {
   address: string
   phone: string
   line: string
+  bankName: string
+  bankAccountNumber: string
+  bankAccountName: string
+  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ว่างได้ถ้ายังไม่อัปโหลด */
+  promptPayQr: string
 }
 
 /** ค่าตั้งค่าของร้านที่เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */

@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { CourseInput, CreatePackageDto } from './dto/create-package.dto'
+import { ReorderPackagesDto } from './dto/reorder-packages.dto'
 import { UpdateCourseDto } from './dto/update-course.dto'
 import { UpdatePackageDto } from './dto/update-package.dto'
 import { PackagesService } from './packages.service'
@@ -21,6 +22,13 @@ export class PackagesController {
   @Roles('owner')
   create(@Body() dto: CreatePackageDto) {
     return this.packages.create(dto)
+  }
+
+  // ต้องอยู่ก่อน @Patch(':id') — ไม่งั้น 'reorder' จะโดนจับเป็นค่า :id แทน
+  @Patch('reorder')
+  @Roles('owner')
+  reorder(@Body() dto: ReorderPackagesDto) {
+    return this.packages.reorder(dto)
   }
 
   @Patch(':id')

@@ -194,6 +194,31 @@ export default function BookingDocument({
         </div>
       </div>
 
+      {/* ข้อมูลการโอนเงิน */}
+      {(shopInfo.bankAccountNumber || shopInfo.promptPayQr) && (
+        <div className="bg-gray-50 rounded-xl p-4 mb-5">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">ช่องทางการโอนเงิน</p>
+          <div className="flex flex-wrap items-center gap-4">
+            {shopInfo.bankAccountNumber && (
+              <div className="flex-1 min-w-[180px] space-y-1">
+                {shopInfo.bankName && <p className="text-sm font-semibold text-gray-700">{shopInfo.bankName}</p>}
+                <p className="text-xl font-bold font-mono tracking-wider text-gray-900 leading-tight">
+                  {shopInfo.bankAccountNumber}
+                </p>
+                {shopInfo.bankAccountName && <p className="text-sm text-gray-600">{shopInfo.bankAccountName}</p>}
+              </div>
+            )}
+            {shopInfo.promptPayQr && (
+              <img
+                src={shopInfo.promptPayQr}
+                alt="QR พร้อมเพย์"
+                className="w-28 h-28 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* เงื่อนไข */}
       <div className="bg-gray-50 rounded-xl p-4 mb-5">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-2">เงื่อนไข</p>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -10,13 +10,17 @@ import {
   MapPin,
   Navigation,
   Percent,
+  QrCode,
   Save,
+  Trash2,
   Truck,
   Users,
+  Wallet,
 } from 'lucide-react'
 import type { AppSettings } from '../../types'
 import { orderedCategories } from '../../data'
 import LocationMap from '../../components/LocationMap'
+import { pickImageAsDataUrl } from '../../imageUpload'
 
 interface SettingsProps {
   settings: AppSettings
@@ -24,11 +28,17 @@ interface SettingsProps {
 }
 
 const SHOP_FIELDS: { key: keyof AppSettings['shopInfo']; label: string; placeholder: string }[] = [
-  { key: 'name', label: 'ชื่อร้าน (ไทย)', placeholder: 'เช่น ร้านพิพัฒน์โภชนา' },
+  { key: 'name', label: 'ชื่อร้าน (ไทย)', placeholder: 'เช่น ร้าน' },
   { key: 'nameEn', label: 'ชื่อร้าน (อังกฤษ)', placeholder: 'เช่น Pipat Phochana Catering' },
   { key: 'initials', label: 'อักษรย่อ (แสดงบนโลโก้เอกสาร)', placeholder: 'เช่น PP' },
   { key: 'phone', label: 'เบอร์โทรร้าน', placeholder: 'เช่น 034-XXX-XXX' },
   { key: 'line', label: 'Line ID ร้าน', placeholder: 'เช่น @pipatphochana' },
+]
+
+const BANK_FIELDS: { key: keyof AppSettings['shopInfo']; label: string; placeholder: string }[] = [
+  { key: 'bankName', label: 'ธนาคาร', placeholder: 'เช่น ธนาคารกสิกรไทย' },
+  { key: 'bankAccountNumber', label: 'เลขที่บัญชี', placeholder: 'เช่น 123-4-56789-0' },
+  { key: 'bankAccountName', label: 'ชื่อบัญชี', placeholder: 'เช่น นายพิพัฒน์ โภชนา' },
 ]
 
 const WAGE_FIELDS: { key: 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 'wageDishwasher'; label: string; unit: string }[] = [
@@ -43,12 +53,40 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [locating, setLocating] = useState(false)
   const [locateError, setLocateError] = useState<string | null>(null)
+  const [qrUploading, setQrUploading] = useState(false)
+  const [qrError, setQrError] = useState<string | null>(null)
+  const qrInputRef = useRef<HTMLInputElement>(null)
+
+  // settings prop เปลี่ยนได้เองจาก polling (คนอื่นแก้ที่เครื่องอื่น) — sync form ตามให้ถ้ายังไม่ได้แก้อะไรค้างไว้
+  // (เทียบกับค่า settings "ก่อนหน้า" ไม่ใช่ค่าล่าสุด กัน false positive ตอนกำลังจะเปลี่ยนพอดี)
+  const prevSettingsRef = useRef(settings)
+  useEffect(() => {
+    const prevSettings = prevSettingsRef.current
+    prevSettingsRef.current = settings
+    setForm(f => (JSON.stringify(f) === JSON.stringify(prevSettings) ? settings : f))
+  }, [settings])
 
   const dirty = JSON.stringify(form) !== JSON.stringify(settings)
 
   const setShopField = (key: keyof AppSettings['shopInfo'], value: string) => {
     setForm(f => ({ ...f, shopInfo: { ...f.shopInfo, [key]: value } }))
     setSavedAt(null)
+  }
+
+  /** เลือกรูป QR พร้อมเพย์จากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูปเมนู */
+  const handlePickQr = async (file: File | undefined) => {
+    if (!file) return
+    setQrUploading(true)
+    setQrError(null)
+    try {
+      const dataUrl = await pickImageAsDataUrl(file)
+      setShopField('promptPayQr', dataUrl)
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
+    } finally {
+      setQrUploading(false)
+      if (qrInputRef.current) qrInputRef.current.value = ''
+    }
   }
 
   const setNumberField = (
@@ -116,7 +154,7 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
   }
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-2xl space-y-5 pb-24">
       {/* ข้อมูลร้าน */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -174,6 +212,83 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-center font-bold focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
           <span className="text-sm text-gray-500">%</span>
+        </div>
+      </div>
+
+      {/* ข้อมูลการชำระเงิน */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Wallet size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">ข้อมูลการชำระเงิน</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          บัญชี/QR พร้อมเพย์ให้ลูกค้าโอนมัดจำ — แสดงในใบเสนอราคาและใบจองทุกใบ
+        </p>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          {BANK_FIELDS.map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+              <input
+                type="text"
+                value={form.shopInfo[key]}
+                placeholder={placeholder}
+                onChange={e => setShopField(key, e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">QR พร้อมเพย์</label>
+          <input
+            ref={qrInputRef}
+            type="file"
+            accept="image/*"
+            onChange={e => handlePickQr(e.target.files?.[0])}
+            className="hidden"
+          />
+
+          {form.shopInfo.promptPayQr ? (
+            <div className="flex items-center gap-4">
+              <img
+                src={form.shopInfo.promptPayQr}
+                alt="QR พร้อมเพย์"
+                className="w-28 h-28 rounded-xl border border-gray-200 object-contain bg-white"
+              />
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => qrInputRef.current?.click()}
+                  disabled={qrUploading}
+                  className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
+                >
+                  {qrUploading ? <Loader2 size={12} className="animate-spin" /> : <QrCode size={12} />}
+                  เปลี่ยนรูป
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShopField('promptPayQr', '')}
+                  className="flex items-center gap-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-full transition-colors"
+                >
+                  <Trash2 size={12} />
+                  ลบรูป
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => qrInputRef.current?.click()}
+              disabled={qrUploading}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-600 border border-dashed border-gray-300 hover:border-orange-300 rounded-xl px-4 py-6 w-full justify-center transition-colors"
+            >
+              {qrUploading ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
+              {qrUploading ? 'กำลังอัปโหลด...' : 'อัปโหลดรูป QR พร้อมเพย์'}
+            </button>
+          )}
+          {qrError && <p className="mt-2 text-xs text-red-500">{qrError}</p>}
         </div>
       </div>
 
@@ -346,22 +461,22 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
         </div>
       </div>
 
-      {/* Save */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={!dirty}
-          className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl px-6 py-3 text-sm font-semibold transition-colors"
-        >
-          <Save size={16} />
-          บันทึกการตั้งค่า
-        </button>
+      {/* Save — ลอยมุมล่างขวาตลอด กันต้องเลื่อนจอลงมาสุดทุกครั้งที่จะบันทึก */}
+      <div className="fixed bottom-6 right-6 sm:right-8 lg:right-10 z-30 flex flex-col items-end gap-2">
         {!dirty && savedAt && (
-          <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+          <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium bg-white px-3 py-1.5 rounded-full shadow-md border border-green-100">
             <Check size={14} />
             บันทึกแล้ว
           </span>
         )}
+        <button
+          onClick={handleSave}
+          disabled={!dirty}
+          className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:text-gray-500 text-white rounded-full px-6 py-3.5 text-sm font-semibold shadow-lg shadow-orange-500/30 transition-colors"
+        >
+          <Save size={16} />
+          บันทึกการตั้งค่า
+        </button>
       </div>
     </div>
   )

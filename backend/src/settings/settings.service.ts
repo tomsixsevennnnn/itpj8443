@@ -31,12 +31,18 @@ export class SettingsService {
 
   // แถวเดียว (id=1) แก้ไม่บ่อย — cache ไว้ในหน่วยความจำกัน round-trip ไป DB ที่โฮสต์ไกล (Railway)
   // ทุกครั้งที่หน้า Login/หน้าอื่นเรียก /settings ซึ่งช้ากว่า cache hit หลายเท่าตัว
+  // TTL สั้นๆ (ไม่ cache ค้างตลอดไป) เพราะ backend รันได้หลาย process ชี้ DB เดียวกัน
+  // (เช่น รันคนละเครื่อง) — แก้ที่ process หนึ่งแล้ว process อื่นต้องเห็นการเปลี่ยนแปลงภายในไม่กี่วินาที
   private cached: Settings | null = null
+  private cachedAt = 0
+  private static readonly CACHE_TTL_MS = 1000
 
   async get() {
-    if (this.cached) return this.cached
+    const isFresh = this.cached && Date.now() - this.cachedAt < SettingsService.CACHE_TTL_MS
+    if (isFresh) return this.cached!
     const existing = await this.prisma.settings.findUnique({ where: { id: 1 } })
     this.cached = existing ?? (await this.prisma.settings.create({ data: DEFAULT_SETTINGS }))
+    this.cachedAt = Date.now()
     return this.cached
   }
 
@@ -56,6 +62,7 @@ export class SettingsService {
   async update(dto: UpdateSettingsDto) {
     await this.get()
     this.cached = await this.prisma.settings.update({ where: { id: 1 }, data: dto as any })
+    this.cachedAt = Date.now()
     return this.cached
   }
 }
