@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { AlertCircle, ChevronLeft, ChevronRight, Loader2, MapPin, Navigation, Search, Truck, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import LocationMap, { type LocationMapHandle } from '../components/LocationMap'
-import type { EventLocation, LocationDetail, Screen, ShopInfo, ShopLocation, UserProfile } from '../types'
+import { useNav } from '../NavContext'
+import type { EventLocation, LocationDetail, ShopLocation } from '../types'
 import {
-  HOME_PROVINCE,
   PRESET_LOCATIONS,
-  ZONE_LABEL,
   checkDelivery,
   emptyDetail,
   isGoogleMapsShortLink,
@@ -17,13 +16,11 @@ import {
   searchPlaces,
   searchPresets,
   zoneFor,
+  zoneLabel,
   type GeoResult,
 } from '../geo'
 
 interface SelectLocationProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
-  shopInfo: ShopInfo
   tables: number
   location: EventLocation | null
   onSetLocation: (loc: EventLocation) => void
@@ -33,7 +30,10 @@ interface SelectLocationProps {
   freeDeliveryMinTables: number
   shopLocation: ShopLocation
   fuelCostPerKm: number
-  notifCount: number
+  /** จังหวัด/คำที่นับเป็นโซน metro — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" (AppSettings.metroProvinces) */
+  metroProvinces: string[]
+  /** จังหวัดที่ร้านตั้งอยู่ (โซน home) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" (AppSettings.homeProvince) */
+  homeProvince: string
 }
 
 /** กลางกรุงเทพฯ — ใช้เป็นจุดเริ่มต้นเมื่อยังไม่เคยเลือกสถานที่ */
@@ -53,9 +53,6 @@ const DETAIL_FIELDS: { key: keyof LocationDetail; label: string; placeholder: st
 ]
 
 export default function SelectLocation({
-  navigate,
-  user,
-  shopInfo,
   tables,
   location,
   onSetLocation,
@@ -64,8 +61,10 @@ export default function SelectLocation({
   freeDeliveryMinTables,
   shopLocation,
   fuelCostPerKm,
-  notifCount,
+  metroProvinces,
+  homeProvince,
 }: SelectLocationProps) {
+  const { navigate } = useNav()
   const [pos, setPos] = useState(location ? { lat: location.lat, lng: location.lng } : DEFAULT_CENTER)
   const mapRef = useRef<LocationMapHandle>(null)
   const [place, setPlace] = useState({
@@ -209,7 +208,7 @@ export default function SelectLocation({
     )
   }
 
-  const zone = zoneFor(place.province, place.address)
+  const zone = zoneFor(place.province, place.address, metroProvinces, homeProvince)
   const hasPlace = place.address.trim().length > 0
 
   /** งานนอกพื้นที่ — คำนวณระยะทางถนนจริงจากร้านไปหมุดที่เลือก ใช้คิดค่าเดินทาง (ไป-กลับ) */
@@ -236,11 +235,14 @@ export default function SelectLocation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zone, hasPlace, pos.lat, pos.lng])
 
-  const check = checkDelivery(tables, zone, deliveryFee, freeDeliveryMinTables, {
-    distanceKm: outsideDistanceKm,
-    fuelCostPerKm,
-    loading: outsideLoading,
-  })
+  const check = checkDelivery(
+    tables,
+    zone,
+    deliveryFee,
+    freeDeliveryMinTables,
+    { distanceKm: outsideDistanceKm, fuelCostPerKm, loading: outsideLoading },
+    homeProvince,
+  )
 
   const handleNext = () => {
     if (check.blocked) return
@@ -259,7 +261,7 @@ export default function SelectLocation({
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="select-location" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="select-location" />
 
       {/* มือถือ: Navbar มีแถวเมนูล่างเพิ่ม จึงต้องเว้นบนมากกว่าจอใหญ่ */}
       <div className="pt-[7.25rem] md:pt-16 flex flex-col flex-1 overflow-hidden">
@@ -382,7 +384,7 @@ export default function SelectLocation({
                               : 'bg-gray-200 text-gray-600'
                         }`}
                       >
-                        {place.province} · {ZONE_LABEL[zone]}
+                        {place.province} · {zoneLabel(homeProvince)[zone]}
                       </span>
                     )}
                   </div>
@@ -413,7 +415,7 @@ export default function SelectLocation({
                 <div className="flex items-start gap-2.5 rounded-xl px-3 py-3 text-xs border bg-gray-50 border-gray-100 text-gray-500">
                   <Truck size={15} className="flex-shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
-                    เลือกสถานที่เพื่อตรวจเงื่อนไขพื้นที่ — ใน {HOME_PROVINCE} รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง ·
+                    เลือกสถานที่เพื่อตรวจเงื่อนไขพื้นที่ — ใน {homeProvince} รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง ·
                     กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ ไม่ถึงขั้นต่ำคิดค่าขนส่ง{' '}
                     {deliveryFee.toLocaleString()} บาท · จังหวัดอื่นรับจัดกี่โต๊ะก็ได้ คิดค่าเดินทางตามระยะทางจริง (กิโลเมตร)
                   </div>

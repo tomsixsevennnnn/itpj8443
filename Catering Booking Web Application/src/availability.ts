@@ -1,4 +1,6 @@
-import type { Booking, QueueBooking } from './types'
+import type { Booking, BaseSlotId, QueueBooking, TimeSlotHours } from './types'
+
+export type { BaseSlotId, TimeSlotHours }
 
 /* ------------------------------------------------------------------ *
  * สถานะคิวงานของแต่ละวัน — คำนวณจากรายการจองจริง
@@ -11,21 +13,30 @@ export interface TimeSlotDef {
   icon: string
 }
 
-export type SlotId = 'morning' | 'noon' | 'evening' | 'allday'
-/** ช่วงเวลาจริงที่ใช้นับคิว (ทั้งวัน = กินทั้ง 3 ช่วง) */
-export type BaseSlotId = Exclude<SlotId, 'allday'>
+export type SlotId = BaseSlotId | 'allday'
+
+/** ช่วงเวลา (ตัวเลข "08:00 - 12:00" ฯลฯ) เป็นค่าเริ่มต้น — เจ้าของร้านแก้ได้จากหน้า "ตั้งค่า" (AppSettings.timeSlotHours) ดู bookableSlots ด้านล่าง */
+export const DEFAULT_SLOT_HOURS: TimeSlotHours = {
+  morning: '08:00 - 12:00',
+  noon: '12:00 - 16:00',
+  evening: '17:00 - 21:00',
+}
 
 export const TIME_SLOTS: TimeSlotDef[] = [
-  { id: 'morning', label: 'ช่วงเช้า', time: '08:00 - 12:00', icon: '🌅' },
-  { id: 'noon', label: 'ช่วงกลางวัน', time: '12:00 - 16:00', icon: '☀️' },
-  { id: 'evening', label: 'ช่วงเย็น', time: '17:00 - 21:00', icon: '🌆' },
+  { id: 'morning', label: 'ช่วงเช้า', time: DEFAULT_SLOT_HOURS.morning, icon: '🌅' },
+  { id: 'noon', label: 'ช่วงกลางวัน', time: DEFAULT_SLOT_HOURS.noon, icon: '☀️' },
+  { id: 'evening', label: 'ช่วงเย็น', time: DEFAULT_SLOT_HOURS.evening, icon: '🌆' },
   { id: 'allday', label: 'ทั้งวัน', time: '08:00 - 21:00', icon: '📆' },
 ]
 
 export const BASE_SLOTS: BaseSlotId[] = ['morning', 'noon', 'evening']
 
-/** ช่วงเวลาที่ให้ลูกค้าเลือกได้จริง (ไม่มีตัวเลือก "ทั้งวัน") */
-export const BOOKABLE_SLOTS: TimeSlotDef[] = TIME_SLOTS.filter(s => s.id !== 'allday')
+/** ช่วงเวลาที่ให้ลูกค้าเลือกได้จริง (ไม่มีตัวเลือก "ทั้งวัน") — ไม่ส่ง hours มา = ใช้ค่าเริ่มต้น (กันโค้ด/เทสต์เก่าพัง) */
+export const bookableSlots = (hours: TimeSlotHours = DEFAULT_SLOT_HOURS): TimeSlotDef[] =>
+  TIME_SLOTS.filter(s => s.id !== 'allday').map(s => ({ ...s, time: hours[s.id as BaseSlotId] ?? s.time }))
+
+/** @deprecated ใช้ bookableSlots(hours) แทนถ้าต้องการเวลาที่เจ้าของร้านแก้ไขแล้ว — เก็บไว้เพื่อความเข้ากันได้ */
+export const BOOKABLE_SLOTS: TimeSlotDef[] = bookableSlots()
 
 /** จำนวนโต๊ะสูงสุดที่ร้านรับได้ต่อ 1 ช่วงเวลา (เท่ากับจำนวนโต๊ะสูงสุดที่จองได้ 1 งาน) */
 export const SLOT_CAPACITY = 500

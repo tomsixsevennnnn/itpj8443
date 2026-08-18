@@ -40,10 +40,13 @@ model MenuItem {
   description String          @default("")
   image       String?
   extraPrice  Int?
-  /** ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ */
+  /** ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ (owner เท่านั้นที่เห็นค่านี้ผ่าน API) */
   costPrice   Int?
   active      Boolean         @default(true)
   courses     PackageCourse[] @relation("CourseItems")
+  updatedAt   DateTime        @updatedAt
+  /** auth0Sub ของ owner ที่แก้ไขล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก) */
+  lastEditedBy String?
 }
 
 model Package {
@@ -57,6 +60,8 @@ model Package {
   /** ลำดับที่เจ้าของร้านลากจัดเรียงเอง — เลขน้อยแสดงก่อน ทั้งในหน้าจัดการและหน้าลูกค้าเลือกแพ็กเกจ */
   sortOrder     Int             @default(0)
   courses       PackageCourse[]
+  updatedAt     DateTime        @updatedAt
+  lastEditedBy  String?
 }
 
 model PackageCourse {
@@ -105,6 +110,9 @@ model Booking {
   paymentSlipUrl        String?
   paymentSlipUploadedAt DateTime?
   createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  /** auth0Sub ของ owner ที่แก้ไขสถานะ/แผนกำลังคนล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก) */
+  lastEditedBy          String?
 
   @@unique([bookingYear, bookingNo])
   @@index([customerId])
@@ -126,6 +134,10 @@ model Settings {
   shopAddress           String
   shopPhone             String
   shopLine              String
+  /** โลโก้ร้าน เก็บเป็น data URL (เหมือนรูปเมนู) — ว่าง = ใช้ไอคอนเริ่มต้นฝั่ง frontend */
+  shopLogo              String @default("")
+  /** คำโปรยใต้ชื่อร้านในหน้า Login — เจ้าของร้านแก้ไขเองได้ */
+  shopLoginTagline      String @default("ระบบจองจัดเลี้ยงนอกสถานที่")
   /** ข้อมูลบัญชี/QR พร้อมเพย์ให้ลูกค้าโอนมัดจำ — แสดงในใบเสนอราคา/ใบจองและตอนแนบสลิป */
   bankName              String @default("")
   bankAccountNumber     String @default("")
@@ -136,12 +148,33 @@ model Settings {
   depositRate           Float
   deliveryFee           Int
   freeDeliveryMinTables Int
+  /** รายชื่อจังหวัด/คำที่นับเป็นโซน "กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง" (metro) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  metroProvinces        String[] @default(["กรุงเทพมหานคร", "นนทบุรี", "ปทุมธานี", "สมุทรปราการ", "สมุทรสาคร", "สมุทรสงคราม", "สุพรรณบุรี", "ราชบุรี", "กาญจนบุรี"])
+  /** จังหวัดที่ร้านตั้งอยู่ (โซน home — ไม่มีค่าขนส่ง) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  homeProvince           String   @default("นครปฐม")
+  /** สีหลักของแบรนด์ (hex) — ทาทับสีส้ม Tailwind ทั้งแอปที่ runtime ดู frontend src/theme.ts */
+  brandColor             String   @default("#F97316")
   /** อัตราค่าแรง flat ต่อคน ต่องาน (บาท) */
   wageChef              Int    @default(1200)
   wageAssistant         Int    @default(1000)
   /** ค่าแรงเสิร์ฟ คิดต่อโต๊ะ (ไม่ใช่ต่อคน) */
   wageServerPerTable    Int    @default(100)
   wageDishwasher        Int    @default(500)
+  /** พนักงานเสิร์ฟ 1 คนต่อกี่โต๊ะ — ใช้คำนวณแผนกำลังคนอัตโนมัติ */
+  tablesPerServer       Int    @default(8)
+  /** ผู้ช่วยพ่อครัว/พนักงานล้างจาน 1 คนต่อกี่โต๊ะ */
+  tablesPerSupport      Int    @default(20)
+  /** หารแล้วเหลือเศษเกินกี่โต๊ะ ให้เพิ่มผู้ช่วยพ่อครัว/ล้างจานอีก 1 คน */
+  staffRemainderThreshold Int  @default(10)
+  /** เวลาของแต่ละช่วงจอง (เช่น "08:00 - 12:00") — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  slotMorningHours      String @default("08:00 - 12:00")
+  slotNoonHours         String @default("12:00 - 16:00")
+  slotEveningHours      String @default("17:00 - 21:00")
+  /** ใบเสนอราคายืนราคากี่วันนับจากวันที่ออก */
+  quotationValidDays    Int    @default(7)
+  /** เงื่อนไขเพิ่มเติมท้ายใบเสนอราคา/ใบจอง (นอกเหนือจากที่ระบบคำนวณอัตโนมัติ) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  quotationTerms        String[] @default(["ราคานี้รวมอุปกรณ์จัดเลี้ยง โต๊ะ เก้าอี้ และพนักงานเสิร์ฟแล้ว ไม่มีค่าบริการเพิ่ม"])
+  bookingTerms           String[] @default(["ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง", "แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน", "ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ"])
   /** ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง */
   categoryOrder         String[] @default(["snack", "appetizer", "soup", "salad", "main", "fish", "rice-noodle", "hotpot", "dessert"])
   /** พิกัดร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ (ค่าเริ่มต้น: องค์พระปฐมเจดีย์) */
@@ -151,4 +184,8 @@ model Settings {
   fuelCostPerKm          Float  @default(8)
   /** เนื้อหาหน้าแรก (Hero, การ์ดจุดเด่น, ขั้นตอนการจอง, แกลเลอรี, CTA) — โครงสร้างคือ HomeContent ฝั่ง frontend, null = ยังไม่เคย customize ใช้ค่า default ในโค้ด */
   homeContent            Json?
+  /** ประเภทอาหารทั้งหมดของร้าน (id/label/labelEn/icon/gradient) — โครงสร้างคือ Category[] ฝั่ง frontend, null = ยังไม่เคย customize ใช้ค่า default ในโค้ด */
+  categories             Json?
+  updatedAt              DateTime @updatedAt
+  lastEditedBy           String?
 }

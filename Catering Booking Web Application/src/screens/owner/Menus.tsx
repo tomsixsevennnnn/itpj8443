@@ -3,7 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react'
 import { AlertTriangle, Edit2, Eye, EyeOff, ImagePlus, Loader2, Minus, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import DishTile from '../../components/DishTile'
 import type { AppSettings, MenuItem, Package } from '../../types'
-import { CATEGORY_MAP, orderedCategories } from '../../data'
+import { categoryMapOf, orderedCategories } from '../../data'
 import { pickImageAsDataUrl } from '../../imageUpload'
 
 interface MenusProps {
@@ -43,7 +43,8 @@ const emptyForm = (category: string): MenuForm => ({
 })
 
 export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteMenu }: MenusProps) {
-  const categories = orderedCategories(settings.categoryOrder)
+  const categories = orderedCategories(settings.categoryOrder, settings.categories)
+  const categoryMap = categoryMapOf(categories)
   const [activeCategory, setActiveCategory] = useState(categories[0].id)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<MenuItem | null>(null)
@@ -210,7 +211,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
       <div className="flex-1 overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-gray-800">
-            {CATEGORY_MAP[activeCategory]?.label}
+            {categoryMap[activeCategory]?.label}
             <span className="text-sm font-normal text-gray-400 ml-2">({filtered.length} รายการ)</span>
           </h3>
           <button

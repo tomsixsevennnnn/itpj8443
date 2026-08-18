@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Edit2, GripVertical, Plus, Trash2, X } from 'lucide-react'
-import type { AppSettings, MenuItem, Package, PackageCourse } from '../../types'
-import { CATEGORY_MAP, orderedCategories, requiredCourses } from '../../data'
+import type { AppSettings, Category, MenuItem, Package, PackageCourse } from '../../types'
+import { categoryMapOf, orderedCategories, requiredCourses } from '../../data'
 import type { CreatePackageInput, UpdatePackageInput } from '../../api'
 
 interface PackagesProps {
@@ -18,18 +18,21 @@ interface PackagesProps {
 const emptyForm = { name: '', pricePerTable: 0, description: '', badge: '' }
 
 /** ข้อใหม่ 1 ข้อ ตามประเภทอาหารที่เลือก */
-const newCourse = (no: number, categoryId: string): PackageCourse => ({
+const newCourse = (no: number, categoryId: string, categoryMap: Record<string, Category>): PackageCourse => ({
   no,
-  title: CATEGORY_MAP[categoryId]?.label ?? 'รายการใหม่',
-  icon: CATEGORY_MAP[categoryId]?.icon,
+  title: categoryMap[categoryId]?.label ?? 'รายการใหม่',
+  icon: categoryMap[categoryId]?.icon,
   category: categoryId,
   choose: 1,
   items: [],
 })
 
-/** แพ็กเกจใหม่เริ่มต้นด้วย 9 ข้อ ตามประเภทอาหารทั้งหมด เรียงตามที่เจ้าของร้านตั้งไว้ */
-const blankCourses = (categoryOrder: string[]): PackageCourse[] =>
-  orderedCategories(categoryOrder).map((c, i) => newCourse(i + 1, c.id))
+/** แพ็กเกจใหม่เริ่มต้นด้วยข้อตามประเภทอาหารทั้งหมด เรียงตามที่เจ้าของร้านตั้งไว้ */
+const blankCourses = (categoryOrder: string[], categories: Category[]): PackageCourse[] => {
+  const ordered = orderedCategories(categoryOrder, categories)
+  const categoryMap = categoryMapOf(categories)
+  return ordered.map((c, i) => newCourse(i + 1, c.id, categoryMap))
+}
 
 export default function Packages({
   packages,
@@ -40,7 +43,8 @@ export default function Packages({
   onDeletePackage,
   onReorderPackages,
 }: PackagesProps) {
-  const categories = orderedCategories(settings.categoryOrder)
+  const categories = orderedCategories(settings.categoryOrder, settings.categories)
+  const categoryMap = categoryMapOf(settings.categories)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Package | null>(null)
   const [form, setForm] = useState(emptyForm)
@@ -54,7 +58,7 @@ export default function Packages({
   const openAdd = () => {
     setEditing(null)
     setForm(emptyForm)
-    setCourses(blankCourses(settings.categoryOrder))
+    setCourses(blankCourses(settings.categoryOrder, settings.categories))
     setOpenCourse(1)
     setShowAllCats(false)
     setShowModal(true)
@@ -93,7 +97,7 @@ export default function Packages({
 
   const addCourse = () => {
     setCourses(prev => {
-      const next = [...prev, newCourse(prev.length + 1, categories[0].id)]
+      const next = [...prev, newCourse(prev.length + 1, categories[0].id, categoryMap)]
       setOpenCourse(next.length)
       return next
     })
@@ -363,7 +367,7 @@ export default function Packages({
                   )}
                   <div className="space-y-2">
                     {courses.map((course, index) => {
-                      const cat = CATEGORY_MAP[course.category]
+                      const cat = categoryMap[course.category]
                       const isOpen = openCourse === course.no
                       const isEmpty = course.items.length === 0
 
@@ -421,8 +425,8 @@ export default function Packages({
                                     const id = e.target.value
                                     patchCourse(index, {
                                       category: id,
-                                      title: CATEGORY_MAP[id]?.label ?? course.title,
-                                      icon: CATEGORY_MAP[id]?.icon ?? course.icon,
+                                      title: categoryMap[id]?.label ?? course.title,
+                                      icon: categoryMap[id]?.icon ?? course.icon,
                                     })
                                   }}
                                   className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -507,7 +511,7 @@ export default function Packages({
                                         </span>
                                         {dish.category !== course.category && (
                                           <span className="block text-[10px] text-gray-400 leading-tight mt-0.5">
-                                            {CATEGORY_MAP[dish.category]?.label}
+                                            {categoryMap[dish.category]?.label}
                                           </span>
                                         )}
                                       </span>

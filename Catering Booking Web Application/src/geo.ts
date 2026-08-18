@@ -18,14 +18,15 @@ export const DEFAULT_SHOP_LOCATION: ShopLocation = { lat: 13.8196, lng: 100.0603
 /** ค่าน้ำมันเริ่มต้น (บาท/กม.) — แก้ไขได้จากหน้า "ตั้งค่า" */
 export const DEFAULT_FUEL_COST_PER_KM = 8
 
-/** จังหวัดที่ร้านตั้งอยู่ */
-export const HOME_PROVINCE = 'นครปฐม'
+/** ค่าเริ่มต้น (ก่อนเจ้าของร้านแก้ไข) — จังหวัดที่ร้านตั้งอยู่ แก้ไขได้จากหน้า "ตั้งค่า" (AppSettings.homeProvince) */
+export const DEFAULT_HOME_PROVINCE = 'นครปฐม'
 
 /**
- * กรุงเทพและปริมณฑล + จังหวัดที่มีอาณาเขตติดกับนครปฐมโดยตรง (ไม่รวมนครปฐมเอง เพราะนับเป็นพื้นที่ร้าน)
- * ติดนครปฐม: สุพรรณบุรี, นนทบุรี, กรุงเทพมหานคร, สมุทรสาคร, สมุทรสงคราม, ราชบุรี, กาญจนบุรี
+ * ค่าเริ่มต้น (ก่อนเจ้าของร้านแก้ไข) — กรุงเทพและปริมณฑล + จังหวัดที่มีอาณาเขตติดกับนครปฐมโดยตรง
+ * (ไม่รวมนครปฐมเอง เพราะนับเป็นพื้นที่ร้าน) ติดนครปฐม: สุพรรณบุรี, นนทบุรี, กรุงเทพมหานคร, สมุทรสาคร, สมุทรสงคราม, ราชบุรี, กาญจนบุรี
+ * เจ้าของร้านแก้รายการนี้ได้จากหน้า "ตั้งค่า" (AppSettings.metroProvinces) — ดู zoneFor ด้านล่าง
  */
-export const METRO_PROVINCES = [
+export const DEFAULT_METRO_PROVINCES = [
   'กรุงเทพมหานคร',
   'นนทบุรี',
   'ปทุมธานี',
@@ -37,26 +38,37 @@ export const METRO_PROVINCES = [
   'กาญจนบุรี',
 ]
 
-const HOME_PATTERN = /นครปฐม|nakhon ?pathom/i
-const METRO_PATTERN =
-  /กรุงเทพ|กทม|bangkok|นนทบุรี|nonthaburi|ปทุมธานี|pathum ?thani|สมุทรปราการ|samut ?prakan|สมุทรสาคร|samut ?sakhon|สมุทรสงคราม|samut ?songkhram|สุพรรณบุรี|suphan ?buri|ราชบุรี|ratchaburi|กาญจนบุรี|kanchanaburi/i
+/** true ถ้า text มีคำใน list โผล่อยู่ (case-insensitive, ตรงบางส่วนได้ เช่น "กรุงเทพ" ก็จับกับ "กรุงเทพมหานคร" ในที่อยู่เต็ม) */
+const containsAny = (text: string, needles: string[]): boolean => {
+  const lower = text.toLowerCase()
+  return needles.some(p => p.trim() !== '' && lower.includes(p.trim().toLowerCase()))
+}
 
-const zoneOfText = (text: string): ServiceZone | null => {
+const zoneOfText = (text: string, homeProvince: string, metroProvinces: string[]): ServiceZone | null => {
   if (!text.trim()) return null
-  if (HOME_PATTERN.test(text)) return 'home'
-  if (METRO_PATTERN.test(text)) return 'metro'
+  if (containsAny(text, [homeProvince])) return 'home'
+  if (containsAny(text, metroProvinces)) return 'metro'
   return null
 }
 
-/** หาโซนบริการ — ดูจากชื่อจังหวัดก่อน ถ้าไม่ตรงค่อยดูจากที่อยู่เต็ม */
-export const zoneFor = (province: string, address = ''): ServiceZone =>
-  zoneOfText(province) ?? zoneOfText(address) ?? 'outside'
+/**
+ * หาโซนบริการ — ดูจากชื่อจังหวัดก่อน ถ้าไม่ตรงค่อยดูจากที่อยู่เต็ม
+ * homeProvince/metroProvinces มาจากค่าตั้งค่าร้าน (AppSettings) — ไม่ส่งมา = ใช้ default เดิม (กันโค้ด/เทสต์เก่าพัง)
+ */
+export const zoneFor = (
+  province: string,
+  address = '',
+  metroProvinces: string[] = DEFAULT_METRO_PROVINCES,
+  homeProvince: string = DEFAULT_HOME_PROVINCE,
+): ServiceZone =>
+  zoneOfText(province, homeProvince, metroProvinces) ?? zoneOfText(address, homeProvince, metroProvinces) ?? 'outside'
 
-export const ZONE_LABEL: Record<ServiceZone, string> = {
-  home: `พื้นที่ร้าน (${HOME_PROVINCE})`,
+/** label ของแต่ละโซน — เป็นฟังก์ชันเพราะ label ของ "home" ต้องใส่ชื่อจังหวัดร้านที่แก้ไขได้ */
+export const zoneLabel = (homeProvince: string = DEFAULT_HOME_PROVINCE): Record<ServiceZone, string> => ({
+  home: `พื้นที่ร้าน (${homeProvince})`,
   metro: 'กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง',
   outside: 'นอกพื้นที่ให้บริการ',
-}
+})
 
 /** ค่าเดินทางไป-กลับของงานนอกพื้นที่ = ระยะทางเที่ยวเดียว (กม.) × 2 × ค่าน้ำมัน/กม. — ปัดเศษเป็นจำนวนเต็มบาท */
 export const outsideDeliveryFeeFor = (distanceKm: number, fuelCostPerKm: number): number =>
@@ -102,14 +114,15 @@ export const checkDelivery = (
   zone: ServiceZone,
   deliveryFee: number = DEFAULT_DELIVERY_FEE,
   minTables: number = DEFAULT_FREE_DELIVERY_MIN_TABLES,
-  outside?: OutsideDeliveryContext
+  outside?: OutsideDeliveryContext,
+  homeProvince: string = DEFAULT_HOME_PROVINCE,
 ): DeliveryCheck => {
   if (zone === 'home') {
     return {
       fee: 0,
       blocked: false,
       tone: 'ok',
-      title: `อยู่ในพื้นที่ร้าน (${HOME_PROVINCE})`,
+      title: `อยู่ในพื้นที่ร้าน (${homeProvince})`,
       detail: 'รับจัดกี่โต๊ะก็ได้ ไม่มีขั้นต่ำและไม่มีค่าขนส่ง',
     }
   }
@@ -122,7 +135,7 @@ export const checkDelivery = (
           blocked: false,
           tone: 'fee',
           title: `ค่าขนส่ง ${deliveryFee.toLocaleString()} บาท`,
-          detail: `งานนอก${HOME_PROVINCE}ขั้นต่ำ ${minTables} โต๊ะ — งานนี้ ${tables} โต๊ะ จองได้แต่มีค่าขนส่ง`,
+          detail: `งานนอก${homeProvince}ขั้นต่ำ ${minTables} โต๊ะ — งานนี้ ${tables} โต๊ะ จองได้แต่มีค่าขนส่ง`,
         }
       : {
           fee: 0,

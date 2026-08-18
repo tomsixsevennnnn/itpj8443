@@ -1,17 +1,14 @@
 import { Check, ChevronLeft, ChevronRight, Crown, Sparkles, Star } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Package, Screen, ShopInfo, UserProfile } from '../types'
-import { CATEGORY_MAP, requiredCourses } from '../data'
+import { useNav } from '../NavContext'
+import type { Package } from '../types'
+import { requiredCourses } from '../data'
 
 interface SelectPackageProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
-  shopInfo: ShopInfo
   packages: Package[]
   tables: number
   selectedPackageId: string | null
   onSelectPackage: (pkg: Package) => void
-  notifCount: number
 }
 
 const PKG_ICONS = [Star, Sparkles, Crown]
@@ -21,10 +18,11 @@ const PKG_COLORS = [
   { bg: 'bg-purple-50', border: 'border-purple-100', accent: 'text-purple-600', badge: 'bg-purple-100 text-purple-600', btn: 'bg-purple-600 hover:bg-purple-700' },
 ]
 
-export default function SelectPackage({ navigate, user, shopInfo, packages, tables, selectedPackageId, onSelectPackage, notifCount }: SelectPackageProps) {
+export default function SelectPackage({ packages, tables, selectedPackageId, onSelectPackage }: SelectPackageProps) {
+  const { navigate, categoryMap } = useNav()
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="select-package" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="select-package" />
 
       <div className="pt-24 pb-12 max-w-5xl mx-auto px-4">
         <div className="text-center mb-10">
@@ -103,7 +101,7 @@ export default function SelectPackage({ navigate, user, shopInfo, packages, tabl
                           </span>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium text-gray-700 leading-tight">
-                              {course.icon || CATEGORY_MAP[course.category]?.icon} {course.title}
+                              {course.icon || categoryMap[course.category]?.icon} {course.title}
                             </p>
                             <p className="text-[10px] text-gray-400 leading-tight truncate">
                               {course.choose === 0

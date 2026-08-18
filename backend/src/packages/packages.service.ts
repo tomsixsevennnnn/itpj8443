@@ -1,22 +1,54 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { pageArgsFor } from '../common/pagination'
 import { PrismaService } from '../prisma/prisma.service'
 import { CourseInput, CreatePackageDto } from './dto/create-package.dto'
 import { ReorderPackagesDto } from './dto/reorder-packages.dto'
 import { UpdateCourseDto } from './dto/update-course.dto'
 import { UpdatePackageDto } from './dto/update-package.dto'
 
+/** ลูกค้าไม่ควรเห็นต้นทุนต่อจานของเมนูที่ซ้อนอยู่ในแพ็กเกจ — เหมือนกับ MenusService */
+const CUSTOMER_MENU_ITEM_SELECT = {
+  id: true,
+  name: true,
+  category: true,
+  description: true,
+  image: true,
+  extraPrice: true,
+  active: true,
+} as const
+
 @Injectable()
 export class PackagesService {
   constructor(private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.package.findMany({
-      orderBy: { sortOrder: 'asc' },
-      include: { courses: { include: { items: true }, orderBy: { no: 'asc' } } },
-    })
+  /** isOwner = false → strip costPrice ออกจากเมนูที่ซ้อนอยู่ในแต่ละ course (ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม) */
+  async findAll(isOwner: boolean, page?: number, limit?: number) {
+    const args = pageArgsFor(page, limit)
+    const orderBy = { sortOrder: 'asc' as const }
+    const coursesOrderBy = { no: 'asc' as const }
+
+    if (isOwner) {
+      const include = { courses: { include: { items: true }, orderBy: coursesOrderBy } }
+      if (!args) return this.prisma.package.findMany({ orderBy, include })
+      const [data, total] = await Promise.all([
+        this.prisma.package.findMany({ orderBy, include, skip: args.skip, take: args.take }),
+        this.prisma.package.count(),
+      ])
+      return { data, total, page: args.page, limit: args.limit }
+    }
+
+    const include = {
+      courses: { include: { items: { select: CUSTOMER_MENU_ITEM_SELECT } }, orderBy: coursesOrderBy },
+    }
+    if (!args) return this.prisma.package.findMany({ orderBy, include })
+    const [data, total] = await Promise.all([
+      this.prisma.package.findMany({ orderBy, include, skip: args.skip, take: args.take }),
+      this.prisma.package.count(),
+    ])
+    return { data, total, page: args.page, limit: args.limit }
   }
 
-  async create(dto: CreatePackageDto) {
+  async create(dto: CreatePackageDto, editorAuth0Sub: string) {
     const count = await this.prisma.package.count()
     return this.prisma.package.create({
       data: {
@@ -28,6 +60,7 @@ export class PackagesService {
         badge: dto.badge,
         // แพ็กเกจใหม่ต่อท้ายลำดับที่มีอยู่เสมอ
         sortOrder: count,
+        lastEditedBy: editorAuth0Sub,
         courses: {
           create: dto.courses.map((c) => ({
             no: c.no,
@@ -58,10 +91,10 @@ export class PackagesService {
     await this.prisma.$transaction(
       dto.ids.map((id, index) => this.prisma.package.update({ where: { id }, data: { sortOrder: index } })),
     )
-    return this.findAll()
+    return this.findAll(true)
   }
 
-  async update(id: string, dto: UpdatePackageDto) {
+  async update(id: string, dto: UpdatePackageDto, editorAuth0Sub: string) {
     if (!dto.courses) {
       return this.prisma.package.update({
         where: { id },
@@ -72,6 +105,7 @@ export class PackagesService {
           description: dto.description,
           features: dto.features,
           badge: dto.badge,
+          lastEditedBy: editorAuth0Sub,
         },
       })
     }
@@ -88,6 +122,7 @@ export class PackagesService {
           description: dto.description,
           features: dto.features,
           badge: dto.badge,
+          lastEditedBy: editorAuth0Sub,
           courses: {
             create: dto.courses!.map((c) => ({
               no: c.no,

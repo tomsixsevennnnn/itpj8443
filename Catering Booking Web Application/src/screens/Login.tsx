@@ -5,21 +5,27 @@ import { AUTH0_CONNECTION } from '../auth'
 import { DEFAULT_SHOP_INFO } from '../documents'
 import { api } from '../api'
 import { usePolling } from '../usePolling'
+import { applyBrandTheme } from '../theme'
 
 const SETTINGS_POLL_MS = 20_000
 
 export default function Login() {
   const { loginWithRedirect, isLoading } = useAuth0()
-  // ค่าเริ่มต้นไว้โชว์ระหว่างโหลด/กันพัง ถ้าดึงจาก backend ไม่สำเร็จ — พอโหลดเสร็จจะได้ชื่อร้านล่าสุดจริง
+  // ค่าเริ่มต้นไว้โชว์ระหว่างโหลด/กันพัง ถ้าดึงจาก backend ไม่สำเร็จ — พอโหลดเสร็จจะได้ข้อมูลร้านล่าสุดจริง
   const [shopName, setShopName] = useState(DEFAULT_SHOP_INFO.name)
+  const [logo, setLogo] = useState(DEFAULT_SHOP_INFO.logo)
+  const [tagline, setTagline] = useState(DEFAULT_SHOP_INFO.loginTagline)
 
-  // poll ทุก 20 วิ (หยุดพักตอนสลับแท็บ) กันชื่อร้าน/tab title ค้างของเก่าถ้าเจ้าของร้านแก้ไว้ตอนหน้านี้เปิดอยู่
+  // poll ทุก 20 วิ (หยุดพักตอนสลับแท็บ) กันชื่อร้าน/โลโก้/tab title ค้างของเก่าถ้าเจ้าของร้านแก้ไว้ตอนหน้านี้เปิดอยู่
   usePolling(() => {
     api
       .publicShopInfo()
       .then(info => {
         if (!info.name) return
         setShopName(info.name)
+        setLogo(info.logo)
+        setTagline(info.loginTagline)
+        applyBrandTheme(info.brandColor)
         document.title = info.name
       })
       .catch(() => {})
@@ -43,11 +49,19 @@ export default function Login() {
       <div className="relative w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl shadow-lg shadow-orange-200 mb-4">
-            <ChefHat size={32} className="text-white" />
-          </div>
+          {logo ? (
+            <img
+              src={logo}
+              alt={shopName}
+              className="inline-flex w-16 h-16 rounded-2xl shadow-lg shadow-orange-200 mb-4 object-cover"
+            />
+          ) : (
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500 rounded-2xl shadow-lg shadow-orange-200 mb-4">
+              <ChefHat size={32} className="text-white" />
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-900">{shopName}</h1>
-          <p className="text-gray-500 mt-1 text-sm">ระบบจองจัดเลี้ยงนอกสถานที่</p>
+          <p className="text-gray-500 mt-1 text-sm">{tagline}</p>
         </div>
 
         {/* Card */}

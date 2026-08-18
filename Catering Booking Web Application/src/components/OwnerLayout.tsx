@@ -18,7 +18,8 @@ import {
 } from 'lucide-react'
 import Avatar from './Avatar'
 import { buildNotifications, isNotificationNew, timeAgo } from '../notifications'
-import type { Booking, Screen, ShopInfo, UserProfile } from '../types'
+import { useNav } from '../NavContext'
+import type { Booking, Screen } from '../types'
 import type { ReactNode } from 'react'
 
 const NOTIF_PREVIEW_LIMIT = 6
@@ -26,10 +27,7 @@ const NOTIF_PREVIEW_LIMIT = 6
 export const OWNER_NOTIF_SEEN_KEY = 'ownerNotifSeenAt'
 
 interface OwnerLayoutProps {
-  navigate: (s: Screen) => void
   currentScreen: Screen
-  user: UserProfile | null
-  shopInfo: ShopInfo
   bookings: Booking[]
   children: ReactNode
 }
@@ -46,7 +44,8 @@ const sidebarItems = [
   { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
 
-export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, bookings, children }: OwnerLayoutProps) {
+export default function OwnerLayout({ currentScreen, bookings, children }: OwnerLayoutProps) {
+  const { navigate, user, shopInfo } = useNav()
   // ต่ำกว่า lg (จอแท็บเล็ตแนวตั้งอย่าง iPad) sidebar ซ่อนเป็น off-canvas drawer เปิดผ่านปุ่มแฮมเบอร์เกอร์
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -92,9 +91,13 @@ export default function OwnerLayout({ navigate, currentScreen, user, shopInfo, b
         {/* Logo */}
         <div className="p-6 border-b border-gray-700/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center">
-              <ChefHat size={20} className="text-white" />
-            </div>
+            {shopInfo.logo ? (
+              <img src={shopInfo.logo} alt={shopInfo.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <ChefHat size={20} className="text-white" />
+              </div>
+            )}
             <div>
               <p className="font-bold text-white leading-tight text-sm">{shopInfo.name}</p>
               <p className="text-[10px] text-gray-400 leading-tight">Owner Dashboard</p>

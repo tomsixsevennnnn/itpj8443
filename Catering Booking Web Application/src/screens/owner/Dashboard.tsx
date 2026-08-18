@@ -109,8 +109,13 @@ export default function Dashboard({ bookings, menus, settings }: DashboardProps)
       .slice(0, 5)
 
     // กำลังคนที่ต้องใช้ในงานที่ใกล้ถึง
+    const staffRatios = {
+      tablesPerServer: settings.tablesPerServer,
+      tablesPerSupport: settings.tablesPerSupport,
+      staffRemainderThreshold: settings.staffRemainderThreshold,
+    }
     const upcomingStaff = upcoming.reduce(
-      (sum, b) => sum + sumStaff(b.staffActual ?? toPlan(calculateStaff(b.tables))),
+      (sum, b) => sum + sumStaff(b.staffActual ?? toPlan(calculateStaff(b.tables, staffRatios))),
       0
     )
 
@@ -357,7 +362,16 @@ export default function Dashboard({ bookings, menus, settings }: DashboardProps)
               const daysLeft = Math.round(
                 (new Date(b.date + 'T00:00:00').getTime() - new Date(stats.todayKey + 'T00:00:00').getTime()) / 86400000
               )
-              const staff = sumStaff(b.staffActual ?? toPlan(calculateStaff(b.tables)))
+              const staff = sumStaff(
+                b.staffActual ??
+                  toPlan(
+                    calculateStaff(b.tables, {
+                      tablesPerServer: settings.tablesPerServer,
+                      tablesPerSupport: settings.tablesPerSupport,
+                      staffRemainderThreshold: settings.staffRemainderThreshold,
+                    }),
+                  ),
+              )
               return (
                 <div key={b.id} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
                   <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center text-sm font-bold text-orange-600 flex-shrink-0">

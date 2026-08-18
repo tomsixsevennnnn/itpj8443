@@ -7,8 +7,8 @@ const validPayload = {
   timeSlot: 'เย็น (17:00-21:00)',
   tables: 5,
   guestCount: 50,
-  packageName: 'โต๊ะจีน 3,000',
-  totalPrice: 15000,
+  // ราคา/ชื่อแพ็กเกจไม่รับจาก client แล้ว (backend คำนวณเองจาก packageId กันปลอมราคา — ดู BookingsService.create)
+  packageId: 'pkg_test123',
   location: 'ทดสอบ',
   menus: ['เมนู 1'],
 }

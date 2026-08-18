@@ -3,37 +3,33 @@ import { Calendar, ChevronLeft, Clock, MapPin, Package, ShoppingBag, Users, X } 
 import Navbar from '../components/Navbar'
 import DishTile from '../components/DishTile'
 import LocationMap from '../components/LocationMap'
+import { useNav } from '../NavContext'
 import type { AppRole } from '../auth'
-import type { BookingData, Package as PackageType, Screen, ShopInfo, UserProfile } from '../types'
-import { HOME_PROVINCE, ZONE_LABEL, deliveryFeeFor, formatFullAddress } from '../geo'
+import type { BookingData, Package as PackageType } from '../types'
+import { deliveryFeeFor, formatFullAddress, zoneLabel } from '../geo'
 
 interface CartProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
   role: AppRole
-  shopInfo: ShopInfo
   packages: PackageType[]
   booking: BookingData
   onConfirm: () => void
   deliveryFee: number
   freeDeliveryMinTables: number
   fuelCostPerKm: number
-  notifCount: number
+  homeProvince: string
 }
 
 export default function Cart({
-  navigate,
-  user,
   role,
-  shopInfo,
   packages,
   booking,
   onConfirm,
   deliveryFee: deliveryFeeAmount,
   freeDeliveryMinTables,
   fuelCostPerKm,
-  notifCount,
+  homeProvince,
 }: CartProps) {
+  const { navigate } = useNav()
   const [showConfirm, setShowConfirm] = useState(false)
   const [ownerBlocked, setOwnerBlocked] = useState(false)
   const pkg = packages.find(p => p.id === booking.packageId) ?? null
@@ -45,7 +41,7 @@ export default function Cart({
   const deliveryLabel =
     booking.location?.zone === 'outside'
       ? `ค่าเดินทาง (ระยะทาง ${((booking.location.distanceKm ?? 0) * 2).toFixed(1)} กม. ไป-กลับ)`
-      : `ค่าขนส่ง (นอก${HOME_PROVINCE} ไม่ถึง ${freeDeliveryMinTables} โต๊ะ)`
+      : `ค่าขนส่ง (นอก${homeProvince} ไม่ถึง ${freeDeliveryMinTables} โต๊ะ)`
 
   const handleConfirm = () => {
     // เจ้าของร้านที่กด "มุมมองลูกค้า" มาลองจอง — ห้ามจองจริง เพราะไม่มีข้อมูลลูกค้า (ชื่อ/เบอร์โทร) ผูกกับบัญชี owner
@@ -60,7 +56,7 @@ export default function Cart({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="cart" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="cart" />
 
       <div className="pt-24 pb-12 max-w-5xl mx-auto px-4">
         <div className="mb-8">
@@ -144,7 +140,7 @@ export default function Cart({
                       }`}
                     >
                       {booking.location.province ? `${booking.location.province} · ` : ''}
-                      {ZONE_LABEL[booking.location.zone]}
+                      {zoneLabel(homeProvince)[booking.location.zone]}
                     </span>
                   </div>
 

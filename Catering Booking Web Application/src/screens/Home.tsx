@@ -1,14 +1,10 @@
 import { ArrowRight, CheckCircle, ChevronRight, Clock, MapPin, Users } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Screen, ShopInfo, UserProfile } from '../types'
+import { useNav } from '../NavContext'
 import type { HomeContent } from '../homeContent'
 
 interface HomeProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
-  shopInfo: ShopInfo
   homeContent: HomeContent
-  notifCount: number
 }
 
 /** ไอคอน/สีของการ์ดจุดเด่น — ตำแหน่งคงที่ในโค้ด ผูกกับ homeContent.featureBadges[i] ตามลำดับ (แก้ได้แค่ข้อความจากหน้าตั้งค่า) */
@@ -19,10 +15,11 @@ const FEATURE_ICONS = [
   { icon: Users, color: 'text-purple-500' },
 ]
 
-export default function Home({ navigate, user, shopInfo, homeContent, notifCount }: HomeProps) {
+export default function Home({ homeContent }: HomeProps) {
+  const { navigate, shopInfo } = useNav()
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="home" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="home" />
 
       {/* Hero */}
       <section className="relative pt-16 overflow-hidden">

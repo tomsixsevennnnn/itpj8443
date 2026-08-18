@@ -4,23 +4,30 @@ import {
   ArrowUp,
   Building2,
   Check,
+  Clock,
+  FileText,
   Fuel,
   ListOrdered,
   Loader2,
   MapPin,
   Navigation,
+  Palette,
   Percent,
+  Plus,
   QrCode,
+  RotateCcw,
   Save,
   Trash2,
   Truck,
   Users,
   Wallet,
+  X,
 } from 'lucide-react'
-import type { AppSettings } from '../../types'
+import type { AppSettings, Category } from '../../types'
 import { orderedCategories } from '../../data'
 import LocationMap from '../../components/LocationMap'
 import { pickImageAsDataUrl } from '../../imageUpload'
+import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
 
 interface SettingsProps {
   settings: AppSettings
@@ -48,14 +55,28 @@ const WAGE_FIELDS: { key: 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 
   { key: 'wageDishwasher', label: 'ค่าแรงพนักงานล้างจาน', unit: 'บาท/คน/งาน' },
 ]
 
+const STAFF_RATIO_FIELDS: { key: 'tablesPerServer' | 'tablesPerSupport' | 'staffRemainderThreshold'; label: string; unit: string; min: number }[] = [
+  { key: 'tablesPerServer', label: 'พนักงานเสิร์ฟ 1 คน ต่อกี่โต๊ะ', unit: 'โต๊ะ/คน', min: 1 },
+  { key: 'tablesPerSupport', label: 'ผู้ช่วยพ่อครัว/ล้างจาน 1 คน ต่อกี่โต๊ะ', unit: 'โต๊ะ/คน', min: 1 },
+  { key: 'staffRemainderThreshold', label: 'เศษเกินกี่โต๊ะ ให้เพิ่มอีก 1 คน', unit: 'โต๊ะ', min: 0 },
+]
+
 export default function Settings({ settings, onUpdateSettings }: SettingsProps) {
   const [form, setForm] = useState<AppSettings>(settings)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [newMetroProvince, setNewMetroProvince] = useState('')
+  const [newQuotationTerm, setNewQuotationTerm] = useState('')
+  const [newBookingTerm, setNewBookingTerm] = useState('')
+  const [newCategoryLabel, setNewCategoryLabel] = useState('')
+  const [newCategoryIcon, setNewCategoryIcon] = useState('')
   const [locating, setLocating] = useState(false)
   const [locateError, setLocateError] = useState<string | null>(null)
   const [qrUploading, setQrUploading] = useState(false)
   const [qrError, setQrError] = useState<string | null>(null)
   const qrInputRef = useRef<HTMLInputElement>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
 
   // settings prop เปลี่ยนได้เองจาก polling (คนอื่นแก้ที่เครื่องอื่น) — sync form ตามให้ถ้ายังไม่ได้แก้อะไรค้างไว้
   // (เทียบกับค่า settings "ก่อนหน้า" ไม่ใช่ค่าล่าสุด กัน false positive ตอนกำลังจะเปลี่ยนพอดี)
@@ -89,6 +110,22 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
     }
   }
 
+  /** เลือกรูปโลโก้ร้านจากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูป QR/เมนู */
+  const handlePickLogo = async (file: File | undefined) => {
+    if (!file) return
+    setLogoUploading(true)
+    setLogoError(null)
+    try {
+      const dataUrl = await pickImageAsDataUrl(file)
+      setShopField('logo', dataUrl)
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
+    } finally {
+      setLogoUploading(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
+
   const setNumberField = (
     key:
       | 'depositRate'
@@ -98,10 +135,50 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
       | 'wageAssistant'
       | 'wageServerPerTable'
       | 'wageDishwasher'
-      | 'fuelCostPerKm',
+      | 'fuelCostPerKm'
+      | 'tablesPerServer'
+      | 'tablesPerSupport'
+      | 'staffRemainderThreshold'
+      | 'quotationValidDays',
     value: number,
   ) => {
     setForm(f => ({ ...f, [key]: value }))
+    setSavedAt(null)
+  }
+
+  /** เพิ่มจังหวัด/คำที่นับเป็นโซน metro — พิมพ์แล้วกด Enter หรือปุ่ม "เพิ่ม" */
+  const addMetroProvince = () => {
+    const name = newMetroProvince.trim()
+    if (!name || form.metroProvinces.includes(name)) {
+      setNewMetroProvince('')
+      return
+    }
+    setForm(f => ({ ...f, metroProvinces: [...f.metroProvinces, name] }))
+    setNewMetroProvince('')
+    setSavedAt(null)
+  }
+
+  const removeMetroProvince = (name: string) => {
+    setForm(f => ({ ...f, metroProvinces: f.metroProvinces.filter(p => p !== name) }))
+    setSavedAt(null)
+  }
+
+  /** เพิ่ม/ลบข้อความเงื่อนไขทีละบรรทัด — ใช้ร่วมกันทั้งใบเสนอราคาและใบจอง */
+  const addTerm = (field: 'quotationTerms' | 'bookingTerms', text: string, clear: () => void) => {
+    const line = text.trim()
+    if (!line) return
+    setForm(f => ({ ...f, [field]: [...f[field], line] }))
+    clear()
+    setSavedAt(null)
+  }
+
+  const removeTerm = (field: 'quotationTerms' | 'bookingTerms', index: number) => {
+    setForm(f => ({ ...f, [field]: f[field].filter((_, i) => i !== index) }))
+    setSavedAt(null)
+  }
+
+  const setSlotHours = (key: keyof AppSettings['timeSlotHours'], value: string) => {
+    setForm(f => ({ ...f, timeSlotHours: { ...f.timeSlotHours, [key]: value } }))
     setSavedAt(null)
   }
 
@@ -135,6 +212,13 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
     )
   }
 
+  /** เปลี่ยนสีแบรนด์ — พรีวิวทันทีด้วย applyBrandTheme (ยังไม่บันทึกจนกว่าจะกด "บันทึกการตั้งค่า") */
+  const setBrandColor = (hex: string) => {
+    setForm(f => ({ ...f, brandColor: hex }))
+    applyBrandTheme(hex)
+    setSavedAt(null)
+  }
+
   const handleSave = () => {
     onUpdateSettings(form)
     setSavedAt(Date.now())
@@ -143,13 +227,59 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
   /** สลับลำดับประเภทอาหารกับตัวก่อนหน้า/ถัดไป */
   const moveCategory = (index: number, direction: -1 | 1) => {
     setForm(f => {
-      const order = orderedCategories(f.categoryOrder).map(c => c.id)
+      const order = orderedCategories(f.categoryOrder, f.categories).map(c => c.id)
       const target = index + direction
       if (target < 0 || target >= order.length) return f
       const next = [...order]
       ;[next[index], next[target]] = [next[target], next[index]]
       return { ...f, categoryOrder: next }
     })
+    setSavedAt(null)
+  }
+
+  const updateCategoryField = (id: string, field: 'label' | 'labelEn' | 'icon', value: string) => {
+    setForm(f => ({ ...f, categories: f.categories.map(c => (c.id === id ? { ...c, [field]: value } : c)) }))
+    setSavedAt(null)
+  }
+
+  /** ลบประเภทอาหาร — เมนู/ข้อในแพ็กเกจที่ยังอ้างถึงหมวดนี้อยู่จะไม่หาย แค่โชว์ไอคอน/สีเริ่มต้นแทนหมวดที่หายไป */
+  const removeCategory = (id: string) => {
+    setForm(f => ({
+      ...f,
+      categories: f.categories.filter(c => c.id !== id),
+      categoryOrder: f.categoryOrder.filter(cid => cid !== id),
+    }))
+    setSavedAt(null)
+  }
+
+  const slugifyCategoryLabel = (text: string): string => {
+    const base = text
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-+|-+$/g, '')
+    return base || `category-${Date.now()}`
+  }
+
+  /** เพิ่มประเภทอาหารใหม่ — id สร้างอัตโนมัติจากชื่อ (กันชนกับ id เดิมด้วยเลขต่อท้าย) */
+  const addCategory = () => {
+    const label = newCategoryLabel.trim()
+    if (!label) return
+    const existingIds = new Set(form.categories.map(c => c.id))
+    const base = slugifyCategoryLabel(label)
+    let id = base
+    let suffix = 1
+    while (existingIds.has(id)) id = `${base}-${suffix++}`
+    const category: Category = {
+      id,
+      label,
+      labelEn: label,
+      icon: newCategoryIcon.trim() || '🍽️',
+      gradient: 'from-orange-100 to-amber-200',
+    }
+    setForm(f => ({ ...f, categories: [...f.categories, category], categoryOrder: [...f.categoryOrder, id] }))
+    setNewCategoryLabel('')
+    setNewCategoryIcon('')
     setSavedAt(null)
   }
 
@@ -162,6 +292,52 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           <h2 className="font-bold text-gray-900">ข้อมูลร้าน</h2>
         </div>
         <p className="text-xs text-gray-400 mb-4">แสดงบนหัวใบเสนอราคาและใบจองทุกใบ</p>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">โลโก้ร้าน</label>
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={e => handlePickLogo(e.target.files?.[0])}
+            className="hidden"
+          />
+          <div className="flex items-center gap-4">
+            {form.shopInfo.logo ? (
+              <img
+                src={form.shopInfo.logo}
+                alt="โลโก้ร้าน"
+                className="w-16 h-16 rounded-xl border border-gray-200 object-cover bg-white flex-shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center flex-shrink-0 text-gray-300 text-[10px] text-center px-1">
+                ไม่มีโลโก้
+              </div>
+            )}
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={logoUploading}
+                className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
+              >
+                {logoUploading ? <Loader2 size={12} className="animate-spin" /> : null}
+                {logoUploading ? 'กำลังอัปโหลด...' : form.shopInfo.logo ? 'เปลี่ยนโลโก้' : 'อัปโหลดโลโก้'}
+              </button>
+              {form.shopInfo.logo && (
+                <button
+                  type="button"
+                  onClick={() => setShopField('logo', '')}
+                  className="flex items-center gap-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-full transition-colors"
+                >
+                  <Trash2 size={12} />
+                  ลบโลโก้ (ใช้ไอคอนเริ่มต้น)
+                </button>
+              )}
+            </div>
+          </div>
+          {logoError && <p className="mt-2 text-xs text-red-500">{logoError}</p>}
+        </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
           {SHOP_FIELDS.map(({ key, label, placeholder }) => (
@@ -187,6 +363,47 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
             onChange={e => setShopField('address', e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
           />
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">คำโปรยหน้า Login</label>
+          <input
+            type="text"
+            value={form.shopInfo.loginTagline}
+            placeholder="เช่น ระบบจองจัดเลี้ยงนอกสถานที่"
+            onChange={e => setShopField('loginTagline', e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+          />
+        </div>
+      </div>
+
+      {/* ธีมสี */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Palette size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">ธีมสี</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          สีหลักของทั้งเว็บ (ปุ่ม ไฮไลต์ แถบเมนู ฯลฯ) — เปลี่ยนแล้วเห็นผลทันทีเป็นตัวอย่าง กด "บันทึกการตั้งค่า" เพื่อให้ลูกค้าเห็นด้วย
+        </p>
+        <div className="flex items-center gap-4">
+          <input
+            type="color"
+            value={form.brandColor}
+            onChange={e => setBrandColor(e.target.value)}
+            className="w-14 h-14 rounded-xl border border-gray-200 cursor-pointer bg-white p-1"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-mono font-medium text-gray-700 uppercase">{form.brandColor}</p>
+            <button
+              type="button"
+              onClick={() => setBrandColor(DEFAULT_BRAND_COLOR)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-orange-600 mt-1.5 transition-colors"
+            >
+              <RotateCcw size={11} />
+              กลับเป็นสีเริ่มต้น
+            </button>
+          </div>
         </div>
       </div>
 
@@ -302,6 +519,21 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           ใช้กับงานนอกพื้นที่ร้านในเขตกรุงเทพ ปริมณฑล และจังหวัดใกล้เคียงที่จองไม่ถึงจำนวนโต๊ะขั้นต่ำ
           — จังหวัดอื่นนอกเหนือจากนี้ไม่มีขั้นต่ำ แต่คิดค่าเดินทางตามระยะทางจริงแทน (ตั้งค่าด้านล่าง)
         </p>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)</label>
+          <input
+            type="text"
+            value={form.homeProvince}
+            placeholder="เช่น นครปฐม"
+            onChange={e => {
+              setForm(f => ({ ...f, homeProvince: e.target.value }))
+              setSavedAt(null)
+            }}
+            className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+        </div>
+
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">ค่าขนส่ง (บาท)</label>
@@ -322,6 +554,61 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
               onChange={e => setNumberField('freeDeliveryMinTables', Math.max(1, Math.floor(Number(e.target.value) || 1)))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
+          </div>
+        </div>
+
+        {/* จังหวัดที่นับเป็นโซน metro — ระบบตัดสินโซนจากชื่อจังหวัด/ที่อยู่ที่มีคำในรายการนี้อยู่ (ดู zoneFor ใน geo.ts) */}
+        <div className="mt-5 pt-5 border-t border-gray-100">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            จังหวัดในเขตกรุงเทพฯ/ปริมณฑล (นับเป็นโซนนี้)
+          </label>
+          <p className="text-xs text-gray-400 mb-3">
+            พิมพ์ชื่อจังหวัดแล้วกด Enter เพื่อเพิ่ม — งานในจังหวัดที่ไม่อยู่ในรายการนี้ (และไม่ใช่นครปฐม) จะถูกจัดเป็น "นอกพื้นที่" อัตโนมัติ
+          </p>
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              value={newMetroProvince}
+              onChange={e => setNewMetroProvince(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addMetroProvince()
+                }
+              }}
+              placeholder="เช่น ชลบุรี"
+              className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <button
+              type="button"
+              onClick={addMetroProvince}
+              disabled={!newMetroProvince.trim()}
+              className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            >
+              <Plus size={14} />
+              เพิ่ม
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {form.metroProvinces.length === 0 && (
+              <p className="text-xs text-gray-400">ยังไม่มีจังหวัดในรายการ — ทุกที่นอกนครปฐมจะถูกคิดเป็น "นอกพื้นที่" ทั้งหมด</p>
+            )}
+            {form.metroProvinces.map(name => (
+              <span
+                key={name}
+                className="flex items-center gap-1.5 bg-orange-50 text-orange-700 text-xs font-medium pl-3 pr-1.5 py-1.5 rounded-full"
+              >
+                {name}
+                <button
+                  type="button"
+                  onClick={() => removeMetroProvince(name)}
+                  className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-orange-200 transition-colors"
+                  title={`ลบ ${name}`}
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -421,25 +708,173 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
             </div>
           ))}
         </div>
+
+        <div className="mt-5 pt-5 border-t border-gray-100">
+          <p className="text-sm font-medium text-gray-700 mb-1.5">สัดส่วนคำนวณแผนกำลังคน</p>
+          <p className="text-xs text-gray-400 mb-4">พ่อครัว 1 คน/งานเสมอ (แก้ไม่ได้) — ที่เหลือคำนวณจากสัดส่วนนี้</p>
+          <div className="grid sm:grid-cols-3 gap-4">
+            {STAFF_RATIO_FIELDS.map(({ key, label, unit, min }) => (
+              <div key={key}>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={min}
+                    value={form[key]}
+                    onChange={e => setNumberField(key, Math.max(min, Math.floor(Number(e.target.value) || min)))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  />
+                  <span className="text-xs text-gray-400 whitespace-nowrap">{unit}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* ลำดับประเภทอาหาร */}
+      {/* ช่วงเวลาจอง */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Clock size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">ช่วงเวลาจอง</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          เวลาที่แสดงให้ลูกค้าเลือกตอนจอง (ชื่อช่วง "เช้า/กลางวัน/เย็น" คงที่ แก้ได้แค่ช่วงเวลา)
+        </p>
+        <div className="grid sm:grid-cols-3 gap-4">
+          {(
+            [
+              { key: 'morning', label: 'ช่วงเช้า' },
+              { key: 'noon', label: 'ช่วงกลางวัน' },
+              { key: 'evening', label: 'ช่วงเย็น' },
+            ] as const
+          ).map(({ key, label }) => (
+            <div key={key}>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+              <input
+                type="text"
+                value={form.timeSlotHours[key]}
+                placeholder="เช่น 08:00 - 12:00"
+                onChange={e => setSlotHours(key, e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* เงื่อนไขในเอกสาร */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <FileText size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">เงื่อนไขในเอกสาร</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          เงื่อนไขเรื่องราคา/มัดจำ/ค่าขนส่งระบบคำนวณให้อัตโนมัติตามค่าตั้งค่าด้านบนอยู่แล้ว — ส่วนนี้ไว้เพิ่มเงื่อนไขอื่นๆ ต่อท้าย
+        </p>
+
+        <div className="mb-5 max-w-[220px]">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">ใบเสนอราคายืนราคากี่วัน</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              value={form.quotationValidDays}
+              onChange={e => setNumberField('quotationValidDays', Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <span className="text-xs text-gray-400 whitespace-nowrap">วัน</span>
+          </div>
+        </div>
+
+        {(
+          [
+            { field: 'quotationTerms' as const, label: 'เงื่อนไขเพิ่มเติมในใบเสนอราคา', value: newQuotationTerm, setValue: setNewQuotationTerm },
+            { field: 'bookingTerms' as const, label: 'เงื่อนไขเพิ่มเติมในใบจอง', value: newBookingTerm, setValue: setNewBookingTerm },
+          ]
+        ).map(({ field, label, value, setValue }) => (
+          <div key={field} className="mb-5 last:mb-0">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={value}
+                onChange={e => setValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addTerm(field, value, () => setValue(''))
+                  }
+                }}
+                placeholder="พิมพ์เงื่อนไขแล้วกด Enter"
+                className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <button
+                type="button"
+                onClick={() => addTerm(field, value, () => setValue(''))}
+                disabled={!value.trim()}
+                className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+              >
+                <Plus size={14} />
+                เพิ่ม
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {form[field].length === 0 && <p className="text-xs text-gray-400">ยังไม่มีเงื่อนไขเพิ่มเติม</p>}
+              {form[field].map((term, i) => (
+                <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-xl px-3.5 py-2.5">
+                  <span className="flex-1 text-sm text-gray-700">• {term}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeTerm(field, i)}
+                    className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-400 hover:text-red-500 transition-colors"
+                    title="ลบ"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ประเภทอาหาร */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
           <ListOrdered size={18} className="text-orange-500" />
-          <h2 className="font-bold text-gray-900">ลำดับประเภทอาหาร</h2>
+          <h2 className="font-bold text-gray-900">ประเภทอาหาร</h2>
         </div>
         <p className="text-xs text-gray-400 mb-4">
-          ลำดับนี้ใช้แสดงหมวดในหน้าเมนูอาหารและตอนสร้างแพ็กเกจ — สลับลำดับได้ด้วยปุ่มลูกศร
+          ใช้เป็นหมวด/ข้อของเมนูโต๊ะจีนทั้งหน้าเมนูอาหารและตอนสร้างแพ็กเกจ — แก้ไอคอน/ชื่อ สลับลำดับด้วยปุ่มลูกศร หรือลบได้
+          (เมนู/แพ็กเกจที่ยังอ้างถึงหมวดที่ลบไปจะไม่หาย แค่ไม่มีไอคอน/สีของหมวดนั้นให้)
         </p>
-        <div className="space-y-1.5">
-          {orderedCategories(form.categoryOrder).map((cat, index, arr) => (
-            <div key={cat.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3.5 py-2.5">
+        <div className="space-y-1.5 mb-4">
+          {orderedCategories(form.categoryOrder, form.categories).map((cat, index, arr) => (
+            <div key={cat.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
               <span className="w-5 h-5 rounded-full bg-white border border-gray-200 text-gray-500 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                 {index + 1}
               </span>
-              <span className="text-base leading-none">{cat.icon}</span>
-              <span className="flex-1 text-sm font-medium text-gray-700">{cat.label}</span>
+              <input
+                type="text"
+                value={cat.icon ?? ''}
+                onChange={e => updateCategoryField(cat.id, 'icon', e.target.value)}
+                className="w-10 flex-shrink-0 text-center text-base border border-gray-200 rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <input
+                type="text"
+                value={cat.label}
+                placeholder="ชื่อหมวด (ไทย)"
+                onChange={e => updateCategoryField(cat.id, 'label', e.target.value)}
+                className="flex-1 min-w-0 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
+              <input
+                type="text"
+                value={cat.labelEn}
+                placeholder="ชื่อหมวด (อังกฤษ)"
+                onChange={e => updateCategoryField(cat.id, 'labelEn', e.target.value)}
+                className="hidden sm:block flex-1 min-w-0 text-sm text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              />
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => moveCategory(index, -1)}
@@ -455,9 +890,48 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
                 >
                   <ArrowDown size={13} />
                 </button>
+                <button
+                  onClick={() => removeCategory(cat.id)}
+                  title="ลบหมวดนี้"
+                  className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-400 flex items-center justify-center hover:border-red-300 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="flex gap-2 pt-3 border-t border-gray-100">
+          <input
+            type="text"
+            value={newCategoryIcon}
+            onChange={e => setNewCategoryIcon(e.target.value)}
+            placeholder="🍽️"
+            className="w-14 flex-shrink-0 text-center text-base border border-gray-200 rounded-xl px-2 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          <input
+            type="text"
+            value={newCategoryLabel}
+            onChange={e => setNewCategoryLabel(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addCategory()
+              }
+            }}
+            placeholder="เพิ่มประเภทอาหารใหม่ เช่น ของหมัก"
+            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          <button
+            type="button"
+            onClick={addCategory}
+            disabled={!newCategoryLabel.trim()}
+            className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0"
+          >
+            <Plus size={14} />
+            เพิ่ม
+          </button>
         </div>
       </div>
 

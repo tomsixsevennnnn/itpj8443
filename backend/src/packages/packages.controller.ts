@@ -1,7 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { AUTH0_ROLE_CLAIM } from '../auth/auth.constants'
+import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
+import { ListQueryDto } from '../common/list-query.dto'
 import { CourseInput, CreatePackageDto } from './dto/create-package.dto'
 import { ReorderPackagesDto } from './dto/reorder-packages.dto'
 import { UpdateCourseDto } from './dto/update-course.dto'
@@ -14,14 +17,14 @@ export class PackagesController {
   constructor(private packages: PackagesService) {}
 
   @Get()
-  findAll() {
-    return this.packages.findAll()
+  findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
+    return this.packages.findAll(jwtUser[AUTH0_ROLE_CLAIM] === 'owner', query.page, query.limit)
   }
 
   @Post()
   @Roles('owner')
-  create(@Body() dto: CreatePackageDto) {
-    return this.packages.create(dto)
+  create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreatePackageDto) {
+    return this.packages.create(dto, jwtUser.sub)
   }
 
   // ต้องอยู่ก่อน @Patch(':id') — ไม่งั้น 'reorder' จะโดนจับเป็นค่า :id แทน
@@ -33,8 +36,8 @@ export class PackagesController {
 
   @Patch(':id')
   @Roles('owner')
-  update(@Param('id') id: string, @Body() dto: UpdatePackageDto) {
-    return this.packages.update(id, dto)
+  update(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdatePackageDto) {
+    return this.packages.update(id, dto, jwtUser.sub)
   }
 
   @Delete(':id')

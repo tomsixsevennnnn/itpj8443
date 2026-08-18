@@ -1,16 +1,14 @@
 import { Bell, Calendar, ChefHat, Home, LogOut, User } from 'lucide-react'
 import Avatar from './Avatar'
-import type { Screen, ShopInfo, UserProfile } from '../types'
+import { useNav } from '../NavContext'
+import type { Screen } from '../types'
 
 interface NavbarProps {
-  navigate: (s: Screen) => void
   currentScreen: Screen
-  user: UserProfile | null
-  shopInfo: ShopInfo
-  notifCount: number
 }
 
-export default function Navbar({ navigate, currentScreen, user, shopInfo, notifCount }: NavbarProps) {
+export default function Navbar({ currentScreen }: NavbarProps) {
+  const { navigate, user, shopInfo, notifCount } = useNav()
   const navItems = [
     { label: 'หน้าแรก', screen: 'home' as Screen, icon: Home },
     { label: 'ประวัติการจอง', screen: 'history' as Screen, icon: Calendar },
@@ -25,9 +23,13 @@ export default function Navbar({ navigate, currentScreen, user, shopInfo, notifC
             onClick={() => navigate('home')}
             className="flex items-center gap-2 cursor-pointer group"
           >
-            <div className="w-9 h-9 bg-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 transition-colors">
-              <ChefHat size={20} className="text-white" />
-            </div>
+            {shopInfo.logo ? (
+              <img src={shopInfo.logo} alt={shopInfo.name} className="w-9 h-9 rounded-xl object-cover" />
+            ) : (
+              <div className="w-9 h-9 bg-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 transition-colors">
+                <ChefHat size={20} className="text-white" />
+              </div>
+            )}
             <div>
               <p className="font-bold text-gray-900 leading-tight text-sm">{shopInfo.name}</p>
               <p className="text-[10px] text-gray-400 leading-tight">{shopInfo.nameEn}</p>

@@ -2,21 +2,19 @@ import { Check, ChevronLeft, Lock } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import Navbar from '../components/Navbar'
 import DishTile from '../components/DishTile'
-import type { MenuItem, Package, PackageCourse, Screen, ShopInfo, UserProfile } from '../types'
-import { CATEGORY_MAP, includedItems, requiredCourses } from '../data'
+import { useNav } from '../NavContext'
+import type { MenuItem, Package, PackageCourse } from '../types'
+import { includedItems, requiredCourses } from '../data'
 
 interface SelectMenuProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
-  shopInfo: ShopInfo
   packages: Package[]
   packageId: string | null
   selectedMenus: MenuItem[]
   onSetMenus: (menus: MenuItem[]) => void
-  notifCount: number
 }
 
-export default function SelectMenu({ navigate, user, shopInfo, packages, packageId, selectedMenus, onSetMenus, notifCount }: SelectMenuProps) {
+export default function SelectMenu({ packages, packageId, selectedMenus, onSetMenus }: SelectMenuProps) {
+  const { navigate, categoryMap } = useNav()
   const pkg = packages.find(p => p.id === packageId) ?? null
   const [activeCourseNo, setActiveCourseNo] = useState(1)
 
@@ -41,7 +39,7 @@ export default function SelectMenu({ navigate, user, shopInfo, packages, package
   if (!pkg) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar navigate={navigate} currentScreen="select-menu" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+        <Navbar currentScreen="select-menu" />
         <div className="pt-32 text-center px-6">
           <p className="text-5xl mb-4">🍽️</p>
           <p className="text-gray-500 mb-6">กรุณาเลือกแพ็กเกจก่อนเลือกเมนูอาหาร</p>
@@ -83,7 +81,7 @@ export default function SelectMenu({ navigate, user, shopInfo, packages, package
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" style={{ height: '100vh', overflow: 'hidden' }}>
-      <Navbar navigate={navigate} currentScreen="select-menu" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="select-menu" />
 
       {/* Fixed header */}
       <div className="pt-16 bg-white border-b border-gray-100 shadow-sm flex-shrink-0">
@@ -122,7 +120,7 @@ export default function SelectMenu({ navigate, user, shopInfo, packages, package
         {/* Course sidebar */}
         <aside className="w-44 bg-white border-r border-gray-100 flex-shrink-0 overflow-y-auto">
           {pkg.courses.map(course => {
-            const cat = CATEGORY_MAP[course.category]
+            const cat = categoryMap[course.category]
             const chosen = chosenIn(course)
             const isActive = course.no === activeCourse.no
             return (
@@ -163,7 +161,7 @@ export default function SelectMenu({ navigate, user, shopInfo, packages, package
                 ข้อ {activeCourse.no} · {activeCourse.title}
               </h2>
               <p className="text-xs text-gray-400 mt-0.5">
-                {CATEGORY_MAP[activeCourse.category]?.labelEn}
+                {categoryMap[activeCourse.category]?.labelEn}
               </p>
             </div>
             <span

@@ -1,22 +1,22 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { QueueBooking, Screen, ShopInfo, UserProfile } from '../types'
+import { useNav } from '../NavContext'
+import type { QueueBooking } from '../types'
 import {
-  BOOKABLE_SLOTS,
   DAY_STATUS_INFO,
+  bookableSlots,
   dayStatus,
   toDateKey,
+  type TimeSlotHours,
 } from '../availability'
 
 interface BookingCalendarProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
-  shopInfo: ShopInfo
   /** คิวรับงานของ "ทุกลูกค้า" (ไม่ใช่แค่ของตัวเอง) — ใช้เช็คว่าวันไหนเต็มแล้วบ้าง ดึงจาก /bookings/availability */
   bookings: QueueBooking[]
   onSelectDateTime: (date: string, timeSlot: string) => void
-  notifCount: number
+  /** เวลาของแต่ละช่วง — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" (AppSettings.timeSlotHours) */
+  slotHours: TimeSlotHours
 }
 
 const DAYS_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
@@ -25,7 +25,9 @@ const MONTHS_TH = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ]
 
-export default function BookingCalendar({ navigate, user, shopInfo, bookings, onSelectDateTime, notifCount }: BookingCalendarProps) {
+export default function BookingCalendar({ bookings, onSelectDateTime, slotHours }: BookingCalendarProps) {
+  const { navigate } = useNav()
+  const slots = bookableSlots(slotHours)
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
@@ -58,14 +60,14 @@ export default function BookingCalendar({ navigate, user, shopInfo, bookings, on
 
   const handleNext = () => {
     if (!selectedDate || !selectedSlot) return
-    const slot = BOOKABLE_SLOTS.find(s => s.id === selectedSlot)!
+    const slot = slots.find(s => s.id === selectedSlot)!
     onSelectDateTime(selectedDate, `${slot.label} (${slot.time})`)
     navigate('select-table')
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="booking-calendar" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="booking-calendar" />
 
       <div className="pt-24 pb-12 max-w-6xl mx-auto px-4">
         <div className="mb-8">
@@ -177,7 +179,7 @@ export default function BookingCalendar({ navigate, user, shopInfo, bookings, on
               )}
 
               <div className="space-y-3">
-                {BOOKABLE_SLOTS.map((slot) => {
+                {slots.map((slot) => {
                   const disabled = !selectedDate
                   const isSlotSelected = selectedSlot === slot.id
 

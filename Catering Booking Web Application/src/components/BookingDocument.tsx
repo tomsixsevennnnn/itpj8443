@@ -1,6 +1,9 @@
 import type { Booking, ShopInfo } from '../types'
 import {
+  DEFAULT_BOOKING_TERMS,
   DEFAULT_DEPOSIT_RATE,
+  DEFAULT_QUOTATION_TERMS,
+  DEFAULT_QUOTATION_VALID_DAYS,
   DEFAULT_SHOP_INFO,
   DOC_LABEL,
   bahtText,
@@ -10,6 +13,7 @@ import {
   quotationValidUntil,
   type DocType,
 } from '../documents'
+import { DEFAULT_FREE_DELIVERY_MIN_TABLES, DEFAULT_HOME_PROVINCE } from '../geo'
 
 interface BookingDocumentProps {
   booking: Booking
@@ -17,6 +21,12 @@ interface BookingDocumentProps {
   className?: string
   shopInfo?: ShopInfo
   depositRate?: number
+  homeProvince?: string
+  freeDeliveryMinTables?: number
+  quotationValidDays?: number
+  /** เงื่อนไขเพิ่มเติมที่เจ้าของร้านแก้ไขเอง — ต่อท้ายเงื่อนไขที่ระบบคำนวณให้อัตโนมัติ (ดู AppSettings.quotationTerms/bookingTerms) */
+  quotationTerms?: string[]
+  bookingTerms?: string[]
 }
 
 const STATUS_TH: Record<Booking['status'], string> = {
@@ -33,6 +43,11 @@ export default function BookingDocument({
   className = '',
   shopInfo = DEFAULT_SHOP_INFO,
   depositRate = DEFAULT_DEPOSIT_RATE,
+  homeProvince = DEFAULT_HOME_PROVINCE,
+  freeDeliveryMinTables = DEFAULT_FREE_DELIVERY_MIN_TABLES,
+  quotationValidDays = DEFAULT_QUOTATION_VALID_DAYS,
+  quotationTerms = DEFAULT_QUOTATION_TERMS,
+  bookingTerms = DEFAULT_BOOKING_TERMS,
 }: BookingDocumentProps) {
   const price = bookingPricing(booking, depositRate)
   const issuedAt = new Date().toISOString().slice(0, 10)
@@ -74,7 +89,7 @@ export default function BookingDocument({
           <p className="text-xs font-mono text-gray-700 mt-1">{docNumber(booking, type)}</p>
           <p className="text-[11px] text-gray-400 mt-1">วันที่ออก {formatThaiDate(issuedAt)}</p>
           {type === 'quotation' ? (
-            <p className="text-[11px] text-gray-400">ยืนราคาถึง {formatThaiDate(quotationValidUntil())}</p>
+            <p className="text-[11px] text-gray-400">ยืนราคาถึง {formatThaiDate(quotationValidUntil(new Date(), quotationValidDays))}</p>
           ) : (
             <p className="text-[11px] text-gray-400">สถานะ {STATUS_TH[booking.status]}</p>
           )}
@@ -225,17 +240,19 @@ export default function BookingDocument({
         <ul className="text-[11px] text-gray-600 space-y-1 leading-relaxed">
           {type === 'quotation' ? (
             <>
-              <li>• ใบเสนอราคานี้ยืนราคาถึงวันที่ {formatThaiDate(quotationValidUntil())}</li>
-              <li>• ราคานี้รวมอุปกรณ์จัดเลี้ยง โต๊ะ เก้าอี้ และพนักงานเสิร์ฟแล้ว ไม่มีค่าบริการเพิ่ม</li>
+              <li>• ใบเสนอราคานี้ยืนราคาถึงวันที่ {formatThaiDate(quotationValidUntil(new Date(), quotationValidDays))}</li>
               <li>• ยืนยันการจองโดยชำระมัดจำ {Math.round(depositRate * 100)}% ({price.deposit.toLocaleString()} ฿) ส่วนที่เหลือชำระในวันจัดงาน</li>
-              <li>• งานในนครปฐมไม่มีค่าขนส่ง · นอกนครปฐมขั้นต่ำ 30 โต๊ะ</li>
+              <li>• งานใน{homeProvince}ไม่มีค่าขนส่ง · นอก{homeProvince}ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ</li>
+              {quotationTerms.map((term, i) => (
+                <li key={i}>• {term}</li>
+              ))}
             </>
           ) : (
             <>
               <li>• กรุณาชำระมัดจำ {Math.round(depositRate * 100)}% ({price.deposit.toLocaleString()} ฿) เพื่อยืนยันการจอง ส่วนที่เหลือชำระในวันจัดงาน</li>
-              <li>• ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง</li>
-              <li>• แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน</li>
-              <li>• ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ</li>
+              {bookingTerms.map((term, i) => (
+                <li key={i}>• {term}</li>
+              ))}
             </>
           )}
         </ul>

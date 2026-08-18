@@ -1,9 +1,10 @@
 import type { Category, Package } from './types'
 
 /* ------------------------------------------------------------------ *
- * ประเภทอาหาร (9 หมวด) — ใช้เป็นลำดับ "ข้อ" ของเมนูโต๊ะจีน
+ * ประเภทอาหาร — ค่าเริ่มต้น (ก่อนเจ้าของร้านแก้ไข) ใช้เป็นลำดับ "ข้อ" ของเมนูโต๊ะจีน
+ * เจ้าของร้านเพิ่ม/ลบ/แก้ไขหมวดเองได้จากหน้า "ตั้งค่า" (AppSettings.categories) — ไม่ใช่ค่าคงที่ตายตัวอีกต่อไป
  * ------------------------------------------------------------------ */
-export const CATEGORIES: Category[] = [
+export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'snack', label: 'ของทานเล่น', labelEn: 'Snack', icon: '🍤', gradient: 'from-amber-100 to-orange-200' },
   { id: 'appetizer', label: 'ออเดิร์ฟ', labelEn: 'Appetizer', icon: '🥟', gradient: 'from-rose-100 to-pink-200' },
   { id: 'soup', label: 'ซุป / น้ำแกง', labelEn: 'Soup', icon: '🍜', gradient: 'from-orange-100 to-amber-200' },
@@ -15,17 +16,20 @@ export const CATEGORIES: Category[] = [
   { id: 'dessert', label: 'ของหวาน', labelEn: 'Dessert', icon: '🍮', gradient: 'from-fuchsia-100 to-purple-200' },
 ]
 
-export const CATEGORY_MAP: Record<string, Category> = Object.fromEntries(
-  CATEGORIES.map(c => [c.id, c])
-)
+export const categoryMapOf = (categories: Category[]): Record<string, Category> =>
+  Object.fromEntries(categories.map(c => [c.id, c]))
 
 /** ลำดับประเภทอาหารเริ่มต้น — ใช้เป็นค่าเริ่มต้นของ AppSettings.categoryOrder */
-export const DEFAULT_CATEGORY_ORDER: string[] = CATEGORIES.map(c => c.id)
+export const DEFAULT_CATEGORY_ORDER: string[] = DEFAULT_CATEGORIES.map(c => c.id)
 
-/** เรียง CATEGORIES ตามลำดับที่เจ้าของร้านตั้งไว้ — id ที่ตกหล่นจาก order (เช่น เพิ่มประเภทใหม่ในโค้ดทีหลัง) จะต่อท้ายให้ */
-export const orderedCategories = (order: string[]): Category[] => {
-  const known = order.map(id => CATEGORY_MAP[id]).filter((c): c is Category => c != null)
-  const missing = CATEGORIES.filter(c => !order.includes(c.id))
+/**
+ * เรียง categories ตามลำดับที่เจ้าของร้านตั้งไว้ — id ที่ตกหล่นจาก order (เช่น เพิ่มหมวดใหม่ทีหลัง) จะต่อท้ายให้
+ * ไม่ส่ง categories มา = ใช้ default เดิม (กันโค้ด/เทสต์เก่าพัง)
+ */
+export const orderedCategories = (order: string[], categories: Category[] = DEFAULT_CATEGORIES): Category[] => {
+  const map = categoryMapOf(categories)
+  const known = order.map(id => map[id]).filter((c): c is Category => c != null)
+  const missing = categories.filter(c => !order.includes(c.id))
   return [...known, ...missing]
 }
 

@@ -3,17 +3,14 @@ import { Calendar, Check, Eye, FileText, Filter, Loader2, Printer, Search, Send,
 import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
 import ImageLightbox from '../components/ImageLightbox'
-import type { AppSettings, Booking, Screen, UserProfile } from '../types'
+import type { AppSettings, Booking } from '../types'
 import { DOC_LABEL, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
 
 interface BookingHistoryProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
   bookings: Booking[]
   onUpdateBooking: (id: string, patch: Partial<Booking>) => void
   settings: AppSettings
-  notifCount: number
 }
 
 const STATUS_CONFIG = {
@@ -23,7 +20,7 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-export default function BookingHistory({ navigate, user, bookings, onUpdateBooking, settings, notifCount }: BookingHistoryProps) {
+export default function BookingHistory({ bookings, onUpdateBooking, settings }: BookingHistoryProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -90,7 +87,7 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="history" user={user} shopInfo={settings.shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="history" />
 
       <div className="pt-24 pb-12 max-w-6xl mx-auto px-4">
         <div className="mb-8">
@@ -254,8 +251,10 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
       </div>
 
       {/* Document viewer — ใบเสนอราคา / ใบจอง */}
+      {/* backdrop-blur-sm บน div ที่ scroll เองด้วย (overflow-y-auto) ทำให้ browser ต้องคำนวณ blur ใหม่ทุกเฟรมตอนเลื่อน หน่วงมาก
+          โดยเฉพาะเอกสารยาวๆ ตัดออกเหลือแค่ overlay สีทึบธรรมดา (เข้มขึ้นชดเชยที่ไม่มี blur แล้ว) */}
       {docBooking && docView && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-auto overflow-hidden print-area">
             {/* Toolbar */}
             <div className="no-print flex items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100 sticky top-0">
@@ -300,6 +299,11 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
                 type={docView.type}
                 shopInfo={settings.shopInfo}
                 depositRate={settings.depositRate}
+                homeProvince={settings.homeProvince}
+                freeDeliveryMinTables={settings.freeDeliveryMinTables}
+                quotationValidDays={settings.quotationValidDays}
+                quotationTerms={settings.quotationTerms}
+                bookingTerms={settings.bookingTerms}
               />
             </div>
           </div>
@@ -307,8 +311,9 @@ export default function BookingHistory({ navigate, user, bookings, onUpdateBooki
       )}
 
       {/* Detail Modal */}
+      {/* ตัด backdrop-blur-sm ออก — คู่กับเนื้อหาที่เลื่อนได้ (overflow-y-auto) ข้างในทำให้เลื่อนหน่วงมาก (ดูเหตุผลที่ document viewer ด้านบน) */}
       {detailBooking && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
             <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 flex items-center justify-between sticky top-0">
               <div>

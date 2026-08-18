@@ -1,5 +1,5 @@
 import type { MenuItem } from '../types'
-import { CATEGORY_MAP } from '../data'
+import { useNav } from '../NavContext'
 
 interface DishTileProps {
   item: MenuItem
@@ -10,6 +10,7 @@ interface DishTileProps {
 }
 
 export default function DishTile({ item, category, emojiClass = 'text-4xl', className = '' }: DishTileProps) {
+  const { categoryMap } = useNav()
   if (item.image) {
     const { x, y } = item.imagePosition ?? { x: 50, y: 50 }
     const scale = item.imageScale ?? 1
@@ -28,7 +29,7 @@ export default function DishTile({ item, category, emojiClass = 'text-4xl', clas
     )
   }
 
-  const cat = CATEGORY_MAP[category ?? item.category]
+  const cat = categoryMap[category ?? item.category]
 
   return (
     <div

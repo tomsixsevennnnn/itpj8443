@@ -140,6 +140,11 @@ export default function Documents({ bookings, menus, settings }: DocumentsProps)
                 type={activeTab}
                 shopInfo={settings.shopInfo}
                 depositRate={settings.depositRate}
+                homeProvince={settings.homeProvince}
+                freeDeliveryMinTables={settings.freeDeliveryMinTables}
+                quotationValidDays={settings.quotationValidDays}
+                quotationTerms={settings.quotationTerms}
+                bookingTerms={settings.bookingTerms}
               />
             </div>
 

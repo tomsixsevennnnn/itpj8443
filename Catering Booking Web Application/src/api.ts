@@ -1,6 +1,16 @@
-import type { AppSettings, Booking, MenuItem, Package, QueueBooking } from './types'
-import { DEFAULT_CATEGORY_ORDER } from './data'
+import type { AppSettings, Booking, Category, MenuItem, Package, QueueBooking } from './types'
+import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_ORDER } from './data'
+import {
+  DEFAULT_BOOKING_TERMS,
+  DEFAULT_QUOTATION_TERMS,
+  DEFAULT_QUOTATION_VALID_DAYS,
+  DEFAULT_SHOP_INFO,
+} from './documents'
+import { DEFAULT_HOME_PROVINCE, DEFAULT_METRO_PROVINCES } from './geo'
 import { DEFAULT_HOME_CONTENT, type HomeContent } from './homeContent'
+import { DEFAULT_STAFF_RATIOS } from './staffing'
+import { DEFAULT_SLOT_HOURS } from './availability'
+import { DEFAULT_BRAND_COLOR } from './theme'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
@@ -59,13 +69,28 @@ interface BackendSettings {
   bankAccountNumber: string
   bankAccountName: string
   promptPayQr: string
+  shopLogo: string
+  shopLoginTagline: string
   depositRate: number
   deliveryFee: number
   freeDeliveryMinTables: number
+  metroProvinces: string[]
+  homeProvince: string
+  brandColor: string
   wageChef: number
   wageAssistant: number
   wageServerPerTable: number
   wageDishwasher: number
+  tablesPerServer: number
+  tablesPerSupport: number
+  staffRemainderThreshold: number
+  slotMorningHours: string
+  slotNoonHours: string
+  slotEveningHours: string
+  quotationValidDays: number
+  quotationTerms: string[]
+  bookingTerms: string[]
+  categories: Category[] | null
   categoryOrder: string[]
   shopLocationLat: number
   shopLocationLng: number
@@ -85,15 +110,33 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
     bankAccountNumber: s.bankAccountNumber,
     bankAccountName: s.bankAccountName,
     promptPayQr: s.promptPayQr,
+    logo: s.shopLogo ?? '',
+    loginTagline: s.shopLoginTagline ?? DEFAULT_SHOP_INFO.loginTagline,
   },
   depositRate: s.depositRate,
   deliveryFee: s.deliveryFee,
   freeDeliveryMinTables: s.freeDeliveryMinTables,
+  // เผื่อ backend เก่า/ยังไม่ migrate ที่ส่ง settings มาโดยไม่มีฟิลด์นี้ — กันหน้าเลือกสถานที่พังทั้งหน้า
+  metroProvinces: s.metroProvinces ?? DEFAULT_METRO_PROVINCES,
+  homeProvince: s.homeProvince ?? DEFAULT_HOME_PROVINCE,
+  brandColor: s.brandColor ?? DEFAULT_BRAND_COLOR,
   wageChef: s.wageChef,
   wageAssistant: s.wageAssistant,
   wageServerPerTable: s.wageServerPerTable,
   wageDishwasher: s.wageDishwasher,
+  tablesPerServer: s.tablesPerServer ?? DEFAULT_STAFF_RATIOS.tablesPerServer,
+  tablesPerSupport: s.tablesPerSupport ?? DEFAULT_STAFF_RATIOS.tablesPerSupport,
+  staffRemainderThreshold: s.staffRemainderThreshold ?? DEFAULT_STAFF_RATIOS.staffRemainderThreshold,
+  timeSlotHours: {
+    morning: s.slotMorningHours ?? DEFAULT_SLOT_HOURS.morning,
+    noon: s.slotNoonHours ?? DEFAULT_SLOT_HOURS.noon,
+    evening: s.slotEveningHours ?? DEFAULT_SLOT_HOURS.evening,
+  },
+  quotationValidDays: s.quotationValidDays ?? DEFAULT_QUOTATION_VALID_DAYS,
+  quotationTerms: s.quotationTerms ?? DEFAULT_QUOTATION_TERMS,
+  bookingTerms: s.bookingTerms ?? DEFAULT_BOOKING_TERMS,
   // เผื่อ backend เก่า/ยังไม่ migrate ที่ส่ง settings มาโดยไม่มีฟิลด์นี้ — กันหน้าแพ็กเกจ/เมนูพังทั้งหน้า
+  categories: s.categories ?? DEFAULT_CATEGORIES,
   categoryOrder: s.categoryOrder ?? DEFAULT_CATEGORY_ORDER,
   shopLocation: { lat: s.shopLocationLat, lng: s.shopLocationLng },
   fuelCostPerKm: s.fuelCostPerKm,
@@ -114,13 +157,28 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (si?.bankAccountNumber !== undefined) out.bankAccountNumber = si.bankAccountNumber
   if (si?.bankAccountName !== undefined) out.bankAccountName = si.bankAccountName
   if (si?.promptPayQr !== undefined) out.promptPayQr = si.promptPayQr
+  if (si?.logo !== undefined) out.shopLogo = si.logo
+  if (si?.loginTagline !== undefined) out.shopLoginTagline = si.loginTagline
   if (patch.depositRate !== undefined) out.depositRate = patch.depositRate
   if (patch.deliveryFee !== undefined) out.deliveryFee = patch.deliveryFee
   if (patch.freeDeliveryMinTables !== undefined) out.freeDeliveryMinTables = patch.freeDeliveryMinTables
+  if (patch.metroProvinces !== undefined) out.metroProvinces = patch.metroProvinces
+  if (patch.homeProvince !== undefined) out.homeProvince = patch.homeProvince
+  if (patch.brandColor !== undefined) out.brandColor = patch.brandColor
   if (patch.wageChef !== undefined) out.wageChef = patch.wageChef
   if (patch.wageAssistant !== undefined) out.wageAssistant = patch.wageAssistant
   if (patch.wageServerPerTable !== undefined) out.wageServerPerTable = patch.wageServerPerTable
   if (patch.wageDishwasher !== undefined) out.wageDishwasher = patch.wageDishwasher
+  if (patch.tablesPerServer !== undefined) out.tablesPerServer = patch.tablesPerServer
+  if (patch.tablesPerSupport !== undefined) out.tablesPerSupport = patch.tablesPerSupport
+  if (patch.staffRemainderThreshold !== undefined) out.staffRemainderThreshold = patch.staffRemainderThreshold
+  if (patch.timeSlotHours?.morning !== undefined) out.slotMorningHours = patch.timeSlotHours.morning
+  if (patch.timeSlotHours?.noon !== undefined) out.slotNoonHours = patch.timeSlotHours.noon
+  if (patch.timeSlotHours?.evening !== undefined) out.slotEveningHours = patch.timeSlotHours.evening
+  if (patch.quotationValidDays !== undefined) out.quotationValidDays = patch.quotationValidDays
+  if (patch.quotationTerms !== undefined) out.quotationTerms = patch.quotationTerms
+  if (patch.bookingTerms !== undefined) out.bookingTerms = patch.bookingTerms
+  if (patch.categories !== undefined) out.categories = patch.categories
   if (patch.categoryOrder !== undefined) out.categoryOrder = patch.categoryOrder
   if (patch.shopLocation?.lat !== undefined) out.shopLocationLat = patch.shopLocation.lat
   if (patch.shopLocation?.lng !== undefined) out.shopLocationLng = patch.shopLocation.lng
@@ -167,10 +225,8 @@ export interface CreateBookingInput {
   timeSlot: string
   tables: number
   guestCount: number
-  packageName: string
-  totalPrice: number
-  pricePerTable?: number
-  deliveryFee?: number
+  /** backend คำนวณราคา/ชื่อแพ็กเกจเองจาก id นี้ — กันแก้ request body ปลอมราคาจองผ่าน DevTools */
+  packageId: string
   location: string
   locationDetail?: unknown
   menus: string[]
@@ -255,13 +311,21 @@ export const api = {
   settings: async (token: string): Promise<AppSettings> =>
     toFrontendSettings(await request<BackendSettings>(token, '/settings')),
 
-  /** ก่อน login — ใช้โชว์ชื่อร้าน/ข้อมูลติดต่อบนหน้า Login เท่านั้น ไม่ต้องใช้ token */
-  publicShopInfo: async (): Promise<AppSettings['shopInfo']> => {
+  /** ก่อน login — ใช้โชว์ชื่อร้าน/โลโก้/สีแบรนด์บนหน้า Login เท่านั้น ไม่ต้องใช้ token */
+  publicShopInfo: async (): Promise<AppSettings['shopInfo'] & { brandColor: string }> => {
     const res = await fetch(`${API_BASE}/settings/public`)
     if (!res.ok) throw new Error(`API GET /settings/public -> ${res.status}`)
     const s = (await res.json()) as Pick<
       BackendSettings,
-      'shopName' | 'shopNameEn' | 'shopInitials' | 'shopAddress' | 'shopPhone' | 'shopLine'
+      | 'shopName'
+      | 'shopNameEn'
+      | 'shopInitials'
+      | 'shopAddress'
+      | 'shopPhone'
+      | 'shopLine'
+      | 'shopLogo'
+      | 'shopLoginTagline'
+      | 'brandColor'
     >
     return {
       name: s.shopName,
@@ -270,6 +334,9 @@ export const api = {
       address: s.shopAddress,
       phone: s.shopPhone,
       line: s.shopLine,
+      logo: s.shopLogo ?? '',
+      loginTagline: s.shopLoginTagline ?? DEFAULT_SHOP_INFO.loginTagline,
+      brandColor: s.brandColor ?? DEFAULT_BRAND_COLOR,
       // ข้อมูลบัญชี/QR ไม่ส่งมาจาก endpoint นี้ (ไม่มี auth) — เว้นว่างไว้ก่อน login
       bankName: '',
       bankAccountNumber: '',

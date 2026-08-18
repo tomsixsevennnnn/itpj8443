@@ -1,13 +1,10 @@
 import { useMemo } from 'react'
 import { Bell, CheckCircle, Clock, XCircle } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import { buildNotifications, isNotificationNew, unreadNotificationCount, type NotificationKind } from '../notifications'
-import type { Booking, Screen, ShopInfo, UserProfile } from '../types'
+import { buildNotifications, isNotificationNew, type NotificationKind } from '../notifications'
+import type { Booking } from '../types'
 
 interface NotificationsProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
-  shopInfo: ShopInfo
   bookings: Booking[]
 }
 
@@ -19,13 +16,12 @@ const KIND_UI: Record<NotificationKind, { icon: typeof Clock; color: string; bg:
   cancelled: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' },
 }
 
-export default function Notifications({ navigate, user, shopInfo, bookings }: NotificationsProps) {
+export default function Notifications({ bookings }: NotificationsProps) {
   const items = useMemo(() => buildNotifications(bookings), [bookings])
-  const notifCount = useMemo(() => unreadNotificationCount(bookings), [bookings])
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="notifications" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="notifications" />
 
       <div className="pt-24 pb-12 max-w-2xl mx-auto px-4">
         <div className="mb-8 flex items-center justify-between">

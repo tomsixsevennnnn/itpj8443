@@ -1,15 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { LayoutDashboard } from 'lucide-react'
 import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package, QueueBooking } from './types'
-import { DEFAULT_CATEGORY_ORDER, includedItems } from './data'
-import { DEFAULT_DEPOSIT_RATE, DEFAULT_SHOP_INFO } from './documents'
+import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_ORDER, categoryMapOf, includedItems, orderedCategories } from './data'
+import {
+  DEFAULT_BOOKING_TERMS,
+  DEFAULT_DEPOSIT_RATE,
+  DEFAULT_QUOTATION_TERMS,
+  DEFAULT_QUOTATION_VALID_DAYS,
+  DEFAULT_SHOP_INFO,
+} from './documents'
 import {
   DEFAULT_DELIVERY_FEE,
   DEFAULT_FREE_DELIVERY_MIN_TABLES,
   DEFAULT_FUEL_COST_PER_KM,
+  DEFAULT_HOME_PROVINCE,
+  DEFAULT_METRO_PROVINCES,
   DEFAULT_SHOP_LOCATION,
-  deliveryFeeFor,
   formatFullAddress,
 } from './geo'
 import {
@@ -18,6 +25,8 @@ import {
   DEFAULT_WAGE_DISHWASHER,
   DEFAULT_WAGE_SERVER_PER_TABLE,
 } from './costing'
+import { DEFAULT_STAFF_RATIOS } from './staffing'
+import { DEFAULT_SLOT_HOURS } from './availability'
 import { DEFAULT_HOME_CONTENT } from './homeContent'
 import { unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
@@ -36,20 +45,21 @@ import Cart from './screens/Cart'
 import BookingHistory from './screens/BookingHistory'
 import Notifications from './screens/Notifications'
 import OwnerLayout, { OWNER_NOTIF_SEEN_KEY } from './components/OwnerLayout'
+import { NavProvider, type NavContextValue } from './NavContext'
+import { DEFAULT_BRAND_COLOR, applyBrandTheme } from './theme'
 import Dashboard from './screens/owner/Dashboard'
 import Orders from './screens/owner/Orders'
 import CalendarView from './screens/owner/CalendarView'
 import Packages from './screens/owner/Packages'
 import Menus from './screens/owner/Menus'
 import Documents from './screens/owner/Documents'
-import Customers from './screens/owner/Customers'
 import Reports from './screens/owner/Reports'
 import Settings from './screens/owner/Settings'
 import PageContent from './screens/owner/PageContent'
 
 const OWNER_SCREENS: Screen[] = [
   'owner-dashboard', 'owner-orders', 'owner-calendar', 'owner-packages', 'owner-menus', 'owner-documents',
-  'owner-customers', 'owner-reports', 'owner-settings', 'owner-page-content',
+  'owner-reports', 'owner-settings', 'owner-page-content',
 ]
 
 /** 6 ขั้นตอนการจอง — ออกจากช่วงนี้ไปหน้าอื่นผ่านแถบเมนูด้านบน (หน้าแรก/ประวัติการจอง) แล้วกลับมาต้องเริ่มเลือกใหม่ ไม่ resume ของเดิม */
@@ -62,10 +72,21 @@ const initialSettings: AppSettings = {
   depositRate: DEFAULT_DEPOSIT_RATE,
   deliveryFee: DEFAULT_DELIVERY_FEE,
   freeDeliveryMinTables: DEFAULT_FREE_DELIVERY_MIN_TABLES,
+  metroProvinces: DEFAULT_METRO_PROVINCES,
+  homeProvince: DEFAULT_HOME_PROVINCE,
+  brandColor: DEFAULT_BRAND_COLOR,
   wageChef: DEFAULT_WAGE_CHEF,
   wageAssistant: DEFAULT_WAGE_ASSISTANT,
   wageServerPerTable: DEFAULT_WAGE_SERVER_PER_TABLE,
   wageDishwasher: DEFAULT_WAGE_DISHWASHER,
+  tablesPerServer: DEFAULT_STAFF_RATIOS.tablesPerServer,
+  tablesPerSupport: DEFAULT_STAFF_RATIOS.tablesPerSupport,
+  staffRemainderThreshold: DEFAULT_STAFF_RATIOS.staffRemainderThreshold,
+  timeSlotHours: DEFAULT_SLOT_HOURS,
+  quotationValidDays: DEFAULT_QUOTATION_VALID_DAYS,
+  quotationTerms: DEFAULT_QUOTATION_TERMS,
+  bookingTerms: DEFAULT_BOOKING_TERMS,
+  categories: DEFAULT_CATEGORIES,
   categoryOrder: DEFAULT_CATEGORY_ORDER,
   shopLocation: DEFAULT_SHOP_LOCATION,
   fuelCostPerKm: DEFAULT_FUEL_COST_PER_KM,
@@ -107,6 +128,10 @@ export default function App() {
   useEffect(() => {
     document.title = settings.shopInfo.name || document.title
   }, [settings.shopInfo.name])
+  // ทาสีแบรนด์ทับ Tailwind ทั้งแอปทันทีที่ settings โหลดเสร็จ/เปลี่ยน (รวมถึงตอน polling settings ด้านล่างเจอค่าที่แก้จากเครื่องอื่น)
+  useEffect(() => {
+    applyBrandTheme(settings.brandColor)
+  }, [settings.brandColor])
   // โปรไฟล์ผู้ใช้จาก backend (ผูกกับ Auth0 sub) — เป็นแหล่งความจริงเดียวของ user profile
   const [backendUser, setBackendUser] = useState<BackendUser | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
@@ -301,6 +326,19 @@ export default function App() {
     setScreen(s)
   }
 
+  /** ค่า "chrome"/config ระดับแอปที่หลายจุดดึงใช้ผ่าน useNav() แทนการรับเป็น props ทีละชั้น — ดู NavContext.tsx */
+  const navContext: NavContextValue = useMemo(() => {
+    const categories = orderedCategories(settings.categoryOrder, settings.categories)
+    return {
+      navigate,
+      user,
+      shopInfo: settings.shopInfo,
+      notifCount,
+      categories,
+      categoryMap: categoryMapOf(categories),
+    }
+  }, [navigate, user, settings.shopInfo, notifCount, settings.categoryOrder, settings.categories])
+
   /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที */
   const effectiveScreen: Screen =
     screen === 'login' && isAuthenticated && !needsProfile
@@ -352,26 +390,16 @@ export default function App() {
 
   const handleConfirm = () =>
     runAction(async () => {
-      // คิดยอดแบบเดียวกับหน้าตะกร้า เพื่อให้ใบเสนอราคา/ใบจองตรงกัน
-      const subtotal = booking.packagePrice * booking.tables
-      const deliveryFee = deliveryFeeFor(
-        booking.tables,
-        booking.location,
-        settings.deliveryFee,
-        settings.freeDeliveryMinTables,
-        settings.fuelCostPerKm,
-      )
-
+      if (!booking.packageId) throw new Error('ยังไม่ได้เลือกแพ็กเกจ')
+      // ราคา/ชื่อแพ็กเกจไม่ส่งจาก client แล้ว — backend คำนวณเองจาก packageId (กันแก้ request body ปลอมราคาจอง)
+      // ยอดที่ตะกร้าโชว์ก่อนกดยืนยัน (Cart.tsx) เป็นแค่ตัวเลข preview ด้วยสูตรเดียวกัน ไม่ใช่ค่าที่ backend เชื่อ
       const token = await withToken()
       const created = await api.createBooking(token, {
         date: booking.date || new Date().toISOString().split('T')[0],
         timeSlot: booking.timeSlot || 'ทั้งวัน',
         tables: booking.tables,
         guestCount: booking.guestCount,
-        packageName: booking.packageName || 'Standard',
-        totalPrice: subtotal + deliveryFee,
-        pricePerTable: booking.packagePrice,
-        deliveryFee,
+        packageId: booking.packageId,
         location: booking.location ? formatFullAddress(booking.location) : 'ไม่ระบุ',
         locationDetail: booking.location ?? undefined,
         menus: booking.selectedMenus.map(m => m.name),
@@ -464,59 +492,58 @@ export default function App() {
   // Owner screens
   if (OWNER_SCREENS.includes(effectiveScreen)) {
     return (
-      <OwnerLayout navigate={navigate} currentScreen={effectiveScreen} user={user} shopInfo={settings.shopInfo} bookings={bookings}>
-        {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
-        {effectiveScreen === 'owner-dashboard' && (
-          <Dashboard bookings={bookings} menus={menus} settings={settings} />
-        )}
-        {effectiveScreen === 'owner-orders' && (
-          <Orders bookings={bookings} menus={menus} settings={settings} onUpdateBooking={handleUpdateBooking} />
-        )}
-        {effectiveScreen === 'owner-calendar' && (
-          <CalendarView bookings={bookings} onUpdateBooking={handleUpdateBooking} />
-        )}
-        {effectiveScreen === 'owner-packages' && (
-          <Packages
-            packages={packages}
-            menus={menus}
-            settings={settings}
-            onCreatePackage={handleCreatePackage}
-            onUpdatePackage={handleUpdatePackage}
-            onDeletePackage={handleDeletePackage}
-            onReorderPackages={handleReorderPackages}
-          />
-        )}
-        {effectiveScreen === 'owner-menus' && (
-          <Menus
-            menus={menus}
-            packages={packages}
-            settings={settings}
-            onSaveMenu={handleSaveMenu}
-            onDeleteMenu={handleDeleteMenu}
-          />
-        )}
-        {effectiveScreen === 'owner-documents' && (
-          <Documents bookings={bookings} menus={menus} settings={settings} />
-        )}
-        {effectiveScreen === 'owner-customers' && (
-          <Customers bookings={bookings} menus={menus} settings={settings} />
-        )}
-        {effectiveScreen === 'owner-reports' && (
-          <Reports bookings={bookings} menus={menus} settings={settings} />
-        )}
-        {effectiveScreen === 'owner-settings' && (
-          <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
-        )}
-        {effectiveScreen === 'owner-page-content' && (
-          <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} />
-        )}
-      </OwnerLayout>
+      <NavProvider value={navContext}>
+        <OwnerLayout currentScreen={effectiveScreen} bookings={bookings}>
+          {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
+          {effectiveScreen === 'owner-dashboard' && (
+            <Dashboard bookings={bookings} menus={menus} settings={settings} />
+          )}
+          {effectiveScreen === 'owner-orders' && (
+            <Orders bookings={bookings} menus={menus} settings={settings} onUpdateBooking={handleUpdateBooking} />
+          )}
+          {effectiveScreen === 'owner-calendar' && (
+            <CalendarView bookings={bookings} onUpdateBooking={handleUpdateBooking} />
+          )}
+          {effectiveScreen === 'owner-packages' && (
+            <Packages
+              packages={packages}
+              menus={menus}
+              settings={settings}
+              onCreatePackage={handleCreatePackage}
+              onUpdatePackage={handleUpdatePackage}
+              onDeletePackage={handleDeletePackage}
+              onReorderPackages={handleReorderPackages}
+            />
+          )}
+          {effectiveScreen === 'owner-menus' && (
+            <Menus
+              menus={menus}
+              packages={packages}
+              settings={settings}
+              onSaveMenu={handleSaveMenu}
+              onDeleteMenu={handleDeleteMenu}
+            />
+          )}
+          {effectiveScreen === 'owner-documents' && (
+            <Documents bookings={bookings} menus={menus} settings={settings} />
+          )}
+          {effectiveScreen === 'owner-reports' && (
+            <Reports bookings={bookings} menus={menus} settings={settings} />
+          )}
+          {effectiveScreen === 'owner-settings' && (
+            <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
+          )}
+          {effectiveScreen === 'owner-page-content' && (
+            <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} />
+          )}
+        </OwnerLayout>
+      </NavProvider>
     )
   }
 
   // Customer screens
   return (
-    <>
+    <NavProvider value={navContext}>
       {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
       {/* เจ้าของร้านกำลังดูมุมมองลูกค้าอยู่ (กดปุ่ม "มุมมองลูกค้า" ใน OwnerLayout) — มีทางกลับเสมอ ไม่ว่าจะอยู่หน้าไหน */}
       {role === 'owner' && (
@@ -528,38 +555,23 @@ export default function App() {
           กลับสู่แดชบอร์ด
         </button>
       )}
-      {effectiveScreen === 'home' && (
-        <Home navigate={navigate} user={user} shopInfo={settings.shopInfo} homeContent={settings.homeContent} notifCount={notifCount} />
-      )}
+      {effectiveScreen === 'home' && <Home homeContent={settings.homeContent} />}
       {effectiveScreen === 'booking-calendar' && (
-        <BookingCalendar
-          navigate={navigate}
-          user={user}
-          shopInfo={settings.shopInfo}
-          bookings={availability}
-          onSelectDateTime={handleSelectDateTime}
-          notifCount={notifCount}
-        />
+        <BookingCalendar bookings={availability} onSelectDateTime={handleSelectDateTime} slotHours={settings.timeSlotHours} />
       )}
       {effectiveScreen === 'select-table' && (
         <SelectTable
-          navigate={navigate}
-          user={user}
-          shopInfo={settings.shopInfo}
           tables={booking.tables}
           onSetTables={handleSetTables}
           date={booking.date}
           timeSlot={booking.timeSlot}
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
-          notifCount={notifCount}
+          homeProvince={settings.homeProvince}
         />
       )}
       {effectiveScreen === 'select-location' && (
         <SelectLocation
-          navigate={navigate}
-          user={user}
-          shopInfo={settings.shopInfo}
           tables={booking.tables}
           location={booking.location}
           onSetLocation={handleSetLocation}
@@ -568,61 +580,42 @@ export default function App() {
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
           shopLocation={settings.shopLocation}
           fuelCostPerKm={settings.fuelCostPerKm}
-          notifCount={notifCount}
+          metroProvinces={settings.metroProvinces}
+          homeProvince={settings.homeProvince}
         />
       )}
       {effectiveScreen === 'select-package' && (
         <SelectPackage
-          navigate={navigate}
-          user={user}
-          shopInfo={settings.shopInfo}
           packages={packages}
           tables={booking.tables}
           selectedPackageId={booking.packageId}
           onSelectPackage={handleSelectPackage}
-          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'select-menu' && (
         <SelectMenu
-          navigate={navigate}
-          user={user}
-          shopInfo={settings.shopInfo}
           packages={packages}
           packageId={booking.packageId}
           selectedMenus={booking.selectedMenus}
           onSetMenus={handleSetMenus}
-          notifCount={notifCount}
         />
       )}
       {effectiveScreen === 'cart' && (
         <Cart
-          navigate={navigate}
-          user={user}
           role={role}
-          shopInfo={settings.shopInfo}
           packages={packages}
           booking={booking}
           onConfirm={handleConfirm}
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
           fuelCostPerKm={settings.fuelCostPerKm}
-          notifCount={notifCount}
+          homeProvince={settings.homeProvince}
         />
       )}
       {effectiveScreen === 'history' && (
-        <BookingHistory
-          navigate={navigate}
-          user={user}
-          bookings={bookings}
-          onUpdateBooking={handleUpdateBooking}
-          settings={settings}
-          notifCount={notifCount}
-        />
+        <BookingHistory bookings={bookings} onUpdateBooking={handleUpdateBooking} settings={settings} />
       )}
-      {effectiveScreen === 'notifications' && (
-        <Notifications navigate={navigate} user={user} shopInfo={settings.shopInfo} bookings={bookings} />
-      )}
-    </>
+      {effectiveScreen === 'notifications' && <Notifications bookings={bookings} />}
+    </NavProvider>
   )
 }

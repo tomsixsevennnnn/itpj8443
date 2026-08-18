@@ -17,7 +17,6 @@ export type Screen =
   | 'owner-packages'
   | 'owner-menus'
   | 'owner-documents'
-  | 'owner-customers'
   | 'owner-reports'
   | 'owner-settings'
   | 'owner-page-content'
@@ -205,7 +204,15 @@ export interface ShopInfo {
   bankAccountName: string
   /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ว่างได้ถ้ายังไม่อัปโหลด */
   promptPayQr: string
+  /** โลโก้ร้าน เก็บเป็น data URL — ว่าง = ใช้ไอคอนเริ่มต้น (ChefHat) แทน */
+  logo: string
+  /** คำโปรยใต้ชื่อร้านในหน้า Login — เจ้าของร้านแก้ไขเองได้ */
+  loginTagline: string
 }
+
+/** ช่วงเวลาจองพื้นฐาน (ไม่รวม "ทั้งวัน" ที่เป็นสถานะรวมของใบจองเก่า) และเวลาของแต่ละช่วง — ดู bookableSlots ใน availability.ts */
+export type BaseSlotId = 'morning' | 'noon' | 'evening'
+export type TimeSlotHours = Record<BaseSlotId, string>
 
 /** ค่าตั้งค่าของร้านที่เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
 export interface AppSettings {
@@ -216,6 +223,12 @@ export interface AppSettings {
   deliveryFee: number
   /** จำนวนโต๊ะขั้นต่ำสำหรับงานนอกพื้นที่ร้าน */
   freeDeliveryMinTables: number
+  /** รายชื่อจังหวัด/คำที่นับเป็นโซน "กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง" (metro) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" ดู zoneFor ใน geo.ts */
+  metroProvinces: string[]
+  /** จังหวัดที่ร้านตั้งอยู่ (โซน "home" — ไม่มีค่าขนส่งไม่จำกัดจำนวนโต๊ะ) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  homeProvince: string
+  /** สีหลักของแบรนด์ (hex) — ทาทับสีส้ม Tailwind ทั้งแอปที่ runtime ดู src/theme.ts */
+  brandColor: string
   /** ค่าแรงพ่อครัว (บาท/คน/งาน) */
   wageChef: number
   /** ค่าแรงผู้ช่วยพ่อครัว (บาท/คน/งาน) */
@@ -224,6 +237,22 @@ export interface AppSettings {
   wageServerPerTable: number
   /** ค่าแรงพนักงานล้างจาน (บาท/คน/งาน) */
   wageDishwasher: number
+  /** พนักงานเสิร์ฟ 1 คนต่อกี่โต๊ะ — ใช้คำนวณแผนกำลังคนอัตโนมัติ */
+  tablesPerServer: number
+  /** ผู้ช่วยพ่อครัว/พนักงานล้างจาน 1 คนต่อกี่โต๊ะ */
+  tablesPerSupport: number
+  /** หารแล้วเหลือเศษเกินกี่โต๊ะ ให้เพิ่มผู้ช่วยพ่อครัว/ล้างจานอีก 1 คน */
+  staffRemainderThreshold: number
+  /** เวลาของแต่ละช่วงจอง (เช่น "08:00 - 12:00") — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  timeSlotHours: TimeSlotHours
+  /** ใบเสนอราคายืนราคากี่วันนับจากวันที่ออก */
+  quotationValidDays: number
+  /** เงื่อนไขเพิ่มเติมท้ายใบเสนอราคา (นอกเหนือจากที่ระบบคำนวณให้อัตโนมัติ เช่น ยอดมัดจำ/ค่าขนส่ง) — แสดงเป็นข้อๆ */
+  quotationTerms: string[]
+  /** เงื่อนไขเพิ่มเติมท้ายใบจอง (นอกเหนือจากที่ระบบคำนวณให้อัตโนมัติ) — แสดงเป็นข้อๆ */
+  bookingTerms: string[]
+  /** ประเภทอาหารทั้งหมดที่ร้านนี้ใช้ — เจ้าของร้านเพิ่ม/ลบ/แก้ไขเองได้จากหน้า "ตั้งค่า" */
+  categories: Category[]
   /** ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง */
   categoryOrder: string[]
   /** พิกัดร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ (zone = 'outside') */

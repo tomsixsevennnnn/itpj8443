@@ -1,22 +1,19 @@
 import { ChevronLeft, ChevronRight, Minus, Plus, Users } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import type { Screen, ShopInfo, UserProfile } from '../types'
-import { HOME_PROVINCE } from '../geo'
+import { useNav } from '../NavContext'
 
 interface SelectTableProps {
-  navigate: (s: Screen) => void
-  user: UserProfile | null
-  shopInfo: ShopInfo
   tables: number
   onSetTables: (n: number) => void
   date: string | null
   timeSlot: string | null
   deliveryFee: number
   freeDeliveryMinTables: number
-  notifCount: number
+  homeProvince: string
 }
 
-export default function SelectTable({ navigate, user, shopInfo, tables, onSetTables, date, timeSlot, deliveryFee, freeDeliveryMinTables, notifCount }: SelectTableProps) {
+export default function SelectTable({ tables, onSetTables, date, timeSlot, deliveryFee, freeDeliveryMinTables, homeProvince }: SelectTableProps) {
+  const { navigate } = useNav()
   const totalGuests = tables * 10
 
   const handleTableInput = (value: string) => {
@@ -27,7 +24,7 @@ export default function SelectTable({ navigate, user, shopInfo, tables, onSetTab
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar navigate={navigate} currentScreen="select-table" user={user} shopInfo={shopInfo} notifCount={notifCount} />
+      <Navbar currentScreen="select-table" />
 
       <div className="pt-24 pb-12 max-w-2xl mx-auto px-4">
         <div className="mb-8">
@@ -121,7 +118,7 @@ export default function SelectTable({ navigate, user, shopInfo, tables, onSetTab
           >
             <p className="font-semibold mb-1">เงื่อนไขพื้นที่จัดงาน</p>
             <p>
-              • ใน{HOME_PROVINCE} (พื้นที่ร้าน) รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง
+              • ใน{homeProvince} (พื้นที่ร้าน) รับจัดกี่โต๊ะก็ได้ ไม่มีค่าขนส่ง
             </p>
             <p>
               • กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง ขั้นต่ำ {freeDeliveryMinTables} โต๊ะ — ไม่ถึงขั้นต่ำ

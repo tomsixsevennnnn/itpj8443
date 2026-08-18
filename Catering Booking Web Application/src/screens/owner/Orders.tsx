@@ -3,7 +3,7 @@ import { Check, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users,
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
-import { STAFF_ROLES, calculateStaff, isSamePlan, sumStaff, toPlan } from '../../staffing'
+import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
 import { docNumber } from '../../documents'
 
@@ -32,6 +32,12 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
   // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
   const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
 
+  const staffRatios = {
+    tablesPerServer: settings.tablesPerServer,
+    tablesPerSupport: settings.tablesPerSupport,
+    staffRemainderThreshold: settings.staffRemainderThreshold,
+  }
+
   const filtered = bookings.filter(b =>
     b.customerName.includes(search) || b.id.includes(search) || search === ''
   )
@@ -43,11 +49,11 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
   /* --- แผนกำลังคน ------------------------------------------------- */
 
   /** จำนวนพนักงานรวมของงาน (ใช้ตัวที่ปรับแก้ไว้ ถ้ายังไม่ปรับใช้ผลที่ระบบคำนวณ) */
-  const staffTotalOf = (b: Booking) => sumStaff(b.staffActual ?? toPlan(calculateStaff(b.tables)))
+  const staffTotalOf = (b: Booking) => sumStaff(b.staffActual ?? toPlan(calculateStaff(b.tables, staffRatios)))
 
   const openBooking = (booking: Booking) => {
     setSelectedId(booking.id)
-    setStaffDraft(booking.staffActual ?? toPlan(calculateStaff(booking.tables)))
+    setStaffDraft(booking.staffActual ?? toPlan(calculateStaff(booking.tables, staffRatios)))
     setNoteDraft(booking.staffNote ?? '')
     setShowCancelConfirm(false)
   }
@@ -58,14 +64,14 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
 
   /** คำนวณใหม่จากจำนวนโต๊ะปัจจุบัน (ล้างค่าที่ปรับแก้ไว้) */
   const recalcStaff = () => {
-    if (selected) setStaffDraft(toPlan(calculateStaff(selected.tables)))
+    if (selected) setStaffDraft(toPlan(calculateStaff(selected.tables, staffRatios)))
   }
 
   /** บันทึกทั้งจำนวนที่ระบบคำนวณและจำนวนที่ปรับแก้จริง ไว้อ้างอิงภายหลัง */
   const saveStaff = () => {
     if (!selected || !staffDraft) return
     onUpdateBooking(selected.id, {
-      staffAuto: toPlan(calculateStaff(selected.tables)),
+      staffAuto: toPlan(calculateStaff(selected.tables, staffRatios)),
       staffActual: staffDraft,
       staffNote: noteDraft.trim(),
       staffSavedAt: new Date().toISOString(),
@@ -248,7 +254,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
 
               {/* Staff plan */}
               {staffDraft && (() => {
-                const calc = calculateStaff(selected.tables)
+                const calc = calculateStaff(selected.tables, staffRatios)
                 const autoPlan = toPlan(calc)
                 const draftTotal = sumStaff(staffDraft)
                 const adjusted = !isSamePlan(staffDraft, autoPlan)
@@ -276,7 +282,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
                     </p>
 
                     <div className="space-y-2">
-                      {STAFF_ROLES.map(role => {
+                      {staffRoles(staffRatios).map(role => {
                         const value = staffDraft[role.key]
                         const auto = autoPlan[role.key]
                         return (

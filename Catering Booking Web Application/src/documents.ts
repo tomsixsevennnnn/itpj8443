@@ -12,6 +12,8 @@ export const DEFAULT_SHOP_INFO: ShopInfo = {
   bankAccountNumber: '',
   bankAccountName: '',
   promptPayQr: '',
+  logo: '',
+  loginTagline: 'ระบบจองจัดเลี้ยงนอกสถานที่',
 }
 
 export type DocType = 'quotation' | 'booking'
@@ -35,12 +37,24 @@ export const formatThaiDate = (iso: string, long = false): string =>
       : { year: 'numeric', month: 'short', day: 'numeric' }
   )
 
-/** ใบเสนอราคามีอายุ 7 วันนับจากวันที่ออก */
-export const quotationValidUntil = (from = new Date()): string => {
+/** ค่าเริ่มต้น (ก่อนเจ้าของร้านแก้ไข) — ใบเสนอราคามีอายุกี่วันนับจากวันที่ออก */
+export const DEFAULT_QUOTATION_VALID_DAYS = 7
+
+/** ใบเสนอราคามีอายุกี่วันนับจากวันที่ออก — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" (AppSettings.quotationValidDays) */
+export const quotationValidUntil = (from = new Date(), days: number = DEFAULT_QUOTATION_VALID_DAYS): string => {
   const d = new Date(from)
-  d.setDate(d.getDate() + 7)
+  d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
 }
+
+/** ค่าเริ่มต้น (ก่อนเจ้าของร้านแก้ไข) — เงื่อนไขเพิ่มเติมท้ายใบเสนอราคา/ใบจอง (นอกเหนือจากเงื่อนไขที่ระบบคำนวณให้อัตโนมัติ เช่น ยอดมัดจำ/ค่าขนส่ง) */
+export const DEFAULT_QUOTATION_TERMS = ['ราคานี้รวมอุปกรณ์จัดเลี้ยง โต๊ะ เก้าอี้ และพนักงานเสิร์ฟแล้ว ไม่มีค่าบริการเพิ่ม']
+
+export const DEFAULT_BOOKING_TERMS = [
+  'ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง',
+  'แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน',
+  'ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ',
+]
 
 /* ------------------------------------------------------------------ *
  * สรุปราคา — ยอดค่าอาหาร + ค่าขนส่ง = ยอดรวมเสมอ (ร้านไม่คิด VAT/ค่าบริการ)
