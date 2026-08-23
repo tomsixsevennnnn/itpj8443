@@ -14,6 +14,8 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString() bankAccountNumber?: string
   @IsOptional() @IsString() bankAccountName?: string
   @IsOptional() @IsString() promptPayQr?: string
+  /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — เก็บได้ทั้งมีขีดคั่นหรือไม่มี (promptpay-qr ฝั่ง frontend จะตัดอักขระที่ไม่ใช่ตัวเลขออกเองตอนสร้าง QR) */
+  @IsOptional() @IsString() @Matches(/^[0-9-]*$/, { message: 'promptPayId ต้องเป็นตัวเลข (และขีดคั่นได้)' }) promptPayId?: string
 
   @IsOptional() @IsNumber() @Min(0) @Max(1) depositRate?: number
   @IsOptional() @IsInt() @Min(0) deliveryFee?: number
@@ -42,6 +44,12 @@ export class UpdateSettingsDto {
   /** ประเภทอาหารทั้งหมดของร้าน (id/label/labelEn/icon/gradient) — โครงสร้างคือ Category[] ฝั่ง frontend ไม่ deep-validate ที่นี่ */
   @IsOptional() @IsArray() categories?: unknown[]
   @IsOptional() @IsArray() @IsString({ each: true }) categoryOrder?: string[]
+
+  /** วันที่ร้านปิด ไม่รับจอง รูปแบบ "YYYY-MM-DD" */
+  @IsOptional()
+  @IsArray()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true, message: 'closedDates ต้องเป็นวันที่รูปแบบ YYYY-MM-DD' })
+  closedDates?: string[]
 
   @IsOptional() @IsNumber() shopLocationLat?: number
   @IsOptional() @IsNumber() shopLocationLng?: number

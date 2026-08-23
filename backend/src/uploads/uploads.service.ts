@@ -34,20 +34,31 @@ export class UploadsService {
   }
 
   /**
-   * ลบไฟล์เก่าตอนถูกแทนที่ด้วยรูปใหม่ (เปลี่ยนรูปเมนู/โลโก้/QR/สลิป) — ป้องกันไฟล์ orphan สะสมบน disk ไม่มีวันหมด
-   * เรียกหลังบันทึกค่าใหม่ลง DB สำเร็จแล้วเท่านั้น ไม่มีวันโยน error ออกไปบล็อกการทำงานจริง — ลบไม่สำเร็จก็แค่ log ไว้
+   * แปลง path สาธารณะ (เช่น "/uploads/slips/xxx.jpg") เป็น absolute path จริงบน disk — ใช้ร่วมกันทั้งตอนลบไฟล์
+   * และตอนอ่านไฟล์ส่งกลับ (เช่น สลิปโอนเงินที่ต้อง auth ถึงจะเห็น ไม่ใช่ static asset สาธารณะ)
+   * กัน path traversal เผื่อมีค่าผิดปกติหลุดมาจากที่อื่น (ปกติค่านี้มาจาก saveDataUrl เองเท่านั้น ซึ่งเป็น uuid เสมอ)
    */
-  async deleteManagedFile(urlPath: string | null | undefined): Promise<void> {
-    if (!urlPath || !urlPath.startsWith('/uploads/')) return
+  resolveManagedFilePath(urlPath: string): string | null {
+    if (!urlPath.startsWith('/uploads/')) return null
 
     const uploadsRoot = resolve(UPLOADS_DIR)
     const target = resolve(uploadsRoot, urlPath.slice('/uploads/'.length))
 
-    // กัน path traversal เผื่อมีค่าผิดปกติหลุดมาจากที่อื่น (ปกติค่านี้มาจาก saveDataUrl เองเท่านั้น ซึ่งเป็น uuid เสมอ)
     if (relative(uploadsRoot, target).startsWith('..')) {
-      this.logger.warn(`ปฏิเสธการลบไฟล์นอกโฟลเดอร์ uploads: ${urlPath}`)
-      return
+      this.logger.warn(`ปฏิเสธการเข้าถึงไฟล์นอกโฟลเดอร์ uploads: ${urlPath}`)
+      return null
     }
+    return target
+  }
+
+  /**
+   * ลบไฟล์เก่าตอนถูกแทนที่ด้วยรูปใหม่ (เปลี่ยนรูปเมนู/โลโก้/QR/สลิป) — ป้องกันไฟล์ orphan สะสมบน disk ไม่มีวันหมด
+   * เรียกหลังบันทึกค่าใหม่ลง DB สำเร็จแล้วเท่านั้น ไม่มีวันโยน error ออกไปบล็อกการทำงานจริง — ลบไม่สำเร็จก็แค่ log ไว้
+   */
+  async deleteManagedFile(urlPath: string | null | undefined): Promise<void> {
+    if (!urlPath) return
+    const target = this.resolveManagedFilePath(urlPath)
+    if (!target) return
 
     try {
       await unlink(target)

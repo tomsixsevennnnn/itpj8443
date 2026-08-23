@@ -17,6 +17,8 @@ interface BookingCalendarProps {
   onSelectDateTime: (date: string, timeSlot: string) => void
   /** เวลาของแต่ละช่วง — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" (AppSettings.timeSlotHours) */
   slotHours: TimeSlotHours
+  /** วันที่ร้านปิด ไม่รับจอง — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" (AppSettings.closedDates) */
+  closedDates: string[]
 }
 
 const DAYS_TH = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
@@ -25,7 +27,7 @@ const MONTHS_TH = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ]
 
-export default function BookingCalendar({ bookings, onSelectDateTime, slotHours }: BookingCalendarProps) {
+export default function BookingCalendar({ bookings, onSelectDateTime, slotHours, closedDates }: BookingCalendarProps) {
   const { navigate } = useNav()
   const slots = bookableSlots(slotHours)
   const today = new Date()
@@ -49,7 +51,7 @@ export default function BookingCalendar({ bookings, onSelectDateTime, slotHours 
     else setViewMonth(m => m + 1)
   }
 
-  const getAvail = (day: number) => dayStatus(bookings, toDateKey(viewYear, viewMonth, day))
+  const getAvail = (day: number) => dayStatus(bookings, toDateKey(viewYear, viewMonth, day), closedDates)
 
   const isPast = (day: number) => {
     const d = new Date(viewYear, viewMonth, day)
@@ -116,19 +118,20 @@ export default function BookingCalendar({ bookings, onSelectDateTime, slotHours 
                   <button
                     key={idx}
                     onClick={() => {
-                      if (past || avail === 'full') return
+                      if (past || avail !== 'available') return
                       setSelectedDate(dateKey)
                       setSelectedSlot(null)
                     }}
-                    disabled={past || avail === 'full'}
+                    disabled={past || avail !== 'available'}
+                    title={avail === 'closed' ? 'ร้านปิดวันนี้' : undefined}
                     className={`relative flex flex-col items-center py-2 rounded-xl transition-all text-sm font-medium
                       ${past ? 'opacity-30 cursor-not-allowed text-gray-400' : ''}
-                      ${!past && avail === 'full' ? 'opacity-50 cursor-not-allowed text-gray-400' : ''}
+                      ${!past && avail !== 'available' ? 'opacity-50 cursor-not-allowed text-gray-400' : ''}
                       ${isSelected ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : ''}
-                      ${!isSelected && !past && avail !== 'full' ? 'hover:bg-orange-50 hover:text-orange-600' : ''}
+                      ${!isSelected && !past && avail === 'available' ? 'hover:bg-orange-50 hover:text-orange-600' : ''}
                       ${!isSelected && dow === 0 ? 'text-red-500' : ''}
                       ${!isSelected && dow === 6 ? 'text-blue-500' : ''}
-                      ${!isSelected && !past && avail !== 'full' && dow !== 0 && dow !== 6 ? 'text-gray-700' : ''}
+                      ${!isSelected && !past && avail === 'available' && dow !== 0 && dow !== 6 ? 'text-gray-700' : ''}
                     `}
                   >
                     {day}
@@ -142,7 +145,7 @@ export default function BookingCalendar({ bookings, onSelectDateTime, slotHours 
 
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-6 pt-5 border-t border-gray-100">
-              {(['available', 'full'] as const).map(s => (
+              {(['available', 'full', 'closed'] as const).map(s => (
                 <div key={s} className="flex items-center gap-1.5">
                   <span className={`w-2.5 h-2.5 rounded-full ${DAY_STATUS_INFO[s].dot}`} />
                   <span className="text-xs text-gray-500">{DAY_STATUS_INFO[s].label}</span>
@@ -170,10 +173,10 @@ export default function BookingCalendar({ bookings, onSelectDateTime, slotHours 
                   </p>
                   <span
                     className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      DAY_STATUS_INFO[dayStatus(bookings, selectedDate)].chip
+                      DAY_STATUS_INFO[dayStatus(bookings, selectedDate, closedDates)].chip
                     }`}
                   >
-                    {DAY_STATUS_INFO[dayStatus(bookings, selectedDate)].label}
+                    {DAY_STATUS_INFO[dayStatus(bookings, selectedDate, closedDates)].label}
                   </span>
                 </div>
               )}

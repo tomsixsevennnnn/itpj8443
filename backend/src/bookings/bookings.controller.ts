@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
+import type { Response } from 'express'
 import { Role } from '@prisma/client'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
@@ -59,6 +60,18 @@ export class BookingsController {
   ) {
     const user = await this.syncCustomer(jwtUser)
     return this.bookings.updatePaymentSlipAsCustomer(id, user.id, dto.paymentSlipUrl)
+  }
+
+  /**
+   * ไม่ผ่าน @Roles — ทั้ง owner และลูกค้าเจ้าของใบจองนั้นดูได้ ตรวจสิทธิ์รายใบจองเองใน service แทน
+   * ไฟล์สลิปไม่ใช่ static asset สาธารณะ (ดู main.ts) ต้องผ่าน endpoint นี้เท่านั้นถึงจะอ่านได้
+   */
+  @Get(':id/payment-slip')
+  async getSlip(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Res() res: Response) {
+    const isOwner = await this.users.isOwner(jwtUser.sub)
+    const requesterId = isOwner ? '' : (await this.syncCustomer(jwtUser)).id
+    const path = await this.bookings.getPaymentSlipPath(id, requesterId, isOwner)
+    res.sendFile(path)
   }
 
   private syncCustomer(jwtUser: Record<string, any>) {

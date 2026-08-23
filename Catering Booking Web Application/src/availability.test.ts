@@ -70,6 +70,15 @@ describe('dayStatus', () => {
     const bookings = [makeBooking({ date: '2026-01-15', status: 'cancelled' })]
     expect(dayStatus(bookings, '2026-01-15')).toBe('available')
   })
+
+  it('วันที่อยู่ใน closedDates = ปิด แม้จะยังไม่มีใบจอง', () => {
+    expect(dayStatus([], '2026-01-15', ['2026-01-15'])).toBe('closed')
+  })
+
+  it('วันหยุดร้านมาก่อนสถานะเต็ม — ปิดคือปิด ไม่สนว่ามีใบจองซ้อนอยู่หรือไม่', () => {
+    const bookings = [makeBooking({ date: '2026-01-15' })]
+    expect(dayStatus(bookings, '2026-01-15', ['2026-01-15'])).toBe('closed')
+  })
 })
 
 describe('toDateKey', () => {

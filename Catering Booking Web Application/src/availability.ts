@@ -72,15 +72,21 @@ export const slotUsage = (bookings: QueueBooking[], date: string): SlotUsage => 
   return usage
 }
 
-export type DayStatus = 'available' | 'full'
+export type DayStatus = 'available' | 'full' | 'closed'
 
-/** มีงานจองอยู่แล้วในวันนั้นหรือยัง — จองแล้ว 1 งาน (ช่วงใดก็ได้) ถือว่าเต็มทั้งวัน ไม่รับซ้อนช่วงอื่น */
-export const dayStatus = (bookings: QueueBooking[], date: string): DayStatus =>
-  bookings.some(b => b.date === date && OCCUPIES_QUEUE.includes(b.status)) ? 'full' : 'available'
+/**
+ * สถานะของวันนั้น — ปิด (owner กำหนดวันหยุดร้าน) มาก่อนเต็ม เพราะปิดคือร้านไม่รับงานเลย
+ * ส่วนเต็ม (มีงานจองอยู่แล้ว 1 งาน ช่วงใดก็ได้) ถือว่าเต็มทั้งวัน ไม่รับซ้อนช่วงอื่น
+ */
+export const dayStatus = (bookings: QueueBooking[], date: string, closedDates: string[] = []): DayStatus => {
+  if (closedDates.includes(date)) return 'closed'
+  return bookings.some(b => b.date === date && OCCUPIES_QUEUE.includes(b.status)) ? 'full' : 'available'
+}
 
 export const DAY_STATUS_INFO: Record<DayStatus, { label: string; dot: string; chip: string }> = {
   available: { label: 'ว่าง', dot: 'bg-green-400', chip: 'bg-green-100 text-green-700' },
   full: { label: 'เต็ม', dot: 'bg-red-400', chip: 'bg-red-100 text-red-600' },
+  closed: { label: 'ร้านปิด', dot: 'bg-gray-400', chip: 'bg-gray-200 text-gray-600' },
 }
 
 export const BOOKING_STATUS_INFO: Record<

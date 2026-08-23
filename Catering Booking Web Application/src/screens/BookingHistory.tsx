@@ -1,17 +1,20 @@
 import { useRef, useState } from 'react'
-import { Calendar, Check, Eye, FileText, Filter, Loader2, Printer, Search, Send, Upload, X } from 'lucide-react'
+import { Calendar, Check, Eye, FileText, Filter, Landmark, Loader2, Printer, QrCode, Search, Send, Upload, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
 import ImageLightbox from '../components/ImageLightbox'
+import PromptPayQr from '../components/PromptPayQr'
 import type { AppSettings, Booking } from '../types'
 import { DOC_LABEL, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
 import { resolveImageUrl } from '../api'
+import { useAuthedSlipUrl } from '../useAuthedSlipUrl'
 
 interface BookingHistoryProps {
   bookings: Booking[]
   onUpdateBooking: (id: string, patch: Partial<Booking>) => void
   settings: AppSettings
+  onFetchPaymentSlip: (bookingId: string) => Promise<string>
 }
 
 const STATUS_CONFIG = {
@@ -21,7 +24,7 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-export default function BookingHistory({ bookings, onUpdateBooking, settings }: BookingHistoryProps) {
+export default function BookingHistory({ bookings, onUpdateBooking, settings, onFetchPaymentSlip }: BookingHistoryProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -33,6 +36,11 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
   const [slipDraft, setSlipDraft] = useState<{ id: string; dataUrl: string } | null>(null)
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
   const slipInputRef = useRef<HTMLInputElement>(null)
+
+  const hasBankTransfer = !!settings.shopInfo.bankAccountNumber
+  const hasQr = !!(settings.shopInfo.promptPayId || settings.shopInfo.promptPayQr)
+  /** เลือกช่องทางที่มีให้ก่อน ถ้ามีทั้งคู่ให้ QR มาก่อน (สแกนแล้วยอดขึ้นเองสะดวกกว่า) */
+  const [payMethod, setPayMethod] = useState<'bank' | 'qr'>(hasQr ? 'qr' : 'bank')
 
   const allBookings = bookings
 
@@ -84,6 +92,7 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
   })
 
   const detailBooking = allBookings.find(b => b.id === detailId)
+  const slipObjectUrl = useAuthedSlipUrl(detailBooking?.id, !!detailBooking?.paymentSlip, onFetchPaymentSlip)
   const docBooking = docView ? allBookings.find(b => b.id === docView.id) : null
 
   return (
@@ -358,7 +367,7 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
               </div>
 
               {/* ช่องทางการโอนมัดจำ — โชว์ตรงจุดที่ลูกค้าจะมาแนบสลิป กันต้องสลับไปเปิดใบเสนอราคาแยกเพื่อดูเลขบัญชี */}
-              {(settings.shopInfo.bankAccountNumber || settings.shopInfo.promptPayQr) && (
+              {(hasBankTransfer || hasQr) && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-bold text-gray-800">ยอดมัดจำที่ต้องโอน</span>
@@ -366,8 +375,35 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
                       {bookingPricing(detailBooking, settings.depositRate).deposit.toLocaleString()} ฿
                     </span>
                   </div>
+
+                  {/* มีให้เลือกมากกว่า 1 ช่องทางถึงจะโชว์ตัวเลือก — ถ้ามีทางเดียวก็ไม่ต้องให้กดอะไร */}
+                  {hasBankTransfer && hasQr && (
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setPayMethod('qr')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                          payMethod === 'qr' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 border border-gray-200'
+                        }`}
+                      >
+                        <QrCode size={13} />
+                        สแกน QR พร้อมเพย์
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPayMethod('bank')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                          payMethod === 'bank' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 border border-gray-200'
+                        }`}
+                      >
+                        <Landmark size={13} />
+                        โอนเข้าบัญชีธนาคาร
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center gap-4">
-                    {settings.shopInfo.bankAccountNumber && (
+                    {(payMethod === 'bank' || !hasQr) && hasBankTransfer && (
                       <div className="flex-1 min-w-[180px] space-y-1">
                         {settings.shopInfo.bankName && (
                           <p className="text-sm font-semibold text-gray-700">{settings.shopInfo.bankName}</p>
@@ -380,12 +416,23 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
                         )}
                       </div>
                     )}
-                    {settings.shopInfo.promptPayQr && (
-                      <img
-                        src={resolveImageUrl(settings.shopInfo.promptPayQr)}
-                        alt="QR พร้อมเพย์"
-                        className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
-                      />
+                    {(payMethod === 'qr' || !hasBankTransfer) && hasQr && (
+                      settings.shopInfo.promptPayId ? (
+                        <div className="flex-shrink-0 text-center">
+                          <PromptPayQr
+                            promptPayId={settings.shopInfo.promptPayId}
+                            amount={bookingPricing(detailBooking, settings.depositRate).deposit}
+                            className="w-32 h-32 rounded-lg border border-gray-200 bg-white"
+                          />
+                          <p className="text-[10px] text-gray-400 mt-1">สแกนแล้วยอดขึ้นอัตโนมัติ</p>
+                        </div>
+                      ) : (
+                        <img
+                          src={resolveImageUrl(settings.shopInfo.promptPayQr)}
+                          alt="QR พร้อมเพย์"
+                          className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
+                        />
+                      )
                     )}
                   </div>
                 </div>
@@ -430,11 +477,16 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
                       </button>
                     </div>
                   </div>
-                ) : detailBooking.paymentSlip ? (
+                ) : detailBooking.paymentSlip && !slipObjectUrl ? (
+                  <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
+                    <Loader2 size={16} className="animate-spin" />
+                    กำลังโหลดสลิป...
+                  </div>
+                ) : detailBooking.paymentSlip && slipObjectUrl ? (
                   <div className="space-y-2">
-                    <button type="button" onClick={() => setSlipZoom(resolveImageUrl(detailBooking.paymentSlip))} className="block w-full">
+                    <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
                       <img
-                        src={resolveImageUrl(detailBooking.paymentSlip)}
+                        src={slipObjectUrl}
                         alt="สลิปโอนเงิน"
                         className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
                       />

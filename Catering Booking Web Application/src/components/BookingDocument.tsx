@@ -1,5 +1,6 @@
 import type { Booking, ShopInfo } from '../types'
 import { resolveImageUrl } from '../api'
+import PromptPayQr from './PromptPayQr'
 import {
   DEFAULT_BOOKING_TERMS,
   DEFAULT_DEPOSIT_RATE,
@@ -211,7 +212,7 @@ export default function BookingDocument({
       </div>
 
       {/* ข้อมูลการโอนเงิน */}
-      {(shopInfo.bankAccountNumber || shopInfo.promptPayQr) && (
+      {(shopInfo.bankAccountNumber || shopInfo.promptPayQr || shopInfo.promptPayId) && (
         <div className="bg-gray-50 rounded-xl p-4 mb-5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">ช่องทางการโอนเงิน</p>
           <div className="flex flex-wrap items-center gap-4">
@@ -224,13 +225,20 @@ export default function BookingDocument({
                 {shopInfo.bankAccountName && <p className="text-sm text-gray-600">{shopInfo.bankAccountName}</p>}
               </div>
             )}
-            {shopInfo.promptPayQr && (
+            {/* ฝังยอดมัดจำใน QR เหมือนกันทั้งใบเสนอราคาและใบจอง — ยอดที่ต้องโอนคือมัดจำเสมอ (ส่วนที่เหลือจ่ายวันงานจริง) */}
+            {shopInfo.promptPayId ? (
+              <PromptPayQr
+                promptPayId={shopInfo.promptPayId}
+                amount={price.deposit}
+                className="w-28 h-28 rounded-lg border border-gray-200 bg-white flex-shrink-0"
+              />
+            ) : shopInfo.promptPayQr ? (
               <img
                 src={resolveImageUrl(shopInfo.promptPayQr)}
                 alt="QR พร้อมเพย์"
                 className="w-28 h-28 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
               />
-            )}
+            ) : null}
           </div>
         </div>
       )}

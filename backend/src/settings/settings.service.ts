@@ -40,6 +40,7 @@ const DEFAULT_SETTINGS = {
     'ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ',
   ],
   categoryOrder: ['snack', 'appetizer', 'soup', 'salad', 'main', 'fish', 'rice-noodle', 'hotpot', 'dessert'],
+  closedDates: [] as string[],
   shopLocationLat: 13.8196,
   shopLocationLng: 100.0603,
   fuelCostPerKm: 8,

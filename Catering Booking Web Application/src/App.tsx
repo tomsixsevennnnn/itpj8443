@@ -90,6 +90,7 @@ const initialSettings: AppSettings = {
   bookingTerms: DEFAULT_BOOKING_TERMS,
   categories: DEFAULT_CATEGORIES,
   categoryOrder: DEFAULT_CATEGORY_ORDER,
+  closedDates: [],
   shopLocation: DEFAULT_SHOP_LOCATION,
   fuelCostPerKm: DEFAULT_FUEL_COST_PER_KM,
   homeContent: DEFAULT_HOME_CONTENT,
@@ -188,6 +189,10 @@ export default function App() {
   /** อัปโหลดรูป (data URL) ไปเก็บเป็นไฟล์บน backend แล้วคืน path สั้นๆ — ใช้แทนการเก็บ data URL ดิบในฟิลด์ image/logo/qr/slip */
   const handleUploadImage = (kind: UploadImageKind, dataUrl: string) =>
     withToken().then(token => api.uploadImage(token, kind, dataUrl))
+
+  /** ดึงรูปสลิปโอนเงินมาเป็น object URL — ต้องแนบ token เพราะไม่ใช่ static asset สาธารณะ (ดู useAuthedSlipUrl.ts) */
+  const handleFetchPaymentSlip = (bookingId: string) =>
+    withToken().then(token => api.fetchPaymentSlip(token, bookingId))
 
   // poll ค่าตั้งค่าร้านทุก 20 วิหลัง login (หยุดพักตอนสลับแท็บ) — เจ้าของร้านแก้ชื่อร้าน/ค่าอื่นๆ
   // จากเครื่อง/แท็บอื่น หน้าที่เปิดค้างไว้จะเห็นการเปลี่ยนแปลงโดยไม่ต้องกด refresh เอง
@@ -507,10 +512,20 @@ export default function App() {
             <Dashboard bookings={bookings} menus={menus} settings={settings} />
           )}
           {effectiveScreen === 'owner-orders' && (
-            <Orders bookings={bookings} menus={menus} settings={settings} onUpdateBooking={handleUpdateBooking} />
+            <Orders
+              bookings={bookings}
+              menus={menus}
+              settings={settings}
+              onUpdateBooking={handleUpdateBooking}
+              onFetchPaymentSlip={handleFetchPaymentSlip}
+            />
           )}
           {effectiveScreen === 'owner-calendar' && (
-            <CalendarView bookings={bookings} onUpdateBooking={handleUpdateBooking} />
+            <CalendarView
+              bookings={bookings}
+              onUpdateBooking={handleUpdateBooking}
+              onFetchPaymentSlip={handleFetchPaymentSlip}
+            />
           )}
           {effectiveScreen === 'owner-packages' && (
             <Packages
@@ -581,7 +596,12 @@ export default function App() {
       )}
       {effectiveScreen === 'home' && <Home homeContent={settings.homeContent} />}
       {effectiveScreen === 'booking-calendar' && (
-        <BookingCalendar bookings={availability} onSelectDateTime={handleSelectDateTime} slotHours={settings.timeSlotHours} />
+        <BookingCalendar
+          bookings={availability}
+          onSelectDateTime={handleSelectDateTime}
+          slotHours={settings.timeSlotHours}
+          closedDates={settings.closedDates}
+        />
       )}
       {effectiveScreen === 'select-table' && (
         <SelectTable
@@ -637,7 +657,12 @@ export default function App() {
         />
       )}
       {effectiveScreen === 'history' && (
-        <BookingHistory bookings={bookings} onUpdateBooking={handleUpdateBooking} settings={settings} />
+        <BookingHistory
+          bookings={bookings}
+          onUpdateBooking={handleUpdateBooking}
+          settings={settings}
+          onFetchPaymentSlip={handleFetchPaymentSlip}
+        />
       )}
       {effectiveScreen === 'notifications' && <Notifications bookings={bookings} />}
     </NavProvider>

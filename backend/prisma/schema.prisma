@@ -162,8 +162,10 @@ model Settings {
   bankName              String @default("")
   bankAccountNumber     String @default("")
   bankAccountName       String @default("")
-  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) */
+  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ใช้เป็น fallback ถ้ายังไม่ได้กรอก promptPayId */
   promptPayQr           String @default("")
+  /** เลขพร้อมเพย์ (เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต) — มีแล้วระบบสร้าง QR แบบฝังยอดเงินให้อัตโนมัติต่อใบจอง แทนรูป QR คงที่ */
+  promptPayId           String @default("")
   /** 0–1 เช่น 0.5 = 50% */
   depositRate           Float
   deliveryFee           Int
@@ -197,6 +199,8 @@ model Settings {
   bookingTerms           String[] @default(["ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง", "แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน", "ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ"])
   /** ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง */
   categoryOrder         String[] @default(["snack", "appetizer", "soup", "salad", "main", "fish", "rice-noodle", "hotpot", "dessert"])
+  /** วันที่ร้านปิด ไม่รับจอง (เช่น วันหยุดนักขัตฤกษ์) รูปแบบ "YYYY-MM-DD" — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  closedDates           String[] @default([])
   /** พิกัดร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ (ค่าเริ่มต้น: องค์พระปฐมเจดีย์) */
   shopLocationLat        Float  @default(13.8196)
   shopLocationLng        Float  @default(100.0603)

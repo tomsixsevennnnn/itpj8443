@@ -204,8 +204,10 @@ export interface ShopInfo {
   bankName: string
   bankAccountNumber: string
   bankAccountName: string
-  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ว่างได้ถ้ายังไม่อัปโหลด */
+  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ใช้เป็น fallback ถ้ายังไม่ได้กรอก promptPayId */
   promptPayQr: string
+  /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ตที่ผูกกับพร้อมเพย์ — มีแล้วระบบสร้าง QR ฝังยอดเงินให้อัตโนมัติต่อใบจอง (ดู PromptPayQr.tsx) */
+  promptPayId: string
   /** โลโก้ร้าน เก็บเป็น data URL — ว่าง = ใช้ไอคอนเริ่มต้น (ChefHat) แทน */
   logo: string
   /** คำโปรยใต้ชื่อร้านในหน้า Login — เจ้าของร้านแก้ไขเองได้ */
@@ -253,6 +255,8 @@ export interface AppSettings {
   quotationTerms: string[]
   /** เงื่อนไขเพิ่มเติมท้ายใบจอง (นอกเหนือจากที่ระบบคำนวณให้อัตโนมัติ) — แสดงเป็นข้อๆ */
   bookingTerms: string[]
+  /** วันที่ร้านปิด ไม่รับจอง (เช่น วันหยุดนักขัตฤกษ์) รูปแบบ "YYYY-MM-DD" — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
+  closedDates: string[]
   /** ประเภทอาหารทั้งหมดที่ร้านนี้ใช้ — เจ้าของร้านเพิ่ม/ลบ/แก้ไขเองได้จากหน้า "ตั้งค่า" */
   categories: Category[]
   /** ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง */

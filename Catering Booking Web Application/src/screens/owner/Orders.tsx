@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { Check, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
+import { Check, Loader2, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
 import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
 import { docNumber } from '../../documents'
-import { resolveImageUrl } from '../../api'
+import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 
 const STATUS_CONFIG = {
   pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
@@ -20,9 +20,10 @@ interface OrdersProps {
   menus: MenuItem[]
   settings: AppSettings
   onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+  onFetchPaymentSlip: (bookingId: string) => Promise<string>
 }
 
-export default function Orders({ bookings, menus, settings, onUpdateBooking }: OrdersProps) {
+export default function Orders({ bookings, menus, settings, onUpdateBooking, onFetchPaymentSlip }: OrdersProps) {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [staffDraft, setStaffDraft] = useState<StaffPlan | null>(null)
@@ -32,6 +33,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
 
   // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
   const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
+  const slipObjectUrl = useAuthedSlipUrl(selected?.id, !!selected?.paymentSlip, onFetchPaymentSlip)
 
   const staffRatios = {
     tablesPerServer: settings.tablesPerServer,
@@ -411,11 +413,16 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
               {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">สลิปโอนเงินมัดจำ</p>
-                {selected.paymentSlip ? (
+                {selected.paymentSlip && !slipObjectUrl ? (
+                  <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
+                    <Loader2 size={16} className="animate-spin" />
+                    กำลังโหลดสลิป...
+                  </div>
+                ) : selected.paymentSlip && slipObjectUrl ? (
                   <div className="space-y-2">
-                    <button type="button" onClick={() => setSlipZoom(resolveImageUrl(selected.paymentSlip))} className="block w-full">
+                    <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
                       <img
-                        src={resolveImageUrl(selected.paymentSlip)}
+                        src={slipObjectUrl}
                         alt="สลิปโอนเงิน"
                         className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
                       />

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, MapPin, Navigation, Users, X } from 'lucide-react'
+import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Loader2, MapPin, Navigation, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Booking } from '../../types'
 import { docNumber } from '../../documents'
-import { resolveImageUrl } from '../../api'
+import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import {
   BASE_SLOTS,
   BOOKING_STATUS_INFO,
@@ -21,6 +21,7 @@ import {
 interface CalendarViewProps {
   bookings: Booking[]
   onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+  onFetchPaymentSlip: (bookingId: string) => Promise<string>
 }
 
 const MONTHS_TH = [
@@ -31,7 +32,7 @@ const DAYS_TH = ['อาทิตย์','จันทร์','อังคา�
 
 const SLOT_LABEL = Object.fromEntries(TIME_SLOTS.map(s => [s.id, s.label])) as Record<string, string>
 
-export default function CalendarView({ bookings, onUpdateBooking }: CalendarViewProps) {
+export default function CalendarView({ bookings, onUpdateBooking, onFetchPaymentSlip }: CalendarViewProps) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -41,6 +42,7 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
 
   const popup = popupId ? bookings.find(b => b.id === popupId) ?? null : null
+  const slipObjectUrl = useAuthedSlipUrl(popup?.id, !!popup?.paymentSlip, onFetchPaymentSlip)
   const dayEvents = dayPopupDate ? bookingsOn(bookings, dayPopupDate) : []
 
   /** กด Esc ปิด popup ที่เปิดอยู่ล่างขึ้นบน: ดูสลิป → รายละเอียดงาน → รายการวัน */
@@ -360,10 +362,16 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
               )}
 
               {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
-              {popup.paymentSlip && (
-                <button type="button" onClick={() => setSlipZoom(resolveImageUrl(popup.paymentSlip))} className="block w-full">
+              {popup.paymentSlip && !slipObjectUrl && (
+                <div className="w-full h-32 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
+                  <Loader2 size={16} className="animate-spin" />
+                  กำลังโหลดสลิป...
+                </div>
+              )}
+              {popup.paymentSlip && slipObjectUrl && (
+                <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
                   <img
-                    src={resolveImageUrl(popup.paymentSlip)}
+                    src={slipObjectUrl}
                     alt="สลิปโอนเงิน"
                     className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
                   />

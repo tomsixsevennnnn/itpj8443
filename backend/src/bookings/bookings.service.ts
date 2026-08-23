@@ -135,6 +135,9 @@ export class BookingsService {
     }
 
     const settings = await this.settingsService.get(true)
+    if (settings.closedDates.includes(dto.date)) {
+      throw new BadRequestException('วันที่เลือกร้านปิด ไม่รับจอง กรุณาเลือกวันอื่น')
+    }
     const { fee: deliveryFee } = await this.deliveryFeeFor(dto.tables, dto.locationDetail, settings)
     const pricePerTable = pkg.pricePerTable
     const totalPrice = pricePerTable * dto.tables + deliveryFee
@@ -220,6 +223,20 @@ export class BookingsService {
       await this.uploads.deleteManagedFile(booking.paymentSlipUrl)
     }
     return after
+  }
+
+  /**
+   * สลิปโอนเงินเป็นข้อมูลอ่อนไหว (บัญชี/ยอดโอนของลูกค้า) — ต้องไม่ใช่ static asset สาธารณะ
+   * ให้เห็นเฉพาะเจ้าของใบจองนั้นกับ owner ร้านเท่านั้น ดู bookings.controller.ts GET :id/payment-slip
+   */
+  async getPaymentSlipPath(id: string, requesterId: string, isOwner: boolean): Promise<string> {
+    const booking = await this.assertExists(id)
+    if (!isOwner && booking.customerId !== requesterId) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงไฟล์นี้')
+    if (!booking.paymentSlipUrl) throw new NotFoundException('ยังไม่มีสลิปโอนเงินสำหรับใบจองนี้')
+
+    const path = this.uploads.resolveManagedFilePath(booking.paymentSlipUrl)
+    if (!path) throw new NotFoundException('ไม่พบไฟล์สลิปโอนเงิน')
+    return path
   }
 
   private async assertExists(id: string) {

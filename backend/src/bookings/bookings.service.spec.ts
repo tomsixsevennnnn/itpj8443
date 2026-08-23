@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { BookingsService } from './bookings.service'
 
 const SETTINGS = {
@@ -9,6 +9,7 @@ const SETTINGS = {
   homeProvince: 'นครปฐม',
   shopLocationLat: 13.8196,
   shopLocationLng: 100.0603,
+  closedDates: [] as string[],
 }
 
 const PACKAGE = {
@@ -62,6 +63,14 @@ describe('BookingsService.create', () => {
     await expect(
       service.create('c1', 'ลูกค้า', '0800000000', baseDto({ menus: ['เมนูปลอม'] })),
     ).rejects.toThrow(BadRequestException)
+  })
+
+  it('วันที่เลือกอยู่ใน closedDates — throw BadRequestException', async () => {
+    const { service, prisma, settingsService } = makeService()
+    prisma.package.findUnique.mockResolvedValue(PACKAGE)
+    settingsService.get.mockResolvedValue({ ...SETTINGS, closedDates: ['2026-12-01'] })
+
+    await expect(service.create('c1', 'ลูกค้า', '0800000000', baseDto())).rejects.toThrow(BadRequestException)
   })
 
   it('zone = home — ไม่คิดค่าขนส่ง ราคารวมมาจากราคาแพ็กเกจใน DB เท่านั้น ไม่เชื่อ dto', async () => {
@@ -203,5 +212,37 @@ describe('BookingsService.updatePaymentSlipAsCustomer', () => {
     await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
 
     expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/slips/old.jpg')
+  })
+})
+
+describe('BookingsService.getPaymentSlipPath', () => {
+  it('ไม่ใช่เจ้าของใบจองและไม่ใช่ owner ร้าน — throw ForbiddenException', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'owner-of-booking', paymentSlipUrl: '/uploads/slips/a.jpg' })
+
+    await expect(service.getPaymentSlipPath('b1', 'someone-else', false)).rejects.toThrow(ForbiddenException)
+  })
+
+  it('ยังไม่มีสลิปแนบมา — throw NotFoundException', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', paymentSlipUrl: null })
+
+    await expect(service.getPaymentSlipPath('b1', 'c1', false)).rejects.toThrow(NotFoundException)
+  })
+
+  it('เจ้าของใบจองเข้าถึงสลิปของตัวเองได้ — คืน absolute path จาก UploadsService', async () => {
+    const { service, prisma, uploads } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', paymentSlipUrl: '/uploads/slips/a.jpg' })
+    uploads.resolveManagedFilePath = jest.fn().mockReturnValue('/abs/uploads/slips/a.jpg')
+
+    await expect(service.getPaymentSlipPath('b1', 'c1', false)).resolves.toBe('/abs/uploads/slips/a.jpg')
+  })
+
+  it('owner ร้านเข้าถึงสลิปของใบจองใครก็ได้', async () => {
+    const { service, prisma, uploads } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'someone-else', paymentSlipUrl: '/uploads/slips/a.jpg' })
+    uploads.resolveManagedFilePath = jest.fn().mockReturnValue('/abs/uploads/slips/a.jpg')
+
+    await expect(service.getPaymentSlipPath('b1', '', true)).resolves.toBe('/abs/uploads/slips/a.jpg')
   })
 })

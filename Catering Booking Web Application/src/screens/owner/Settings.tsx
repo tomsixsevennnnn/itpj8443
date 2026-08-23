@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   Building2,
+  CalendarOff,
   Check,
   Clock,
   FileText,
@@ -26,6 +27,7 @@ import {
 import type { AppSettings, Category } from '../../types'
 import { orderedCategories } from '../../data'
 import LocationMap from '../../components/LocationMap'
+import PromptPayQr from '../../components/PromptPayQr'
 import { pickImageAsDataUrl } from '../../imageUpload'
 import { resolveImageUrl, type UploadImageKind } from '../../api'
 import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
@@ -79,6 +81,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
   const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [newMetroProvince, setNewMetroProvince] = useState('')
+  const [newClosedDate, setNewClosedDate] = useState('')
   const [newQuotationTerm, setNewQuotationTerm] = useState('')
   const [newBookingTerm, setNewBookingTerm] = useState('')
   const [newCategoryLabel, setNewCategoryLabel] = useState('')
@@ -176,6 +179,22 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
 
   const removeMetroProvince = (name: string) => {
     setForm(f => ({ ...f, metroProvinces: f.metroProvinces.filter(p => p !== name) }))
+    setSavedAt(null)
+  }
+
+  /** เพิ่มวันหยุดร้าน (ปิด ไม่รับจอง) — เรียงวันที่จากใกล้ไปไกลให้ดูง่าย */
+  const addClosedDate = () => {
+    if (!newClosedDate || form.closedDates.includes(newClosedDate)) {
+      setNewClosedDate('')
+      return
+    }
+    setForm(f => ({ ...f, closedDates: [...f.closedDates, newClosedDate].sort() }))
+    setNewClosedDate('')
+    setSavedAt(null)
+  }
+
+  const removeClosedDate = (date: string) => {
+    setForm(f => ({ ...f, closedDates: f.closedDates.filter(d => d !== date) }))
     setSavedAt(null)
   }
 
@@ -498,8 +517,31 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
           ))}
         </div>
 
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">QR พร้อมเพย์</label>
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">เลขพร้อมเพย์ (เบอร์โทร / เลขบัตร ปชช. / เลขวอลเล็ต)</label>
+          <p className="text-xs text-gray-400 mb-2">
+            กรอกแล้วระบบจะสร้าง QR ใหม่ให้อัตโนมัติทุกใบจอง พร้อมฝังยอดมัดจำที่ถูกต้องไว้ในตัว QR เลย
+            (ลูกค้าสแกนแล้วยอดขึ้นเอง ไม่ต้องพิมพ์) ไม่ต้องอัปโหลดรูป QR ด้านล่างอีก
+          </p>
+          <input
+            type="text"
+            value={form.shopInfo.promptPayId}
+            placeholder="เช่น 0812345678"
+            onChange={e => setShopField('promptPayId', e.target.value)}
+            className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+          />
+          {form.shopInfo.promptPayId && (
+            <div className="mt-3">
+              <PromptPayQr promptPayId={form.shopInfo.promptPayId} amount={100} className="w-28 h-28 rounded-xl border border-gray-200 bg-white" />
+              <p className="text-[11px] text-gray-400 mt-1">ตัวอย่าง QR (ยอด 100 บาท) — ของจริงจะฝังยอดมัดจำตามใบจองแต่ละใบ</p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            QR พร้อมเพย์ (สำรอง — ใช้ถ้ายังไม่ได้กรอกเลขพร้อมเพย์ด้านบน)
+          </label>
           <input
             ref={qrInputRef}
             type="file"
@@ -812,6 +854,57 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* วันหยุดร้าน */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <CalendarOff size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">วันหยุดร้าน</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          วันที่ร้านปิด ไม่รับจอง เช่น วันหยุดนักขัตฤกษ์ — ลูกค้าจะเลือกวันเหล่านี้ในปฏิทินไม่ได้เลย
+        </p>
+        <div className="flex gap-2 mb-3">
+          <input
+            type="date"
+            value={newClosedDate}
+            onChange={e => setNewClosedDate(e.target.value)}
+            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          <button
+            type="button"
+            onClick={addClosedDate}
+            disabled={!newClosedDate}
+            className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          >
+            <Plus size={14} />
+            เพิ่ม
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {form.closedDates.length === 0 && (
+            <p className="text-xs text-gray-400">ยังไม่มีวันหยุด — ร้านรับจองได้ทุกวันที่ยังว่าง</p>
+          )}
+          {form.closedDates.map(date => (
+            <span
+              key={date}
+              className="flex items-center gap-1.5 bg-orange-50 text-orange-700 text-xs font-medium pl-3 pr-1.5 py-1.5 rounded-full"
+            >
+              {new Date(date + 'T00:00:00').toLocaleDateString('th-TH', {
+                weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+              })}
+              <button
+                type="button"
+                onClick={() => removeClosedDate(date)}
+                className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-orange-200 transition-colors"
+                title={`ลบวันหยุดนี้`}
+              >
+                <X size={11} />
+              </button>
+            </span>
           ))}
         </div>
       </div>

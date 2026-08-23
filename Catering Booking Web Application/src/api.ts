@@ -82,6 +82,7 @@ interface BackendSettings {
   bankAccountNumber: string
   bankAccountName: string
   promptPayQr: string
+  promptPayId: string
   shopLogo: string
   shopLoginTagline: string
   depositRate: number
@@ -105,6 +106,7 @@ interface BackendSettings {
   bookingTerms: string[]
   categories: Category[] | null
   categoryOrder: string[]
+  closedDates: string[]
   shopLocationLat: number
   shopLocationLng: number
   fuelCostPerKm: number
@@ -123,6 +125,7 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
     bankAccountNumber: s.bankAccountNumber,
     bankAccountName: s.bankAccountName,
     promptPayQr: s.promptPayQr,
+    promptPayId: s.promptPayId ?? '',
     logo: s.shopLogo ?? '',
     loginTagline: s.shopLoginTagline ?? DEFAULT_SHOP_INFO.loginTagline,
   },
@@ -151,6 +154,7 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   // เผื่อ backend เก่า/ยังไม่ migrate ที่ส่ง settings มาโดยไม่มีฟิลด์นี้ — กันหน้าแพ็กเกจ/เมนูพังทั้งหน้า
   categories: s.categories ?? DEFAULT_CATEGORIES,
   categoryOrder: s.categoryOrder ?? DEFAULT_CATEGORY_ORDER,
+  closedDates: s.closedDates ?? [],
   shopLocation: { lat: s.shopLocationLat, lng: s.shopLocationLng },
   fuelCostPerKm: s.fuelCostPerKm,
   // ยังไม่เคย customize (หรือ backend เก่ายังไม่มีคอลัมน์นี้) — ใช้เนื้อหาเริ่มต้นเดิมของหน้าแรก
@@ -170,6 +174,7 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (si?.bankAccountNumber !== undefined) out.bankAccountNumber = si.bankAccountNumber
   if (si?.bankAccountName !== undefined) out.bankAccountName = si.bankAccountName
   if (si?.promptPayQr !== undefined) out.promptPayQr = si.promptPayQr
+  if (si?.promptPayId !== undefined) out.promptPayId = si.promptPayId
   if (si?.logo !== undefined) out.shopLogo = si.logo
   if (si?.loginTagline !== undefined) out.shopLoginTagline = si.loginTagline
   if (patch.depositRate !== undefined) out.depositRate = patch.depositRate
@@ -193,6 +198,7 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (patch.bookingTerms !== undefined) out.bookingTerms = patch.bookingTerms
   if (patch.categories !== undefined) out.categories = patch.categories
   if (patch.categoryOrder !== undefined) out.categoryOrder = patch.categoryOrder
+  if (patch.closedDates !== undefined) out.closedDates = patch.closedDates
   if (patch.shopLocation?.lat !== undefined) out.shopLocationLat = patch.shopLocation.lat
   if (patch.shopLocation?.lng !== undefined) out.shopLocationLng = patch.shopLocation.lng
   if (patch.fuelCostPerKm !== undefined) out.fuelCostPerKm = patch.fuelCostPerKm
@@ -384,6 +390,7 @@ export const api = {
       bankAccountNumber: '',
       bankAccountName: '',
       promptPayQr: '',
+      promptPayId: '',
     }
   },
 
@@ -403,4 +410,18 @@ export const api = {
   /** ประวัติการลบเมนู/แพ็กเกจ แก้ไข booking/settings และเลื่อน/ถอดสิทธิ์ owner — owner เท่านั้น ดูหน้า AuditLog.tsx */
   auditLog: (token: string, page: number, pageSize: number) =>
     request<AuditLogPage>(token, `/audit-log?page=${page}&pageSize=${pageSize}`),
+
+  /**
+   * สลิปโอนเงินไม่ใช่ static asset สาธารณะ (ข้อมูลอ่อนไหวของลูกค้า) ต้องแนบ token ถึงจะอ่านได้ —
+   * ใช้ <img src> ตรงๆ ไม่ได้เหมือนรูปอื่น ต้อง fetch เป็น blob แล้วสร้าง object URL แทน
+   * ผู้เรียกต้อง URL.revokeObjectURL(url) เองตอนเลิกใช้ กัน memory leak (ดู useAuthedSlipUrl.ts)
+   */
+  fetchPaymentSlip: async (token: string, bookingId: string): Promise<string> => {
+    const res = await fetch(`${API_BASE}/bookings/${bookingId}/payment-slip`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error(`API GET /bookings/${bookingId}/payment-slip -> ${res.status}`)
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
+  },
 }
