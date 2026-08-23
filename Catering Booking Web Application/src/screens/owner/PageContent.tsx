@@ -13,14 +13,26 @@ import {
 import type { AppSettings } from '../../types'
 import type { HomeStep } from '../../homeContent'
 import { pickImageAsDataUrl } from '../../imageUpload'
+import { resolveImageUrl, type UploadImageKind } from '../../api'
 
 interface PageContentProps {
   settings: AppSettings
   onUpdateSettings: (patch: Partial<AppSettings>) => void
+  onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
 }
 
-export default function PageContent({ settings, onUpdateSettings }: PageContentProps) {
+type PageContentTab = 'hero' | 'steps' | 'gallery' | 'cta'
+
+const PAGE_CONTENT_TABS: { id: PageContentTab; label: string; icon: typeof Image }[] = [
+  { id: 'hero', label: 'Hero & จุดเด่น', icon: Image },
+  { id: 'steps', label: 'ขั้นตอนการจอง', icon: ListChecks },
+  { id: 'gallery', label: 'แกลเลอรี', icon: ImagePlus },
+  { id: 'cta', label: 'CTA ท้ายหน้า', icon: Megaphone },
+]
+
+export default function PageContent({ settings, onUpdateSettings, onUploadImage }: PageContentProps) {
   const [form, setForm] = useState<AppSettings>(settings)
+  const [activeTab, setActiveTab] = useState<PageContentTab>('hero')
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [heroUploading, setHeroUploading] = useState(false)
   const [heroError, setHeroError] = useState<string | null>(null)
@@ -76,7 +88,8 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
     setHeroError(null)
     try {
       const dataUrl = await pickImageAsDataUrl(file)
-      setHomeField('heroImage', dataUrl)
+      const url = await onUploadImage('content-image', dataUrl)
+      setHomeField('heroImage', url)
     } catch (err) {
       setHeroError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
     } finally {
@@ -92,7 +105,8 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
     setGalleryError(null)
     try {
       const dataUrl = await pickImageAsDataUrl(file)
-      addGalleryImage(dataUrl)
+      const url = await onUploadImage('content-image', dataUrl)
+      addGalleryImage(url)
     } catch (err) {
       setGalleryError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
     } finally {
@@ -108,6 +122,27 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
 
   return (
     <div className="max-w-2xl space-y-5">
+      {/* แท็บย่อย */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+        {PAGE_CONTENT_TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-1.5 whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0 ${
+              activeTab === id
+                ? 'bg-orange-500 text-white shadow-sm'
+                : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50'
+            }`}
+          >
+            <Icon size={15} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'hero' && (
+        <>
       {/* หน้าแรก — Hero */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -126,7 +161,7 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">รูปพื้นหลัง</label>
           <div className="relative aspect-[16/7] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
-            <img src={form.homeContent.heroImage} alt="ตัวอย่างรูป Hero" className="w-full h-full object-cover" />
+            <img src={resolveImageUrl(form.homeContent.heroImage)} alt="ตัวอย่างรูป Hero" className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={() => heroInputRef.current?.click()}
@@ -201,7 +236,11 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
           ))}
         </div>
       </div>
+        </>
+      )}
 
+      {activeTab === 'steps' && (
+        <>
       {/* หน้าแรก — ขั้นตอนการจอง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -244,7 +283,11 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
           ))}
         </div>
       </div>
+        </>
+      )}
 
+      {activeTab === 'gallery' && (
+        <>
       {/* หน้าแรก — แกลเลอรีผลงาน */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -264,7 +307,7 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
           {form.homeContent.gallery.map((url, i) => (
             <div key={i} className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100 border border-gray-200 group">
-              <img src={url} alt={`ผลงาน ${i + 1}`} className="w-full h-full object-cover" />
+              <img src={resolveImageUrl(url)} alt={`ผลงาน ${i + 1}`} className="w-full h-full object-cover" />
               <button
                 type="button"
                 onClick={() => removeGalleryImage(i)}
@@ -294,7 +337,11 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
         </div>
         {galleryError && <p className="text-xs text-red-500">{galleryError}</p>}
       </div>
+        </>
+      )}
 
+      {activeTab === 'cta' && (
+        <>
       {/* หน้าแรก — CTA ท้ายหน้า */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -321,6 +368,8 @@ export default function PageContent({ settings, onUpdateSettings }: PageContentP
           />
         </div>
       </div>
+        </>
+      )}
 
       {/* Save */}
       <div className="flex items-center gap-3">

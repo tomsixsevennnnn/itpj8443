@@ -177,7 +177,7 @@ export default function Cart({
                           <p className="text-[10px] text-gray-400 leading-none mb-1">
                             {course ? `ข้อ ${course.no} · ${course.title}` : 'เมนูเพิ่มเติม'}
                             {course?.choose === 0 && (
-                              <span className="text-blue-500 font-medium"> · แถม</span>
+                              <span className="text-blue-500 font-medium"> · รวมในแพ็กเกจ</span>
                             )}
                           </p>
                           <p className="text-xs font-semibold text-gray-800 truncate">{menu.name}</p>

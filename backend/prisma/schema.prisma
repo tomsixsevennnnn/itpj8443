@@ -125,6 +125,26 @@ model BookingCounter {
   lastNo Int @default(0)
 }
 
+/**
+ * ประวัติการแก้ไข/ลบข้อมูลสำคัญโดย owner — ลบเมนู/แพ็กเกจ และแก้ไข booking/settings
+ * เก็บ before/after ไว้ตรวจสอบย้อนหลังได้ว่าใครแก้อะไรเมื่อไหร่ (ดู audit.service.ts)
+ */
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String
+  actorRole   Role
+  /** เช่น "menu.delete", "package.delete", "booking.update" */
+  action      String
+  entityType  String
+  entityId    String
+  before      Json?
+  after       Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
 /** ตั้งใจให้มีแถวเดียวเสมอ (id = 1) เก็บค่าตั้งค่าร้าน */
 model Settings {
   id                    Int    @id @default(1)

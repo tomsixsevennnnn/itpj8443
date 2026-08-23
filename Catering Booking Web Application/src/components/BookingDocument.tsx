@@ -1,4 +1,5 @@
 import type { Booking, ShopInfo } from '../types'
+import { resolveImageUrl } from '../api'
 import {
   DEFAULT_BOOKING_TERMS,
   DEFAULT_DEPOSIT_RATE,
@@ -225,7 +226,7 @@ export default function BookingDocument({
             )}
             {shopInfo.promptPayQr && (
               <img
-                src={shopInfo.promptPayQr}
+                src={resolveImageUrl(shopInfo.promptPayQr)}
                 alt="QR พร้อมเพย์"
                 className="w-28 h-28 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
               />

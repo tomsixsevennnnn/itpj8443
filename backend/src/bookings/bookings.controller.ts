@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import { Role } from '@prisma/client'
-import { AUTH0_ROLE_CLAIM } from '../auth/auth.constants'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
@@ -24,7 +23,7 @@ export class BookingsController {
   /** owner เห็นทุกใบจอง, customer เห็นเฉพาะของตัวเอง — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */
   @Get()
   async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
-    if (jwtUser[AUTH0_ROLE_CLAIM] === 'owner') return this.bookings.findAllForOwner(query.page, query.limit)
+    if (await this.users.isOwner(jwtUser.sub)) return this.bookings.findAllForOwner(query.page, query.limit)
 
     const user = await this.syncCustomer(jwtUser)
     return this.bookings.findAllForCustomer(user.id, query.page, query.limit)

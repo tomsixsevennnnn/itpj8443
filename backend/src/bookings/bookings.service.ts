@@ -1,10 +1,13 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { BookingStatus, Prisma } from '@prisma/client'
+import { AuditService } from '../audit/audit.service'
 import { Paginated, pageArgsFor } from '../common/pagination'
 import { PrismaService } from '../prisma/prisma.service'
 import { SettingsService } from '../settings/settings.service'
+import { UploadsService } from '../uploads/uploads.service'
 import { CreateBookingDto } from './dto/create-booking.dto'
 import { UpdateBookingDto } from './dto/update-booking.dto'
+import { outsideDeliveryFeeFor, routeDistanceKm, zoneFor, ServiceZone } from './geo.util'
 
 /** สถานะที่ยังกินคิวอยู่ — ต้องตรงกับ OCCUPIES_QUEUE ใน frontend src/availability.ts */
 const OCCUPIES_QUEUE: BookingStatus[] = [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
@@ -15,17 +18,13 @@ const MAX_SERIALIZATION_RETRIES = 3
 const isSerializationConflict = (err: unknown): boolean =>
   err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034'
 
-/** ต้องตรงกับ ServiceZone ใน frontend src/types.ts / src/geo.ts */
-type ServiceZone = 'home' | 'metro' | 'outside'
-const VALID_ZONES: ServiceZone[] = ['home', 'metro', 'outside']
-/** กันระยะทางที่ผิดปกติเกินจริงจาก client (ไทยกว้างสุดไม่เกินราว 1,100 กม. เผื่อไว้ที่ 1,500) */
-const MAX_PLAUSIBLE_DISTANCE_KM = 1500
-
 @Injectable()
 export class BookingsService {
   constructor(
     private prisma: PrismaService,
     private settingsService: SettingsService,
+    private audit: AuditService,
+    private uploads: UploadsService,
   ) {}
 
   /** เจ้าของร้านต้องเห็นข้อมูลบัญชีลูกค้าปัจจุบัน (ชื่อ/นามสกุล/อีเมล/LINE ID) ไม่ใช่แค่ snapshot ตอนจอง — join จาก User ที่ผูกไว้ */
@@ -61,37 +60,62 @@ export class BookingsService {
     })
   }
 
-  private resolveZone(locationDetail: unknown): ServiceZone {
-    const zone = (locationDetail as { zone?: unknown } | null)?.zone
-    return typeof zone === 'string' && (VALID_ZONES as string[]).includes(zone) ? (zone as ServiceZone) : 'outside'
-  }
-
-  private resolveDistanceKm(locationDetail: unknown): number | null {
-    const raw = (locationDetail as { distanceKm?: unknown } | null)?.distanceKm
-    if (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0) return null
-    return Math.min(raw, MAX_PLAUSIBLE_DISTANCE_KM)
-  }
-
-  /** ต้องตรงกับสูตร deliveryFeeFor/outsideDeliveryFeeFor ใน frontend src/geo.ts เป๊ะ */
-  private computeDeliveryFee(
+  /**
+   * โซน/ค่าขนส่งของสถานที่งาน คำนวณเองฝั่ง backend ทั้งหมด ไม่เชื่อ zone/distanceKm ที่ client ส่งมาใน
+   * locationDetail เลย (ก่อนหน้านี้เชื่อ zone จาก client + เพดานระยะทางกันแค่ค่าที่ผิดปกติชัดๆ ยังปลอม zone
+   * เพื่อลดค่าขนส่งได้อยู่บ้าง) — หา zone จากข้อความ province/address เอง แล้วเรียก OSRM เองสำหรับ zone
+   * นอกพื้นที่ แทนการอ่านตัวเลขที่ client คำนวณมา
+   */
+  private async deliveryFeeFor(
     tables: number,
-    zone: ServiceZone,
-    distanceKm: number | null,
-    settings: { deliveryFee: number; freeDeliveryMinTables: number; fuelCostPerKm: number },
-  ): number {
-    if (zone === 'metro') return tables < settings.freeDeliveryMinTables ? settings.deliveryFee : 0
-    if (zone === 'outside' && distanceKm != null) return Math.round(distanceKm * 2 * settings.fuelCostPerKm)
-    return 0
+    locationDetail: unknown,
+    settings: {
+      deliveryFee: number
+      freeDeliveryMinTables: number
+      fuelCostPerKm: number
+      metroProvinces: string[]
+      homeProvince: string
+      shopLocationLat: number
+      shopLocationLng: number
+    },
+  ): Promise<{ fee: number; zone: ServiceZone; distanceKm?: number }> {
+    const loc = locationDetail as { province?: unknown; address?: unknown; lat?: unknown; lng?: unknown } | null
+    if (!loc) return { fee: 0, zone: 'home' }
+
+    const province = typeof loc.province === 'string' ? loc.province : ''
+    const address = typeof loc.address === 'string' ? loc.address : ''
+    const zone = zoneFor(province, address, settings.metroProvinces, settings.homeProvince)
+    if (zone === 'home') return { fee: 0, zone }
+    if (zone === 'metro') {
+      const fee = tables < settings.freeDeliveryMinTables ? settings.deliveryFee : 0
+      return { fee, zone }
+    }
+
+    // zone === 'outside' — ต้อง verify ระยะทางจริงเอง ห้าม fallback ไปเชื่อ distanceKm จาก client
+    const lat = typeof loc.lat === 'number' ? loc.lat : NaN
+    const lng = typeof loc.lng === 'number' ? loc.lng : NaN
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new BadRequestException('ไม่พบพิกัดสถานที่จัดงาน กรุณาเลือกตำแหน่งบนแผนที่ใหม่')
+    }
+
+    let distanceKm: number
+    try {
+      distanceKm = await routeDistanceKm(
+        { lat: settings.shopLocationLat, lng: settings.shopLocationLng },
+        { lat, lng },
+      )
+    } catch {
+      throw new ServiceUnavailableException('คำนวณระยะทางไปสถานที่จัดงานไม่สำเร็จ กรุณาลองจองใหม่อีกครั้ง')
+    }
+
+    return { fee: outsideDeliveryFeeFor(distanceKm, settings.fuelCostPerKm), zone, distanceKm }
   }
 
   /**
    * ราคา (totalPrice/pricePerTable/deliveryFee) และชื่อแพ็กเกจ "คำนวณที่ backend เท่านั้น" — เดิมรับตรงจาก
    * client มา ซึ่งแก้ request body ผ่าน DevTools ปลอมราคาเป็นเท่าไหร่ก็ได้ ตอนนี้ดึงราคาแพ็กเกจจริงจาก DB
-   * ด้วย packageId แล้วคิดค่าขนส่งด้วยสูตรเดียวกับ frontend เอง ไม่เชื่อตัวเลขใดๆ ที่ client ส่งมา
-   *
-   * หมายเหตุ: zone/distanceKm ของสถานที่ยังอิงจากค่าที่ client geocode มา (ยังไม่ verify พิกัดซ้ำฝั่ง
-   * server) — เพดานระยะทางกันค่าที่ผิดปกติชัดเจน แต่การปลอม zone เพื่อลดค่าขนส่งยังทำได้อยู่บ้าง (ผลกระทบ
-   * ทางการเงินน้อยกว่าการปลอมราคาอาหารทั้งก้อนที่เคยเกิดขึ้นมาก) — ควร verify เต็มรูปแบบเป็นงานต่อยอด
+   * ด้วย packageId แล้วคิดค่าขนส่งจาก zone/ระยะทางที่คำนวณเองฝั่ง backend (ดู deliveryFeeFor) ไม่เชื่อตัวเลข
+   * ใดๆ ที่ client ส่งมาเลย ทั้งราคาอาหารและค่าขนส่ง
    *
    * รัน isolation ระดับ Serializable — Postgres จะยกเลิก transaction ที่ชนกันเองถ้าตรวจพบว่ารันพร้อมกัน
    * แล้วผลต่างจากรันทีละอัน (เช่น 2 คนเช็ค "วันนี้ว่าง" พร้อมกันเป๊ะๆ ก่อนอีกฝ่าย commit) แทนที่จะปล่อยให้จองซ้อนหลุดผ่านไปได้
@@ -111,9 +135,7 @@ export class BookingsService {
     }
 
     const settings = await this.settingsService.get(true)
-    const zone = this.resolveZone(dto.locationDetail)
-    const distanceKm = this.resolveDistanceKm(dto.locationDetail)
-    const deliveryFee = this.computeDeliveryFee(dto.tables, zone, distanceKm, settings)
+    const { fee: deliveryFee } = await this.deliveryFeeFor(dto.tables, dto.locationDetail, settings)
     const pricePerTable = pkg.pricePerTable
     const totalPrice = pricePerTable * dto.tables + deliveryFee
 
@@ -170,8 +192,8 @@ export class BookingsService {
   }
 
   async updateAsOwner(id: string, dto: UpdateBookingDto, editorAuth0Sub: string) {
-    await this.assertExists(id)
-    return this.prisma.booking.update({
+    const before = await this.assertExists(id)
+    const after = await this.prisma.booking.update({
       where: { id },
       data: {
         status: dto.status,
@@ -182,15 +204,22 @@ export class BookingsService {
         ...(dto.staffActual ? { staffSavedAt: new Date() } : {}),
       },
     })
+    await this.audit.log(editorAuth0Sub, 'booking.update', 'Booking', id, before, after)
+    return after
   }
 
   async updatePaymentSlipAsCustomer(id: string, customerId: string, paymentSlipUrl: string) {
     const booking = await this.assertExists(id)
     if (booking.customerId !== customerId) throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขใบจองนี้')
-    return this.prisma.booking.update({
+    const after = await this.prisma.booking.update({
       where: { id },
       data: { paymentSlipUrl, paymentSlipUploadedAt: new Date() },
     })
+    // แนบสลิปใหม่ทับของเดิม (เช่นโอนผิดแล้วอัปโหลดใหม่) — ลบไฟล์เก่าทิ้งกัน orphan สะสมบน disk
+    if (booking.paymentSlipUrl && booking.paymentSlipUrl !== after.paymentSlipUrl) {
+      await this.uploads.deleteManagedFile(booking.paymentSlipUrl)
+    }
+    return after
   }
 
   private async assertExists(id: string) {

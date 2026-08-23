@@ -20,6 +20,8 @@ export type Screen =
   | 'owner-reports'
   | 'owner-settings'
   | 'owner-page-content'
+  | 'owner-users'
+  | 'owner-audit-log'
 
 export interface Category {
   id: string

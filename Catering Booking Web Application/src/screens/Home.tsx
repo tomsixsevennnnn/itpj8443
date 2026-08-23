@@ -2,6 +2,7 @@ import { ArrowRight, CheckCircle, ChevronRight, Clock, MapPin, Users } from 'luc
 import Navbar from '../components/Navbar'
 import { useNav } from '../NavContext'
 import type { HomeContent } from '../homeContent'
+import { resolveImageUrl } from '../api'
 
 interface HomeProps {
   homeContent: HomeContent
@@ -25,7 +26,7 @@ export default function Home({ homeContent }: HomeProps) {
       <section className="relative pt-16 overflow-hidden">
         <div className="relative h-[580px] md:h-[640px]">
           <img
-            src={homeContent.heroImage}
+            src={resolveImageUrl(homeContent.heroImage)}
             alt="บริการจัดเลี้ยง"
             className="w-full h-full object-cover"
           />

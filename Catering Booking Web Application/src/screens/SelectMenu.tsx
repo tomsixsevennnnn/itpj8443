@@ -58,7 +58,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
   const chosenIn = (course: PackageCourse) => course.items.find(i => selectedIds.has(i.id)) ?? null
 
   const required = requiredCourses(pkg)
-  /** ข้อที่แพ็กเกจแถมมาให้ ไม่ต้องเลือก แต่นับรวมเป็นอาหารบนโต๊ะด้วย */
+  /** ข้อที่แพ็กเกจรวมมาให้แล้ว ไม่ต้องเลือก แต่นับรวมเป็นอาหารบนโต๊ะด้วย */
   const includedCount = pkg.courses.length - required.length
   const doneCount = required.filter(c => chosenIn(c) !== null).length
   const progress = required.length > 0 ? (doneCount / required.length) * 100 : 100
@@ -92,7 +92,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
               <h1 className="text-xl font-bold text-gray-900">เลือกเมนูอาหาร</h1>
               <p className="text-xs text-gray-400 mt-0.5">
                 {pkg.name} · เลือกเอง {required.length} ข้อ (ข้อละ 1 อย่าง)
-                {includedCount > 0 && ` + แถมให้อีก ${includedCount} อย่าง`}
+                {includedCount > 0 && ` + รวมมาให้อีก ${includedCount} อย่าง`}
                 {' = อาหาร '}{pkg.courses.length} อย่าง/โต๊ะ
               </p>
             </div>

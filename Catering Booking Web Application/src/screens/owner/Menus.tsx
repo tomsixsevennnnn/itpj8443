@@ -5,6 +5,7 @@ import DishTile from '../../components/DishTile'
 import type { AppSettings, MenuItem, Package } from '../../types'
 import { categoryMapOf, orderedCategories } from '../../data'
 import { pickImageAsDataUrl } from '../../imageUpload'
+import { resolveImageUrl, type UploadImageKind } from '../../api'
 
 interface MenusProps {
   menus: MenuItem[]
@@ -12,6 +13,7 @@ interface MenusProps {
   settings: AppSettings
   onSaveMenu: (item: MenuItem) => void
   onDeleteMenu: (id: string) => void
+  onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
 }
 
 interface MenuForm {
@@ -42,7 +44,7 @@ const emptyForm = (category: string): MenuForm => ({
   imageScale: 1,
 })
 
-export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteMenu }: MenusProps) {
+export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteMenu, onUploadImage }: MenusProps) {
   const categories = orderedCategories(settings.categoryOrder, settings.categories)
   const categoryMap = categoryMapOf(categories)
   const [activeCategory, setActiveCategory] = useState(categories[0].id)
@@ -63,7 +65,8 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
     setImageError(null)
     try {
       const dataUrl = await pickImageAsDataUrl(file)
-      setForm(f => ({ ...f, image: dataUrl, imagePosition: DEFAULT_IMAGE_POSITION, imageScale: 1 }))
+      const url = await onUploadImage('menu-image', dataUrl)
+      setForm(f => ({ ...f, image: url, imagePosition: DEFAULT_IMAGE_POSITION, imageScale: 1 }))
     } catch (err) {
       setImageError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
     } finally {
@@ -417,7 +420,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                       className="relative aspect-video w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-100 cursor-grab active:cursor-grabbing touch-none select-none"
                     >
                       <img
-                        src={form.image}
+                        src={resolveImageUrl(form.image)}
                         alt="ลากเพื่อปรับตำแหน่งรูป"
                         draggable={false}
                         className="w-full h-full object-cover pointer-events-none"

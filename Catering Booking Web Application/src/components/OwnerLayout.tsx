@@ -8,18 +8,21 @@ import {
   ClipboardList,
   FileBarChart,
   FileText,
+  History,
   LayoutDashboard,
   LayoutTemplate,
   LogOut,
   Menu,
   Package,
   Settings,
+  Shield,
   X,
 } from 'lucide-react'
 import Avatar from './Avatar'
 import { buildNotifications, isNotificationNew, timeAgo } from '../notifications'
 import { useNav } from '../NavContext'
 import type { Booking, Screen } from '../types'
+import { resolveImageUrl } from '../api'
 import type { ReactNode } from 'react'
 
 const NOTIF_PREVIEW_LIMIT = 6
@@ -40,6 +43,8 @@ const sidebarItems = [
   { label: 'เมนูอาหาร', screen: 'owner-menus' as Screen, icon: Book },
   { label: 'เอกสาร', screen: 'owner-documents' as Screen, icon: FileText },
   { label: 'รายงาน', screen: 'owner-reports' as Screen, icon: FileBarChart },
+  { label: 'สิทธิ์การเข้าถึง', screen: 'owner-users' as Screen, icon: Shield },
+  { label: 'ประวัติการแก้ไข', screen: 'owner-audit-log' as Screen, icon: History },
   { label: 'แก้ไขหน้าเว็บ', screen: 'owner-page-content' as Screen, icon: LayoutTemplate },
   { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
@@ -92,7 +97,7 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
         <div className="p-6 border-b border-gray-700/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {shopInfo.logo ? (
-              <img src={shopInfo.logo} alt={shopInfo.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+              <img src={resolveImageUrl(shopInfo.logo)} alt={shopInfo.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
             ) : (
               <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
                 <ChefHat size={20} className="text-white" />

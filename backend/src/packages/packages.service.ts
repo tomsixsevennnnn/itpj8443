@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { AuditService } from '../audit/audit.service'
 import { pageArgsFor } from '../common/pagination'
 import { PrismaService } from '../prisma/prisma.service'
 import { CourseInput, CreatePackageDto } from './dto/create-package.dto'
@@ -19,7 +20,10 @@ const CUSTOMER_MENU_ITEM_SELECT = {
 
 @Injectable()
 export class PackagesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   /** isOwner = false → strip costPrice ออกจากเมนูที่ซ้อนอยู่ในแต่ละ course (ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม) */
   async findAll(isOwner: boolean, page?: number, limit?: number) {
@@ -50,7 +54,7 @@ export class PackagesService {
 
   async create(dto: CreatePackageDto, editorAuth0Sub: string) {
     const count = await this.prisma.package.count()
-    return this.prisma.package.create({
+    const after = await this.prisma.package.create({
       data: {
         name: dto.name,
         pricePerTable: dto.pricePerTable,
@@ -74,6 +78,8 @@ export class PackagesService {
       },
       include: { courses: { include: { items: true } } },
     })
+    await this.audit.log(editorAuth0Sub, 'package.create', 'Package', after.id, undefined, after)
+    return after
   }
 
   /** เจ้าของร้านลากจัดเรียงแพ็กเกจในหน้า "จัดการแพ็กเกจ" — ids ต้องครบและตรงกับแพ็กเกจที่มีอยู่ทั้งหมดพอดี */
@@ -95,8 +101,10 @@ export class PackagesService {
   }
 
   async update(id: string, dto: UpdatePackageDto, editorAuth0Sub: string) {
+    const before = await this.prisma.package.findUnique({ where: { id } })
+
     if (!dto.courses) {
-      return this.prisma.package.update({
+      const after = await this.prisma.package.update({
         where: { id },
         data: {
           name: dto.name,
@@ -108,10 +116,12 @@ export class PackagesService {
           lastEditedBy: editorAuth0Sub,
         },
       })
+      await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after)
+      return after
     }
 
     // ส่ง courses มา = แทนที่ทุกข้อทั้งชุด (ลบของเดิมแล้วสร้างใหม่ในทรานแซกชันเดียว)
-    return this.prisma.$transaction(async (tx) => {
+    const after = await this.prisma.$transaction(async (tx) => {
       await tx.packageCourse.deleteMany({ where: { packageId: id } })
       return tx.package.update({
         where: { id },
@@ -137,10 +147,14 @@ export class PackagesService {
         include: { courses: { include: { items: true } } },
       })
     })
+    await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after)
+    return after
   }
 
-  remove(id: string) {
-    return this.prisma.package.delete({ where: { id } })
+  async remove(id: string, editorAuth0Sub: string) {
+    const before = await this.prisma.package.delete({ where: { id } })
+    await this.audit.log(editorAuth0Sub, 'package.delete', 'Package', id, before, undefined)
+    return before
   }
 
   /** เพิ่มข้อใหม่เข้าแพ็กเกจที่มีอยู่ โดยไม่ต้องส่งคอร์สทั้งชุด */

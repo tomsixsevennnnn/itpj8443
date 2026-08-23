@@ -2,6 +2,7 @@ import { Bell, Calendar, ChefHat, Home, LogOut, User } from 'lucide-react'
 import Avatar from './Avatar'
 import { useNav } from '../NavContext'
 import type { Screen } from '../types'
+import { resolveImageUrl } from '../api'
 
 interface NavbarProps {
   currentScreen: Screen
@@ -24,7 +25,7 @@ export default function Navbar({ currentScreen }: NavbarProps) {
             className="flex items-center gap-2 cursor-pointer group"
           >
             {shopInfo.logo ? (
-              <img src={shopInfo.logo} alt={shopInfo.name} className="w-9 h-9 rounded-xl object-cover" />
+              <img src={resolveImageUrl(shopInfo.logo)} alt={shopInfo.name} className="w-9 h-9 rounded-xl object-cover" />
             ) : (
               <div className="w-9 h-9 bg-orange-500 rounded-xl flex items-center justify-center group-hover:bg-orange-600 transition-colors">
                 <ChefHat size={20} className="text-white" />

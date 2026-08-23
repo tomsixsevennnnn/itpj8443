@@ -27,11 +27,13 @@ import type { AppSettings, Category } from '../../types'
 import { orderedCategories } from '../../data'
 import LocationMap from '../../components/LocationMap'
 import { pickImageAsDataUrl } from '../../imageUpload'
+import { resolveImageUrl, type UploadImageKind } from '../../api'
 import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
 
 interface SettingsProps {
   settings: AppSettings
   onUpdateSettings: (patch: Partial<AppSettings>) => void
+  onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
 }
 
 const SHOP_FIELDS: { key: keyof AppSettings['shopInfo']; label: string; placeholder: string }[] = [
@@ -61,8 +63,20 @@ const STAFF_RATIO_FIELDS: { key: 'tablesPerServer' | 'tablesPerSupport' | 'staff
   { key: 'staffRemainderThreshold', label: 'เศษเกินกี่โต๊ะ ให้เพิ่มอีก 1 คน', unit: 'โต๊ะ', min: 0 },
 ]
 
-export default function Settings({ settings, onUpdateSettings }: SettingsProps) {
+type SettingsTab = 'shop' | 'finance' | 'delivery' | 'staff' | 'booking' | 'categories'
+
+const SETTINGS_TABS: { id: SettingsTab; label: string; icon: typeof Building2 }[] = [
+  { id: 'shop', label: 'ข้อมูลร้าน', icon: Building2 },
+  { id: 'finance', label: 'การเงิน', icon: Wallet },
+  { id: 'delivery', label: 'ค่าขนส่ง', icon: Truck },
+  { id: 'staff', label: 'กำลังคน', icon: Users },
+  { id: 'booking', label: 'การจอง & เอกสาร', icon: Clock },
+  { id: 'categories', label: 'ประเภทอาหาร', icon: ListOrdered },
+]
+
+export default function Settings({ settings, onUpdateSettings, onUploadImage }: SettingsProps) {
   const [form, setForm] = useState<AppSettings>(settings)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [newMetroProvince, setNewMetroProvince] = useState('')
   const [newQuotationTerm, setNewQuotationTerm] = useState('')
@@ -101,7 +115,8 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
     setQrError(null)
     try {
       const dataUrl = await pickImageAsDataUrl(file)
-      setShopField('promptPayQr', dataUrl)
+      const url = await onUploadImage('promptpay-qr', dataUrl)
+      setShopField('promptPayQr', url)
     } catch (err) {
       setQrError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
     } finally {
@@ -117,7 +132,8 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
     setLogoError(null)
     try {
       const dataUrl = await pickImageAsDataUrl(file)
-      setShopField('logo', dataUrl)
+      const url = await onUploadImage('shop-logo', dataUrl)
+      setShopField('logo', url)
     } catch (err) {
       setLogoError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
     } finally {
@@ -285,6 +301,27 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
 
   return (
     <div className="max-w-2xl space-y-5 pb-24">
+      {/* แท็บย่อย */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+        {SETTINGS_TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-1.5 whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0 ${
+              activeTab === id
+                ? 'bg-orange-500 text-white shadow-sm'
+                : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50'
+            }`}
+          >
+            <Icon size={15} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'shop' && (
+        <>
       {/* ข้อมูลร้าน */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -305,7 +342,7 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           <div className="flex items-center gap-4">
             {form.shopInfo.logo ? (
               <img
-                src={form.shopInfo.logo}
+                src={resolveImageUrl(form.shopInfo.logo)}
                 alt="โลโก้ร้าน"
                 className="w-16 h-16 rounded-xl border border-gray-200 object-cover bg-white flex-shrink-0"
               />
@@ -406,7 +443,11 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           </div>
         </div>
       </div>
+        </>
+      )}
 
+      {activeTab === 'finance' && (
+        <>
       {/* มัดจำ */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -470,7 +511,7 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           {form.shopInfo.promptPayQr ? (
             <div className="flex items-center gap-4">
               <img
-                src={form.shopInfo.promptPayQr}
+                src={resolveImageUrl(form.shopInfo.promptPayQr)}
                 alt="QR พร้อมเพย์"
                 className="w-28 h-28 rounded-xl border border-gray-200 object-contain bg-white"
               />
@@ -508,7 +549,11 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           {qrError && <p className="mt-2 text-xs text-red-500">{qrError}</p>}
         </div>
       </div>
+        </>
+      )}
 
+      {activeTab === 'delivery' && (
+        <>
       {/* ค่าขนส่ง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -681,7 +726,11 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           </p>
         </div>
       </div>
+        </>
+      )}
 
+      {activeTab === 'staff' && (
+        <>
       {/* อัตราค่าแรง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -731,7 +780,11 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           </div>
         </div>
       </div>
+        </>
+      )}
 
+      {activeTab === 'booking' && (
+        <>
       {/* ช่วงเวลาจอง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -838,7 +891,11 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           </div>
         ))}
       </div>
+        </>
+      )}
 
+      {activeTab === 'categories' && (
+        <>
       {/* ประเภทอาหาร */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -934,6 +991,8 @@ export default function Settings({ settings, onUpdateSettings }: SettingsProps) 
           </button>
         </div>
       </div>
+        </>
+      )}
 
       {/* Save — ลอยมุมล่างขวาตลอด กันต้องเลื่อนจอลงมาสุดทุกครั้งที่จะบันทึก */}
       <div className="fixed bottom-6 right-6 sm:right-8 lg:right-10 z-30 flex flex-col items-end gap-2">

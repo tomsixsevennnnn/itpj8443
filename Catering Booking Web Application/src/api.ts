@@ -14,6 +14,19 @@ import { DEFAULT_BRAND_COLOR } from './theme'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
+/**
+ * รูปที่อัปโหลดผ่าน uploadImage() ถูกเก็บเป็นไฟล์บน backend แล้ว ไม่ใช่ data URL อีกต่อไป — เก็บใน DB/ส่งมาจาก
+ * API เป็น path สั้นๆ (เช่น "/uploads/menus/xxx.jpg") ต้องต่อ API_BASE ก่อนใช้กับ <img src> เสมอ ค่าอื่น
+ * (data:, http(s):, ว่างเปล่า) ปล่อยผ่านตามเดิม — รองรับข้อมูลเก่าที่ยังเป็น data URL อยู่ก่อน migrate
+ */
+export const resolveImageUrl = (url: string | null | undefined): string => {
+  if (!url) return ''
+  if (url.startsWith('/uploads/')) return `${API_BASE}${url}`
+  return url
+}
+
+export type UploadImageKind = 'menu-image' | 'promptpay-qr' | 'shop-logo' | 'content-image' | 'payment-slip'
+
 async function request<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -187,6 +200,25 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   return out
 }
 
+export interface AuditLogEntry {
+  id: string
+  actorUserId: string
+  actorRole: 'CUSTOMER' | 'OWNER'
+  action: string
+  entityType: string
+  entityId: string
+  before: unknown
+  after: unknown
+  createdAt: string
+}
+
+export interface AuditLogPage {
+  items: AuditLogEntry[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 export interface BackendUser {
   id: string
   auth0Sub: string
@@ -197,6 +229,7 @@ export interface BackendUser {
   lineId: string
   email: string
   avatar: string
+  createdAt: string
 }
 
 export interface CourseInput {
@@ -247,6 +280,15 @@ export const api = {
 
   updateProfile: (token: string, patch: { name?: string; surname?: string; phone?: string; lineId?: string }) =>
     request<BackendUser>(token, '/users/me', { method: 'PATCH', body: JSON.stringify(patch) }),
+
+  /** ค้นหา user ที่เคย login เข้าระบบมาแล้ว ด้วยอีเมล (ไม่ต้องพิมพ์ครบ) — owner เท่านั้น ดูหน้า UserRoles.tsx */
+  searchUsers: (token: string, email: string) =>
+    request<BackendUser[]>(token, `/users/search?email=${encodeURIComponent(email)}`),
+
+  listOwners: (token: string) => request<BackendUser[]>(token, '/users/owners'),
+
+  setUserRole: (token: string, userId: string, role: 'OWNER' | 'CUSTOMER') =>
+    request<BackendUser>(token, `/users/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
   bookings: async (token: string): Promise<Booking[]> =>
     (await request<BackendBooking[]>(token, '/bookings')).map(toFrontendBooking),
@@ -352,4 +394,13 @@ export const api = {
         body: JSON.stringify(toBackendSettingsPatch(patch)),
       }),
     ),
+
+  /** อัปโหลด data URL ไปเก็บเป็นไฟล์บน backend แล้วคืน path สั้นๆ ให้เอาไปเก็บในฟิลด์ image/logo/qr/slip แทน data URL ดิบ */
+  uploadImage: async (token: string, kind: UploadImageKind, dataUrl: string): Promise<string> =>
+    (await request<{ url: string }>(token, `/uploads/${kind}`, { method: 'POST', body: JSON.stringify({ dataUrl }) }))
+      .url,
+
+  /** ประวัติการลบเมนู/แพ็กเกจ แก้ไข booking/settings และเลื่อน/ถอดสิทธิ์ owner — owner เท่านั้น ดูหน้า AuditLog.tsx */
+  auditLog: (token: string, page: number, pageSize: number) =>
+    request<AuditLogPage>(token, `/audit-log?page=${page}&pageSize=${pageSize}`),
 }

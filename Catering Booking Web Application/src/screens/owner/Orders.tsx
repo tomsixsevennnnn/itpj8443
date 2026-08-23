@@ -6,6 +6,7 @@ import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
 import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
 import { docNumber } from '../../documents'
+import { resolveImageUrl } from '../../api'
 
 const STATUS_CONFIG = {
   pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
@@ -412,9 +413,9 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking }: O
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">สลิปโอนเงินมัดจำ</p>
                 {selected.paymentSlip ? (
                   <div className="space-y-2">
-                    <button type="button" onClick={() => setSlipZoom(selected.paymentSlip!)} className="block w-full">
+                    <button type="button" onClick={() => setSlipZoom(resolveImageUrl(selected.paymentSlip))} className="block w-full">
                       <img
-                        src={selected.paymentSlip}
+                        src={resolveImageUrl(selected.paymentSlip)}
                         alt="สลิปโอนเงิน"
                         className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
                       />

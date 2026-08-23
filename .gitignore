@@ -20,3 +20,6 @@ Catering Booking Web Application.zip
 # logs
 *.log
 npm-debug.log*
+
+# ไฟล์ที่อัปโหลด (รูปเมนู/โลโก้/QR/สลิป) — เก็บบน disk ของ server จริง ไม่ commit เข้า repo
+backend/uploads/

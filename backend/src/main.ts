@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core'
 import { ValidationPipe } from '@nestjs/common'
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { AppModule } from './app.module'
+import { UPLOADS_DIR } from './uploads/uploads.constants'
 
 async function bootstrap() {
   // ปิด body parser เริ่มต้นเพื่อตั้ง limit เอง — สลิปโอนเงิน/รูปเมนูถูกส่งเป็น base64 data URL ใน JSON body
@@ -10,6 +11,9 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false })
   app.useBodyParser('json', { limit: '10mb' })
   app.useBodyParser('urlencoded', { limit: '10mb', extended: true })
+
+  // เสิร์ฟไฟล์รูปที่อัปโหลดผ่าน UploadsService (เมนู/โลโก้/QR/สลิป) เป็น static asset ตรงๆ
+  app.useStaticAssets(UPLOADS_DIR, { prefix: '/uploads/' })
 
   const origins = (process.env.FRONTEND_ORIGIN ?? 'http://localhost:8443').split(',').map((o) => o.trim())
   app.enableCors({ origin: origins, credentials: true })

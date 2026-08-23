@@ -6,6 +6,7 @@ import ImageLightbox from '../components/ImageLightbox'
 import type { AppSettings, Booking } from '../types'
 import { DOC_LABEL, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
+import { resolveImageUrl } from '../api'
 
 interface BookingHistoryProps {
   bookings: Booking[]
@@ -381,7 +382,7 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
                     )}
                     {settings.shopInfo.promptPayQr && (
                       <img
-                        src={settings.shopInfo.promptPayQr}
+                        src={resolveImageUrl(settings.shopInfo.promptPayQr)}
                         alt="QR พร้อมเพย์"
                         className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
                       />
@@ -431,9 +432,9 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings }: 
                   </div>
                 ) : detailBooking.paymentSlip ? (
                   <div className="space-y-2">
-                    <button type="button" onClick={() => setSlipZoom(detailBooking.paymentSlip!)} className="block w-full">
+                    <button type="button" onClick={() => setSlipZoom(resolveImageUrl(detailBooking.paymentSlip))} className="block w-full">
                       <img
-                        src={detailBooking.paymentSlip}
+                        src={resolveImageUrl(detailBooking.paymentSlip)}
                         alt="สลิปโอนเงิน"
                         className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
                       />

@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
-import { AUTH0_ROLE_CLAIM } from '../auth/auth.constants'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { ListQueryDto } from '../common/list-query.dto'
+import { UsersService } from '../users/users.service'
 import { CourseInput, CreatePackageDto } from './dto/create-package.dto'
 import { ReorderPackagesDto } from './dto/reorder-packages.dto'
 import { UpdateCourseDto } from './dto/update-course.dto'
@@ -14,11 +14,14 @@ import { PackagesService } from './packages.service'
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('packages')
 export class PackagesController {
-  constructor(private packages: PackagesService) {}
+  constructor(
+    private packages: PackagesService,
+    private users: UsersService,
+  ) {}
 
   @Get()
-  findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
-    return this.packages.findAll(jwtUser[AUTH0_ROLE_CLAIM] === 'owner', query.page, query.limit)
+  async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
+    return this.packages.findAll(await this.users.isOwner(jwtUser.sub), query.page, query.limit)
   }
 
   @Post()
@@ -42,8 +45,8 @@ export class PackagesController {
 
   @Delete(':id')
   @Roles('owner')
-  remove(@Param('id') id: string) {
-    return this.packages.remove(id)
+  remove(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string) {
+    return this.packages.remove(id, jwtUser.sub)
   }
 
   /** เพิ่ม/แก้/ลบทีละข้อในแพ็กเกจ — ทางเลือกแทนการส่ง courses ทั้งชุดผ่าน PATCH /packages/:id */

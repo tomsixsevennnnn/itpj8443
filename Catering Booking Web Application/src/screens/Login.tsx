@@ -3,7 +3,7 @@ import { useAuth0 } from '@auth0/auth0-react'
 import { ChefHat } from 'lucide-react'
 import { AUTH0_CONNECTION } from '../auth'
 import { DEFAULT_SHOP_INFO } from '../documents'
-import { api } from '../api'
+import { api, resolveImageUrl } from '../api'
 import { usePolling } from '../usePolling'
 import { applyBrandTheme } from '../theme'
 
@@ -51,7 +51,7 @@ export default function Login() {
         <div className="text-center mb-8">
           {logo ? (
             <img
-              src={logo}
+              src={resolveImageUrl(logo)}
               alt={shopName}
               className="inline-flex w-16 h-16 rounded-2xl shadow-lg shadow-orange-200 mb-4 object-cover"
             />

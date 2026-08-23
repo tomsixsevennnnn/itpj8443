@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Role } from '@prisma/client'
+import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { SyncProfileDto } from './dto/sync-profile.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
@@ -15,7 +16,10 @@ interface Auth0Profile {
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   /**
    * ใช้ที่อื่นตอนสร้างข้อมูลที่ผูกกับ user (เช่น booking) — access token ไม่มี profile claim
@@ -60,5 +64,40 @@ export class UsersService {
 
   updateProfile(auth0Sub: string, dto: UpdateProfileDto) {
     return this.prisma.user.update({ where: { auth0Sub }, data: dto })
+  }
+
+  /** ตรวจ role จาก DB ล้วนๆ — ใช้แทนการเชื่อ JWT role claim ตรงๆ ในทุก controller (กัน token เก่า/ปลอมอ้าง role ผิด) */
+  async isOwner(auth0Sub: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { role: true } })
+    return user?.role === Role.OWNER
+  }
+
+  /** ค้นหา user ที่เคย login เข้าระบบมาแล้ว (มีแถวใน DB) ด้วยอีเมล ไม่ต้องพิมพ์ครบ — ใช้หน้า "สิทธิ์การเข้าถึง" ของ owner */
+  searchByEmail(email: string) {
+    return this.prisma.user.findMany({
+      where: { email: { contains: email, mode: 'insensitive' } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })
+  }
+
+  listOwners() {
+    return this.prisma.user.findMany({ where: { role: Role.OWNER }, orderBy: { createdAt: 'asc' } })
+  }
+
+  /** เลื่อน/ถอดสิทธิ์ owner — กันเหลือ owner 0 คน (ระบบจะไม่มีใครเข้าหน้าเจ้าของร้านได้อีก) */
+  async setRole(id: string, role: Role, editorAuth0Sub: string) {
+    const target = await this.prisma.user.findUnique({ where: { id } })
+    if (!target) throw new NotFoundException('ไม่พบผู้ใช้นี้')
+
+    if (target.role === Role.OWNER && role === Role.CUSTOMER) {
+      const ownerCount = await this.prisma.user.count({ where: { role: Role.OWNER } })
+      if (ownerCount <= 1) throw new BadRequestException('ต้องมีเจ้าของร้านอย่างน้อย 1 คนเสมอ')
+    }
+
+    const after = await this.prisma.user.update({ where: { id }, data: { role } })
+    // เปลี่ยน role กระทบสิทธิ์เข้าถึงโดยตรง — ต้องมี audit log ว่าใครเลื่อน/ถอด owner ให้ใครเมื่อไหร่
+    await this.audit.log(editorAuth0Sub, 'user.setRole', 'User', id, { role: target.role }, { role: after.role })
+    return after
   }
 }

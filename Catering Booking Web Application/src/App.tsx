@@ -30,7 +30,7 @@ import { DEFAULT_SLOT_HOURS } from './availability'
 import { DEFAULT_HOME_CONTENT } from './homeContent'
 import { unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
-import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput } from './api'
+import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput, type UploadImageKind } from './api'
 import { usePolling } from './usePolling'
 import ErrorBanner from './components/ErrorBanner'
 import Login from './screens/Login'
@@ -56,10 +56,12 @@ import Documents from './screens/owner/Documents'
 import Reports from './screens/owner/Reports'
 import Settings from './screens/owner/Settings'
 import PageContent from './screens/owner/PageContent'
+import UserRoles from './screens/owner/UserRoles'
+import AuditLog from './screens/owner/AuditLog'
 
 const OWNER_SCREENS: Screen[] = [
   'owner-dashboard', 'owner-orders', 'owner-calendar', 'owner-packages', 'owner-menus', 'owner-documents',
-  'owner-reports', 'owner-settings', 'owner-page-content',
+  'owner-reports', 'owner-settings', 'owner-page-content', 'owner-users', 'owner-audit-log',
 ]
 
 /** 6 ขั้นตอนการจอง — ออกจากช่วงนี้ไปหน้าอื่นผ่านแถบเมนูด้านบน (หน้าแรก/ประวัติการจอง) แล้วกลับมาต้องเริ่มเลือกใหม่ ไม่ resume ของเดิม */
@@ -183,6 +185,10 @@ export default function App() {
 
   const withToken = () => getAccessTokenSilently()
 
+  /** อัปโหลดรูป (data URL) ไปเก็บเป็นไฟล์บน backend แล้วคืน path สั้นๆ — ใช้แทนการเก็บ data URL ดิบในฟิลด์ image/logo/qr/slip */
+  const handleUploadImage = (kind: UploadImageKind, dataUrl: string) =>
+    withToken().then(token => api.uploadImage(token, kind, dataUrl))
+
   // poll ค่าตั้งค่าร้านทุก 20 วิหลัง login (หยุดพักตอนสลับแท็บ) — เจ้าของร้านแก้ชื่อร้าน/ค่าอื่นๆ
   // จากเครื่อง/แท็บอื่น หน้าที่เปิดค้างไว้จะเห็นการเปลี่ยนแปลงโดยไม่ต้องกด refresh เอง
   usePolling(() => {
@@ -280,8 +286,10 @@ export default function App() {
       setPackages(reordered)
     })
 
-  /** เข้าเว็บด้วย role จาก Auth0 (customer = Google, owner = username/password) ดู src/auth.ts */
-  const role = roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
+  /** role ที่แท้จริงมาจาก DB (backendUser) เสมอ — ไม่ใช้ claim ใน Auth0 token ตรงๆ เพราะ promote/demote ผ่านหน้า
+   *  "สิทธิ์การเข้าถึง" แก้แค่ DB ไม่ได้แก้ token/Auth0 profile จึง claim เดิมค้างอยู่จนกว่าจะขอ token ใหม่
+   *  ก่อน backendUser โหลดเสร็จ (ตอนแรกสุดหลัง login) ใช้ claim ไปพลางๆ ได้ เพราะหน้าจอที่พึ่ง role ยังไม่ render จนกว่า dataLoaded */
+  const role = backendUser ? (backendUser.role === 'OWNER' ? 'owner' : 'customer') : roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
   /** เบอร์โทร/ชื่อ/นามสกุล เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ขาดตัวไหนก็ถือว่ายังกรอกไม่ครบ ต้องเด้งไปกรอกใหม่ทุกครั้งที่ login จนกว่าจะครบ */
   const needsProfile =
     isAuthenticated &&
@@ -420,7 +428,7 @@ export default function App() {
       const token = await withToken()
       const updated =
         'paymentSlip' in patch && patch.paymentSlip
-          ? await api.uploadPaymentSlip(token, id, patch.paymentSlip)
+          ? await api.uploadPaymentSlip(token, id, await api.uploadImage(token, 'payment-slip', patch.paymentSlip))
           : await api.updateBookingAsOwner(token, id, {
               status: patch.status,
               staffAuto: patch.staffAuto,
@@ -522,6 +530,7 @@ export default function App() {
               settings={settings}
               onSaveMenu={handleSaveMenu}
               onDeleteMenu={handleDeleteMenu}
+              onUploadImage={handleUploadImage}
             />
           )}
           {effectiveScreen === 'owner-documents' && (
@@ -531,10 +540,25 @@ export default function App() {
             <Reports bookings={bookings} menus={menus} settings={settings} />
           )}
           {effectiveScreen === 'owner-settings' && (
-            <Settings settings={settings} onUpdateSettings={handleUpdateSettings} />
+            <Settings settings={settings} onUpdateSettings={handleUpdateSettings} onUploadImage={handleUploadImage} />
           )}
           {effectiveScreen === 'owner-page-content' && (
-            <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} />
+            <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} onUploadImage={handleUploadImage} />
+          )}
+          {effectiveScreen === 'owner-users' && (
+            <UserRoles
+              onSearchUser={(email) => withToken().then(token => api.searchUsers(token, email))}
+              onSetRole={(userId, role) =>
+                withToken()
+                  .then(token => api.setUserRole(token, userId, role))
+                  .then(() => {})
+              }
+              onListOwners={() => withToken().then(token => api.listOwners(token))}
+              currentAuth0Sub={auth0User?.sub}
+            />
+          )}
+          {effectiveScreen === 'owner-audit-log' && (
+            <AuditLog onFetchPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))} />
           )}
         </OwnerLayout>
       </NavProvider>

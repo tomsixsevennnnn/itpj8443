@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import type { Settings } from '@prisma/client'
+import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { UploadsService } from '../uploads/uploads.service'
 import { UpdateSettingsDto } from './dto/update-settings.dto'
 
 /** ค่าเริ่มต้น — ต้องตรงกับ DEFAULT_* ใน frontend src/documents.ts และ src/geo.ts */
@@ -56,7 +58,11 @@ const OWNER_ONLY_FIELDS = [
 
 @Injectable()
 export class SettingsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+    private uploads: UploadsService,
+  ) {}
 
   // เดิม cache ไว้ในหน่วยความจำ (TTL 1 วิ) กัน round-trip ไป DB ที่โฮสต์ไกล (Railway) — แต่ backend รันได้
   // หลาย process ชี้ DB เดียวกัน แก้ที่ process หนึ่งแล้ว process อื่นเห็นค่าเก่าค้างได้จนกว่า cache หมดอายุ
@@ -92,10 +98,19 @@ export class SettingsService {
   }
 
   async update(dto: UpdateSettingsDto, editorAuth0Sub: string) {
-    await this.getRaw()
-    return this.prisma.settings.update({
+    const before = await this.getRaw()
+    const after = await this.prisma.settings.update({
       where: { id: 1 },
       data: { ...dto, lastEditedBy: editorAuth0Sub } as any,
     })
+    await this.audit.log(editorAuth0Sub, 'settings.update', 'Settings', String(after.id), before, after)
+    // เปลี่ยนโลโก้ร้าน/QR พร้อมเพย์ — ลบไฟล์เก่าทิ้งกัน orphan สะสมบน disk (ไม่บล็อกแม้ลบไม่สำเร็จ)
+    if (dto.shopLogo !== undefined && before.shopLogo && before.shopLogo !== after.shopLogo) {
+      await this.uploads.deleteManagedFile(before.shopLogo)
+    }
+    if (dto.promptPayQr !== undefined && before.promptPayQr && before.promptPayQr !== after.promptPayQr) {
+      await this.uploads.deleteManagedFile(before.promptPayQr)
+    }
+    return after
   }
 }

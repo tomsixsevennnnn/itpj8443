@@ -4,6 +4,7 @@ import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Booking } from '../../types'
 import { docNumber } from '../../documents'
+import { resolveImageUrl } from '../../api'
 import {
   BASE_SLOTS,
   BOOKING_STATUS_INFO,
@@ -360,9 +361,9 @@ export default function CalendarView({ bookings, onUpdateBooking }: CalendarView
 
               {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
               {popup.paymentSlip && (
-                <button type="button" onClick={() => setSlipZoom(popup.paymentSlip!)} className="block w-full">
+                <button type="button" onClick={() => setSlipZoom(resolveImageUrl(popup.paymentSlip))} className="block w-full">
                   <img
-                    src={popup.paymentSlip}
+                    src={resolveImageUrl(popup.paymentSlip)}
                     alt="สลิปโอนเงิน"
                     className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
                   />

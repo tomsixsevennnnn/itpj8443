@@ -1,5 +1,6 @@
 import type { MenuItem } from '../types'
 import { useNav } from '../NavContext'
+import { resolveImageUrl } from '../api'
 
 interface DishTileProps {
   item: MenuItem
@@ -16,7 +17,7 @@ export default function DishTile({ item, category, emojiClass = 'text-4xl', clas
     const scale = item.imageScale ?? 1
     return (
       <img
-        src={item.image}
+        src={resolveImageUrl(item.image)}
         alt={item.name}
         draggable={false}
         className={`w-full h-full object-cover ${className}`}

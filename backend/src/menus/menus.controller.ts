@@ -1,10 +1,10 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
-import { AUTH0_ROLE_CLAIM } from '../auth/auth.constants'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { ListQueryDto } from '../common/list-query.dto'
+import { UsersService } from '../users/users.service'
 import { CreateMenuItemDto } from './dto/create-menu-item.dto'
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto'
 import { MenusService } from './menus.service'
@@ -12,11 +12,14 @@ import { MenusService } from './menus.service'
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('menus')
 export class MenusController {
-  constructor(private menus: MenusService) {}
+  constructor(
+    private menus: MenusService,
+    private users: UsersService,
+  ) {}
 
   @Get()
-  findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
-    return this.menus.findAll(jwtUser[AUTH0_ROLE_CLAIM] === 'owner', query.page, query.limit)
+  async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
+    return this.menus.findAll(await this.users.isOwner(jwtUser.sub), query.page, query.limit)
   }
 
   @Post()
@@ -33,7 +36,7 @@ export class MenusController {
 
   @Delete(':id')
   @Roles('owner')
-  remove(@Param('id') id: string) {
-    return this.menus.remove(id)
+  remove(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string) {
+    return this.menus.remove(id, jwtUser.sub)
   }
 }
