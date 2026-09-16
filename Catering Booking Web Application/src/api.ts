@@ -25,6 +25,11 @@ export const resolveImageUrl = (url: string | null | undefined): string => {
   return url
 }
 
+/** URL สำหรับเปิด EventSource ฟัง realtime — ต้องส่ง token ผ่าน query string เพราะ EventSource ของเบราว์เซอร์
+ *  ตั้ง Authorization header เองไม่ได้ (ดู backend jwt.strategy.ts ที่รับ token จาก query เป็น fallback เฉพาะกรณีนี้) */
+export const bookingsStreamUrl = (token: string): string =>
+  `${API_BASE}/realtime/bookings?access_token=${encodeURIComponent(token)}`
+
 export type UploadImageKind = 'menu-image' | 'promptpay-qr' | 'shop-logo' | 'content-image' | 'payment-slip'
 
 async function request<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {

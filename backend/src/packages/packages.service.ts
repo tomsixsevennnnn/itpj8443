@@ -25,35 +25,43 @@ export class PackagesService {
     private audit: AuditService,
   ) {}
 
-  /** isOwner = false → strip costPrice ออกจากเมนูที่ซ้อนอยู่ในแต่ละ course (ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม) */
+  /** isOwner = false → strip costPrice ออกจากเมนูที่ซ้อนอยู่ในแต่ละ course (ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม)
+   *  ทั้งสองฝั่งกรอง deletedAt: null ทั้งตัวแพ็กเกจเองและเมนูที่ซ้อนอยู่ — แพ็กเกจ/เมนูที่ถูกลบ (soft delete) ยังอยู่ใน
+   *  ตารางเพื่อให้ booking เก่าอ้างถึงได้ แต่ต้องไม่โผล่ในรายการที่ใช้เลือก/จัดการตามปกติ */
   async findAll(isOwner: boolean, page?: number, limit?: number) {
     const args = pageArgsFor(page, limit)
+    const where = { deletedAt: null }
     const orderBy = { sortOrder: 'asc' as const }
     const coursesOrderBy = { no: 'asc' as const }
 
     if (isOwner) {
-      const include = { courses: { include: { items: true }, orderBy: coursesOrderBy } }
-      if (!args) return this.prisma.package.findMany({ orderBy, include })
+      const include = {
+        courses: { include: { items: { where: { deletedAt: null } } }, orderBy: coursesOrderBy },
+      }
+      if (!args) return this.prisma.package.findMany({ where, orderBy, include })
       const [data, total] = await Promise.all([
-        this.prisma.package.findMany({ orderBy, include, skip: args.skip, take: args.take }),
-        this.prisma.package.count(),
+        this.prisma.package.findMany({ where, orderBy, include, skip: args.skip, take: args.take }),
+        this.prisma.package.count({ where }),
       ])
       return { data, total, page: args.page, limit: args.limit }
     }
 
     const include = {
-      courses: { include: { items: { select: CUSTOMER_MENU_ITEM_SELECT } }, orderBy: coursesOrderBy },
+      courses: {
+        include: { items: { where: { deletedAt: null }, select: CUSTOMER_MENU_ITEM_SELECT } },
+        orderBy: coursesOrderBy,
+      },
     }
-    if (!args) return this.prisma.package.findMany({ orderBy, include })
+    if (!args) return this.prisma.package.findMany({ where, orderBy, include })
     const [data, total] = await Promise.all([
-      this.prisma.package.findMany({ orderBy, include, skip: args.skip, take: args.take }),
-      this.prisma.package.count(),
+      this.prisma.package.findMany({ where, orderBy, include, skip: args.skip, take: args.take }),
+      this.prisma.package.count({ where }),
     ])
     return { data, total, page: args.page, limit: args.limit }
   }
 
   async create(dto: CreatePackageDto, editorAuth0Sub: string) {
-    const count = await this.prisma.package.count()
+    const count = await this.prisma.package.count({ where: { deletedAt: null } })
     const after = await this.prisma.package.create({
       data: {
         name: dto.name,
@@ -82,9 +90,9 @@ export class PackagesService {
     return after
   }
 
-  /** เจ้าของร้านลากจัดเรียงแพ็กเกจในหน้า "จัดการแพ็กเกจ" — ids ต้องครบและตรงกับแพ็กเกจที่มีอยู่ทั้งหมดพอดี */
+  /** เจ้าของร้านลากจัดเรียงแพ็กเกจในหน้า "จัดการแพ็กเกจ" — ids ต้องครบและตรงกับแพ็กเกจที่ยังไม่ถูกลบทั้งหมดพอดี */
   async reorder(dto: ReorderPackagesDto) {
-    const existing = await this.prisma.package.findMany({ select: { id: true } })
+    const existing = await this.prisma.package.findMany({ where: { deletedAt: null }, select: { id: true } })
     const existingIds = new Set(existing.map((p) => p.id))
     const uniqueIds = new Set(dto.ids)
     const isValid =
@@ -151,10 +159,14 @@ export class PackagesService {
     return after
   }
 
+  /** soft delete — booking เก่าที่อ้าง packageId นี้ยังอ่านราคาพื้นฐานย้อนหลังได้ (แค่ซ่อนจากรายการแพ็กเกจปกติ) */
   async remove(id: string, editorAuth0Sub: string) {
-    const before = await this.prisma.package.delete({ where: { id } })
-    await this.audit.log(editorAuth0Sub, 'package.delete', 'Package', id, before, undefined)
-    return before
+    const before = await this.prisma.package.findUnique({ where: { id } })
+    if (!before) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
+
+    const after = await this.prisma.package.update({ where: { id }, data: { deletedAt: new Date() } })
+    await this.audit.log(editorAuth0Sub, 'package.delete', 'Package', id, before, after)
+    return after
   }
 
   /** เพิ่มข้อใหม่เข้าแพ็กเกจที่มีอยู่ โดยไม่ต้องส่งคอร์สทั้งชุด */

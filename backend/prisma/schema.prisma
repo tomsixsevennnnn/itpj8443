@@ -39,6 +39,10 @@ model MenuItem {
   category    String
   description String          @default("")
   image       String?
+  /** ตำแหน่งครอปรูป { x, y } เป็น % ของกรอบ — คู่กับ imageScale ใช้จัดกรอบตอนแสดงผล (object-position/transform ดู DishTile.tsx) */
+  imagePosition Json?
+  /** ระดับซูมรูป (1 = ปกติ, สูงสุด 3) — คู่กับ imagePosition */
+  imageScale  Float?
   extraPrice  Int?
   /** ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ (owner เท่านั้นที่เห็นค่านี้ผ่าน API) */
   costPrice   Int?
@@ -47,6 +51,8 @@ model MenuItem {
   updatedAt   DateTime        @updatedAt
   /** auth0Sub ของ owner ที่แก้ไขล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก) */
   lastEditedBy String?
+  /** soft delete — ตั้งค่าแทนการลบแถวจริง กันประวัติ booking เก่าที่อ้างเมนูนี้ (ผ่าน course) ข้อมูลขาดหาย มีค่า = ถูกลบ ไม่แสดงในรายการปกติ */
+  deletedAt   DateTime?
 }
 
 model Package {
@@ -62,6 +68,8 @@ model Package {
   courses       PackageCourse[]
   updatedAt     DateTime        @updatedAt
   lastEditedBy  String?
+  /** soft delete — ตั้งค่าแทนการลบแถวจริง กันประวัติ booking เก่าที่อ้าง packageId นี้ข้อมูลขาดหาย มีค่า = ถูกลบ ไม่แสดงในรายการปกติ */
+  deletedAt     DateTime?
 }
 
 model PackageCourse {

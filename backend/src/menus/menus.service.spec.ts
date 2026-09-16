@@ -28,6 +28,19 @@ describe('MenusService', () => {
     expect(result).toBe(created)
   })
 
+  it('create: imagePosition ถูก spread เป็น plain object ก่อนส่งเข้า Prisma', async () => {
+    const { service, prisma } = makeService()
+    prisma.menuItem.create.mockResolvedValue({ id: 'm1' })
+    const imagePosition = { x: 20, y: 30 }
+
+    await service.create({ name: 'เมนูใหม่', image: '/uploads/menus/a.jpg', imagePosition, imageScale: 1.5 } as any, 'auth0|owner')
+
+    const call = prisma.menuItem.create.mock.calls[0][0]
+    expect(call.data.imagePosition).toEqual({ x: 20, y: 30 })
+    expect(call.data.imagePosition).not.toBe(imagePosition)
+    expect(call.data.imageScale).toBe(1.5)
+  })
+
   it('update: บันทึก audit log พร้อม before/after', async () => {
     const { service, prisma, audit } = makeService()
     const before = { id: 'm1', name: 'เดิม', image: null }
@@ -40,25 +53,36 @@ describe('MenusService', () => {
     expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'menu.update', 'MenuItem', 'm1', before, after)
   })
 
-  it('remove: บันทึก audit log พร้อม before = แถวที่ลบไป', async () => {
+  it('remove: soft delete — update deletedAt แทนการลบแถวจริง แล้วบันทึก audit log พร้อม before/after', async () => {
     const { service, prisma, audit } = makeService()
-    const deleted = { id: 'm1', image: null }
-    prisma.menuItem.delete.mockResolvedValue(deleted)
+    const before = { id: 'm1', image: null, deletedAt: null }
+    const after = { id: 'm1', image: null, deletedAt: new Date() }
+    prisma.menuItem.findUnique.mockResolvedValue(before)
+    prisma.menuItem.update.mockResolvedValue(after)
 
     const result = await service.remove('m1', 'auth0|owner')
 
-    expect(prisma.menuItem.delete).toHaveBeenCalledWith({ where: { id: 'm1' } })
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'menu.delete', 'MenuItem', 'm1', deleted, undefined)
-    expect(result).toBe(deleted)
+    expect(prisma.menuItem.delete).not.toHaveBeenCalled()
+    expect(prisma.menuItem.update).toHaveBeenCalledWith({ where: { id: 'm1' }, data: { deletedAt: expect.any(Date) } })
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'menu.delete', 'MenuItem', 'm1', before, after)
+    expect(result).toBe(after)
   })
 
-  it('remove: ลบไฟล์รูปเก่าทิ้งถ้าเมนูที่ลบมีรูป', async () => {
+  it('remove: ไม่พบเมนูนี้ — โยน NotFoundException', async () => {
+    const { service, prisma } = makeService()
+    prisma.menuItem.findUnique.mockResolvedValue(null)
+
+    await expect(service.remove('missing', 'auth0|owner')).rejects.toThrow('ไม่พบเมนูนี้')
+  })
+
+  it('remove: soft delete ไม่ลบไฟล์รูปทิ้ง (แถวยังอยู่จริง อาจถูกแพ็กเกจเก่าอ้างถึง)', async () => {
     const { service, prisma, uploads } = makeService()
-    prisma.menuItem.delete.mockResolvedValue({ id: 'm1', image: '/uploads/menus/old.jpg' })
+    prisma.menuItem.findUnique.mockResolvedValue({ id: 'm1', image: '/uploads/menus/old.jpg', deletedAt: null })
+    prisma.menuItem.update.mockResolvedValue({ id: 'm1', image: '/uploads/menus/old.jpg', deletedAt: new Date() })
 
     await service.remove('m1', 'auth0|owner')
 
-    expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/menus/old.jpg')
+    expect(uploads.deleteManagedFile).not.toHaveBeenCalled()
   })
 
   it('update: เปลี่ยนรูปใหม่ — ลบไฟล์รูปเก่าทิ้ง', async () => {

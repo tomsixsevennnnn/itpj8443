@@ -28,10 +28,12 @@ import {
 import { DEFAULT_STAFF_RATIOS } from './staffing'
 import { DEFAULT_SLOT_HOURS } from './availability'
 import { DEFAULT_HOME_CONTENT } from './homeContent'
-import { unreadNotificationCount } from './notifications'
+import { DEFAULT_NOTIF_SEEN_AT, unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
 import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput, type UploadImageKind } from './api'
 import { usePolling } from './usePolling'
+import { useBookingsStream } from './useBookingsStream'
+import { isSessionExpiredError } from './sessionExpired'
 import ErrorBanner from './components/ErrorBanner'
 import Login from './screens/Login'
 import CompleteProfile from './screens/CompleteProfile'
@@ -97,6 +99,11 @@ const initialSettings: AppSettings = {
 }
 
 const SETTINGS_POLL_MS = 20_000
+/** ทางหลักที่ทำให้รายการจองเห็นการเปลี่ยนแปลงแบบ realtime คือ useBookingsStream (SSE) ด้านล่าง — ตัวนี้เป็นแค่
+ *  fallback เผื่อ SSE เชื่อมต่อไม่ได้ (เช่น proxy/network บาง setup ไม่รองรับ event stream) จึง poll ห่างๆ พอ */
+const BOOKINGS_POLL_MS = 60_000
+/** เก็บ per-browser ไม่ใช่ per-account — ต้องล้างตอน logout ไม่งั้นลูกค้าคนถัดไปที่ใช้เครื่องเดียวกันจะเห็นค่าเก่าค้าง */
+const CUSTOMER_NOTIF_SEEN_KEY = 'customerNotifSeenAt'
 
 const initialBooking: BookingData = {
   date: null,
@@ -124,6 +131,17 @@ export default function App() {
   const [menus, setMenus] = useState<MenuItem[]>([])
   // ค่าตั้งค่าร้าน — แก้ได้จากหน้า "ตั้งค่า" ฝั่งเจ้าของร้าน มีผลกับค่าขนส่ง มัดจำ และข้อมูลบนเอกสารทันที
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
+
+  const [notifSeenAt, setNotifSeenAt] = useState<string>(() => {
+    try {
+      return localStorage.getItem(CUSTOMER_NOTIF_SEEN_KEY) ?? DEFAULT_NOTIF_SEEN_AT
+    } catch {
+      return DEFAULT_NOTIF_SEEN_AT
+    }
+  })
+  // ค่า notifSeenAt "ก่อนหน้า" ที่ freeze ไว้ตอนเข้าหน้าแจ้งเตือนรอบนี้ — ใช้ตัดสินป้าย "ยังไม่อ่าน" รายรายการ
+  // ในหน้านั้นเอง (โชว์สิ่งที่ใหม่ตั้งแต่ครั้งก่อนที่เปิดดู) แยกจาก notifSeenAt ที่อัปเดตทันทีเพื่อให้ตัวเลขที่กระดิ่งหายทันที
+  const [notifPageSeenAt, setNotifPageSeenAt] = useState(notifSeenAt)
 
   // ชื่อ tab เบราว์เซอร์ — title ใน index.html มาจาก .figma/make/site.json (static ตอน build)
   // ก่อน login หน้า Login เป็นคนดึง/ตั้ง title เอง (ดู screens/Login.tsx) ส่วนนี้ sync ต่อหลัง login โหลดเสร็จ
@@ -175,7 +193,13 @@ export default function App() {
         setSettings(sttgs)
         setDataLoaded(true)
       } catch (err) {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
+        if (cancelled) return
+        // session/token หมดอายุ — เด้งกลับหน้า login แทนที่จะโชว์หน้า error ให้กด "ลองใหม่" วนไม่รู้จบ
+        if (isSessionExpiredError(err)) {
+          forceLogout()
+          return
+        }
+        setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
       }
     }
     load()
@@ -186,13 +210,41 @@ export default function App() {
 
   const withToken = () => getAccessTokenSilently()
 
+  /** เคลียร์ session ของ Auth0 SDK แล้วเด้งกลับหน้า login — ใช้ทั้งตอนกดปุ่ม "ออกจากระบบ" และตอน token/session
+   *  หมดอายุระหว่างใช้งาน (getAccessTokenSilently ขอ token ใหม่ไม่ได้ หรือ backend ตอบ 401) */
+  const forceLogout = () => {
+    // cacheLocation="localstorage" (main.tsx) แปลว่า session ของ Auth0 SDK เองก็อยู่ใน localStorage —
+    // ปกติ logout() จะล้างให้ แต่ถ้ามี request ค้าง (เช่น token refresh) ชนกับตอน logout อาจเขียนทับกลับมาได้
+    // ล้างเองซ้ำให้ชัวร์ก่อน redirect กันเคส "ออกจากระบบแล้วกลับเข้ามาเจอ session เดิมของ owner ค้างอยู่"
+    try {
+      Object.keys(localStorage)
+        .filter(key => key.startsWith('@@auth0spajs@@'))
+        .forEach(key => localStorage.removeItem(key))
+      localStorage.removeItem(OWNER_NOTIF_SEEN_KEY)
+      localStorage.removeItem(CUSTOMER_NOTIF_SEEN_KEY)
+    } catch {
+      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode)
+    }
+    logout({ logoutParams: { returnTo: window.location.origin } })
+  }
+
   /** อัปโหลดรูป (data URL) ไปเก็บเป็นไฟล์บน backend แล้วคืน path สั้นๆ — ใช้แทนการเก็บ data URL ดิบในฟิลด์ image/logo/qr/slip */
   const handleUploadImage = (kind: UploadImageKind, dataUrl: string) =>
-    withToken().then(token => api.uploadImage(token, kind, dataUrl))
+    withToken()
+      .then(token => api.uploadImage(token, kind, dataUrl))
+      .catch(err => {
+        if (isSessionExpiredError(err)) forceLogout()
+        throw err
+      })
 
   /** ดึงรูปสลิปโอนเงินมาเป็น object URL — ต้องแนบ token เพราะไม่ใช่ static asset สาธารณะ (ดู useAuthedSlipUrl.ts) */
   const handleFetchPaymentSlip = (bookingId: string) =>
-    withToken().then(token => api.fetchPaymentSlip(token, bookingId))
+    withToken()
+      .then(token => api.fetchPaymentSlip(token, bookingId))
+      .catch(err => {
+        if (isSessionExpiredError(err)) forceLogout()
+        throw err
+      })
 
   // poll ค่าตั้งค่าร้านทุก 20 วิหลัง login (หยุดพักตอนสลับแท็บ) — เจ้าของร้านแก้ชื่อร้าน/ค่าอื่นๆ
   // จากเครื่อง/แท็บอื่น หน้าที่เปิดค้างไว้จะเห็นการเปลี่ยนแปลงโดยไม่ต้องกด refresh เอง
@@ -204,12 +256,34 @@ export default function App() {
       .catch(() => {})
   }, SETTINGS_POLL_MS)
 
+  const refetchBookings = () => {
+    withToken()
+      .then(token => api.bookings(token))
+      .then(setBookings)
+      .catch(() => {})
+  }
+
+  // SSE — backend ยิงสัญญาณทันทีที่มีการจอง/แก้ไขใบจอง (ดู backend/src/realtime) ให้ owner เห็นรายการจองใหม่
+  // แทบจะทันทีโดยไม่ต้อง refresh เอง แทนที่จะรอ poll รอบถัดไป
+  useBookingsStream(isAuthenticated && dataLoaded, withToken, refetchBookings)
+
+  // fallback poll ห่างๆ เผื่อ SSE เชื่อมต่อไม่ได้ — เช็ค dataLoaded กันยิง request ซ้อนกับตอนโหลดครั้งแรกที่ยังไม่เสร็จ
+  usePolling(() => {
+    if (!isAuthenticated || !dataLoaded) return
+    refetchBookings()
+  }, BOOKINGS_POLL_MS)
+
   /** ห่อ handler ที่ยิง API ทุกตัว — ถ้า error ให้เด้ง banner แจ้งผู้ใช้แทนที่จะเงียบ/พังไม่รู้สาเหตุ */
   const runAction = async (fn: () => Promise<void>) => {
     try {
       setActionError(null)
       await fn()
     } catch (err) {
+      // session/token หมดอายุระหว่างใช้งาน — เด้งกลับหน้า login แทนที่จะโชว์ banner error เฉยๆ
+      if (isSessionExpiredError(err)) {
+        forceLogout()
+        return
+      }
       setActionError(err instanceof Error ? err.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง')
     }
   }
@@ -313,28 +387,29 @@ export default function App() {
       }
     : null
 
-  const notifCount = unreadNotificationCount(bookings)
+  const notifCount = unreadNotificationCount(bookings, notifSeenAt)
 
   /** navigate('login') คือปุ่ม "ออกจากระบบ" เดิมทุกจุดในแอป — ผูกเข้ากับ Auth0 logout จริงตรงนี้ที่เดียว */
   const navigate = (s: Screen) => {
     if (s === 'login') {
-      // cacheLocation="localstorage" (main.tsx) แปลว่า session ของ Auth0 SDK เองก็อยู่ใน localStorage —
-      // ปกติ logout() จะล้างให้ แต่ถ้ามี request ค้าง (เช่น token refresh) ชนกับตอน logout อาจเขียนทับกลับมาได้
-      // ล้างเองซ้ำให้ชัวร์ก่อน redirect กันเคส "ออกจากระบบแล้วกลับเข้ามาเจอ session เดิมของ owner ค้างอยู่"
-      try {
-        Object.keys(localStorage)
-          .filter(key => key.startsWith('@@auth0spajs@@'))
-          .forEach(key => localStorage.removeItem(key))
-        localStorage.removeItem(OWNER_NOTIF_SEEN_KEY)
-      } catch {
-        // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode)
-      }
-      logout({ logoutParams: { returnTo: window.location.origin } })
+      forceLogout()
       return
     }
     // ออกจากขั้นตอนการจอง (กดแถบเมนูด้านบนไปหน้าอื่น) ไปหน้าที่ไม่ใช่ส่วนหนึ่งของ flow — ล้างข้อมูลจองที่เลือกไว้ กลับมาต้องเริ่มใหม่
     if (BOOKING_FLOW_SCREENS.includes(screen) && !BOOKING_FLOW_SCREENS.includes(s)) {
       setBooking(initialBooking)
+    }
+    // เข้าหน้าแจ้งเตือน — freeze ค่าเดิมไว้ให้หน้านั้นใช้ตัดสิน "ยังไม่อ่าน" รายรายการ แล้วค่อยอัปเดต/บันทึกค่าใหม่
+    // ทันที ให้ตัวเลขที่กระดิ่งหายจากหน้าอื่นๆ ทันทีที่กดเข้ามาดู (เหมือนฝั่งเจ้าของร้านใน OwnerLayout.tsx)
+    if (s === 'notifications') {
+      setNotifPageSeenAt(notifSeenAt)
+      const now = new Date().toISOString()
+      setNotifSeenAt(now)
+      try {
+        localStorage.setItem(CUSTOMER_NOTIF_SEEN_KEY, now)
+      } catch {
+        // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode) — แค่ตัวเลขจะไม่คงอยู่ข้ามเซสชัน
+      }
     }
     setScreen(s)
   }
@@ -664,7 +739,7 @@ export default function App() {
           onFetchPaymentSlip={handleFetchPaymentSlip}
         />
       )}
-      {effectiveScreen === 'notifications' && <Notifications bookings={bookings} />}
+      {effectiveScreen === 'notifications' && <Notifications bookings={bookings} notifSeenAt={notifPageSeenAt} />}
     </NavProvider>
   )
 }

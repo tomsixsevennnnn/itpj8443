@@ -29,7 +29,15 @@ const makeService = () => {
   const settingsService = { get: jest.fn().mockResolvedValue(SETTINGS) } as any
   const audit = { log: jest.fn() } as any
   const uploads = { deleteManagedFile: jest.fn() } as any
-  return { service: new BookingsService(prisma, settingsService, audit, uploads), prisma, settingsService, audit, uploads }
+  const realtime = { emitBookingsChanged: jest.fn() } as any
+  return {
+    service: new BookingsService(prisma, settingsService, audit, uploads, realtime),
+    prisma,
+    settingsService,
+    audit,
+    uploads,
+    realtime,
+  }
 }
 
 const baseDto = (overrides: Partial<any> = {}) => ({
@@ -90,6 +98,18 @@ describe('BookingsService.create', () => {
     expect(result.deliveryFee).toBe(0)
     expect(result.pricePerTable).toBe(1000)
     expect(result.totalPrice).toBe(10_000)
+  })
+
+  it('สร้างสำเร็จ — แจ้งเตือน realtime ให้ client ที่เปิดหน้าค้างไว้ refetch', async () => {
+    const { service, prisma, realtime } = makeService()
+    prisma.package.findUnique.mockResolvedValue(PACKAGE)
+    prisma.booking.findFirst.mockResolvedValue(null)
+    prisma.bookingCounter.upsert.mockResolvedValue({ lastNo: 1 })
+    prisma.booking.create = jest.fn((args: any) => args.data)
+
+    await service.create('c1', 'ลูกค้า', '0800000000', baseDto({ locationDetail: { province: 'นครปฐม', address: '' } }))
+
+    expect(realtime.emitBookingsChanged).toHaveBeenCalledTimes(1)
   })
 
   it('zone = metro ไม่ถึงขั้นต่ำ — คิดค่าขนส่งตาม settings.deliveryFee', async () => {
@@ -186,6 +206,16 @@ describe('BookingsService.updateAsOwner', () => {
     expect(result).toBe(after)
   })
 
+  it('อัปเดตสำเร็จ — แจ้งเตือน realtime ให้ client ที่เปิดหน้าค้างไว้ refetch', async () => {
+    const { service, prisma, realtime } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', status: 'PENDING' })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', status: 'CONFIRMED' })
+
+    await service.updateAsOwner('b1', { status: 'CONFIRMED' } as any, 'auth0|owner')
+
+    expect(realtime.emitBookingsChanged).toHaveBeenCalledTimes(1)
+  })
+
   it('ไม่พบใบจอง — throw NotFoundException', async () => {
     const { service, prisma } = makeService()
     prisma.booking.findUnique.mockResolvedValue(null)
@@ -212,6 +242,16 @@ describe('BookingsService.updatePaymentSlipAsCustomer', () => {
     await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
 
     expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/slips/old.jpg')
+  })
+
+  it('แนบสลิปสำเร็จ — แจ้งเตือน realtime ให้ client ที่เปิดหน้าค้างไว้ refetch', async () => {
+    const { service, prisma, realtime } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', paymentSlipUrl: null })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', paymentSlipUrl: '/uploads/slips/new.jpg' })
+
+    await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(realtime.emitBookingsChanged).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -35,16 +35,26 @@ describe('PackagesService', () => {
     expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, after)
   })
 
-  it('remove: บันทึก audit log พร้อม before = แพ็กเกจที่ลบไป', async () => {
+  it('remove: soft delete — update deletedAt แทนการลบแถวจริง แล้วบันทึก audit log พร้อม before/after', async () => {
     const { service, prisma, audit } = makeService()
-    const deleted = { id: 'p1', name: 'แพ็กเกจ A' }
-    prisma.package.delete.mockResolvedValue(deleted)
+    const before = { id: 'p1', name: 'แพ็กเกจ A', deletedAt: null }
+    const after = { id: 'p1', name: 'แพ็กเกจ A', deletedAt: new Date() }
+    prisma.package.findUnique.mockResolvedValue(before)
+    prisma.package.update.mockResolvedValue(after)
 
     const result = await service.remove('p1', 'auth0|owner')
 
-    expect(prisma.package.delete).toHaveBeenCalledWith({ where: { id: 'p1' } })
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.delete', 'Package', 'p1', deleted, undefined)
-    expect(result).toBe(deleted)
+    expect(prisma.package.delete).not.toHaveBeenCalled()
+    expect(prisma.package.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { deletedAt: expect.any(Date) } })
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.delete', 'Package', 'p1', before, after)
+    expect(result).toBe(after)
+  })
+
+  it('remove: ไม่พบแพ็กเกจนี้ — โยน NotFoundException', async () => {
+    const { service, prisma } = makeService()
+    prisma.package.findUnique.mockResolvedValue(null)
+
+    await expect(service.remove('missing', 'auth0|owner')).rejects.toThrow('ไม่พบแพ็กเกจนี้')
   })
 
   it('reorder: ids ไม่ตรงกับแพ็กเกจทั้งหมดที่มีอยู่ (ขาด/เกิน) throw BadRequestException', async () => {

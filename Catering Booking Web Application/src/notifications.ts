@@ -11,11 +11,14 @@ export interface NotificationItem {
   timestamp: string
 }
 
-/** ถือว่า "ใหม่" ถ้าเกิดขึ้นภายใน 24 ชม.ที่ผ่านมา — ใช้ตัดสินทั้งป้าย NEW รายรายการ และตัวเลขนับที่ไอคอนกระดิ่ง */
-const NEW_WINDOW_MS = 86_400_000
+/** ยังไม่เคยเปิดหน้า/dropdown แจ้งเตือนมาก่อนเลย (ไม่มีค่า seenAt เก็บไว้) — ใช้ช่วง 24 ชม.ที่ผ่านมาเป็นค่าเริ่มต้นของ
+ *  "ยังไม่อ่าน" กันไม่ให้ประวัติเก่าทั้งหมดโผล่เป็น NEW ตั้งแต่ครั้งแรกที่เปิดแอป */
+export const DEFAULT_NOTIF_SEEN_AT = new Date(Date.now() - 86_400_000).toISOString()
 
-export const isNotificationNew = (item: Pick<NotificationItem, 'timestamp'>): boolean =>
-  Date.now() - new Date(item.timestamp).getTime() < NEW_WINDOW_MS
+/** ยังไม่อ่าน = เกิดขึ้นหลังจากครั้งล่าสุดที่ผู้ใช้เปิดหน้า/dropdown แจ้งเตือน (seenAt) — ใช้ตัดสินทั้งป้าย NEW
+ *  รายรายการ และตัวเลขนับที่ไอคอนกระดิ่ง แทนช่วงเวลาคงที่ 24 ชม. เดิม ซึ่งเปิดดูแล้วก็ยังขึ้น NEW ค้างจนครบ 24 ชม. */
+export const isNotificationUnread = (item: Pick<NotificationItem, 'timestamp'>, seenAt: string): boolean =>
+  item.timestamp > seenAt
 
 /** สร้างรายการแจ้งเตือนจากใบจองจริงของลูกค้า (ไม่ใช้ mock) — 1 การ์ดต่อสถานะ บวกการ์ดเตือนล่วงหน้าถ้างานจะจัดพรุ่งนี้ */
 export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
@@ -47,7 +50,9 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
           kind: 'reminder',
           title: 'แจ้งเตือนงานพรุ่งนี้',
           message: `อย่าลืม! งานจัดเลี้ยงของคุณ ${no} จะจัดขึ้นพรุ่งนี้ ${booking.timeSlot}`,
-          timestamp: new Date().toISOString(),
+          // ผูกกับ booking.date (คงที่) แทน new Date().toISOString() — ค่าเดิมเปลี่ยนใหม่ทุกครั้งที่ re-render
+          // ทำให้เทียบกับ seenAt แล้ว "ใหม่กว่าเสมอ" ไม่มีทางถูกนับเป็นอ่านแล้วสักที
+          timestamp: new Date(new Date(booking.date + 'T00:00:00').getTime() - 86_400_000).toISOString(),
         })
       }
     } else if (booking.status === 'completed') {
@@ -87,8 +92,8 @@ export const timeAgo = (timestamp: string): string => {
   return new Date(timestamp).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export const unreadNotificationCount = (bookings: Booking[]): number =>
-  buildNotifications(bookings).filter(isNotificationNew).length
+export const unreadNotificationCount = (bookings: Booking[], seenAt: string): number =>
+  buildNotifications(bookings).filter(item => isNotificationUnread(item, seenAt)).length
 
 /** จำนวนใบจองที่รอยืนยัน — ใช้ badge กระดิ่งฝั่งเจ้าของร้าน */
 export const ownerPendingCount = (bookings: Booking[]): number =>

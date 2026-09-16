@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import Avatar from './Avatar'
-import { buildNotifications, isNotificationNew, timeAgo } from '../notifications'
+import { buildNotifications, isNotificationUnread, timeAgo } from '../notifications'
 import { useNav } from '../NavContext'
 import type { Booking, Screen } from '../types'
 import { resolveImageUrl } from '../api'
@@ -61,9 +61,13 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
       return ''
     }
   })
+  // ค่า notifSeenAt "ก่อนหน้า" ที่ freeze ไว้ตอนเปิด dropdown รอบนี้ — ใช้ตัดสินจุดสีส้ม/ป้ายใหม่รายรายการ
+  // (โชว์สิ่งที่ใหม่ตั้งแต่ครั้งก่อนที่เปิดดู) แยกจาก notifSeenAt ที่อัปเดตทันทีเพื่อให้ตัวเลขที่กระดิ่งหายทันที —
+  // ถ้าใช้ notifSeenAt ตัวเดียวกันทั้งคู่ พอเปิด dropdown ค่าจะเท่ากับ "เดี๋ยวนี้" ทำให้ไม่มีรายการไหนขึ้นจุดใหม่เลย
+  const [notifPageSeenAt, setNotifPageSeenAt] = useState(notifSeenAt)
   const allNotifItems = useMemo(() => buildNotifications(bookings), [bookings])
   const notifItems = useMemo(() => allNotifItems.slice(0, NOTIF_PREVIEW_LIMIT), [allNotifItems])
-  const unreadNotifCount = allNotifItems.filter(item => item.timestamp > notifSeenAt).length
+  const unreadNotifCount = allNotifItems.filter(item => isNotificationUnread(item, notifSeenAt)).length
 
   const handleNavigate = (screen: Screen) => {
     navigate(screen)
@@ -72,6 +76,7 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
 
   const openNotifications = () => {
     setNotifOpen(true)
+    setNotifPageSeenAt(notifSeenAt)
     const now = new Date().toISOString()
     setNotifSeenAt(now)
     try {
@@ -214,7 +219,7 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
                           >
                             <div className="flex items-center gap-2 mb-0.5">
                               <p className="text-sm font-semibold text-gray-800">{item.title}</p>
-                              {isNotificationNew(item) && (
+                              {isNotificationUnread(item, notifPageSeenAt) && (
                                 <span className="w-1.5 h-1.5 bg-orange-500 rounded-full flex-shrink-0" />
                               )}
                             </div>

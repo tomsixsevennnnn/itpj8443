@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { Bell, CheckCircle, Clock, XCircle } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import { buildNotifications, isNotificationNew, type NotificationKind } from '../notifications'
+import { buildNotifications, isNotificationUnread, type NotificationKind } from '../notifications'
 import type { Booking } from '../types'
 
 interface NotificationsProps {
   bookings: Booking[]
+  notifSeenAt: string
 }
 
 const KIND_UI: Record<NotificationKind, { icon: typeof Clock; color: string; bg: string; border: string }> = {
@@ -16,7 +17,7 @@ const KIND_UI: Record<NotificationKind, { icon: typeof Clock; color: string; bg:
   cancelled: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' },
 }
 
-export default function Notifications({ bookings }: NotificationsProps) {
+export default function Notifications({ bookings, notifSeenAt }: NotificationsProps) {
   const items = useMemo(() => buildNotifications(bookings), [bookings])
 
   return (
@@ -43,7 +44,7 @@ export default function Notifications({ bookings }: NotificationsProps) {
             {items.map((item) => {
               const ui = KIND_UI[item.kind]
               const Icon = ui.icon
-              const isNew = isNotificationNew(item)
+              const isNew = isNotificationUnread(item, notifSeenAt)
               const time = new Date(item.timestamp).toLocaleString('th-TH', {
                 day: 'numeric',
                 month: 'short',

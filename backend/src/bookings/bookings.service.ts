@@ -3,6 +3,7 @@ import { BookingStatus, Prisma } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { Paginated, pageArgsFor } from '../common/pagination'
 import { PrismaService } from '../prisma/prisma.service'
+import { RealtimeService } from '../realtime/realtime.service'
 import { SettingsService } from '../settings/settings.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { CreateBookingDto } from './dto/create-booking.dto'
@@ -25,6 +26,7 @@ export class BookingsService {
     private settingsService: SettingsService,
     private audit: AuditService,
     private uploads: UploadsService,
+    private realtime: RealtimeService,
   ) {}
 
   /** เจ้าของร้านต้องเห็นข้อมูลบัญชีลูกค้าปัจจุบัน (ชื่อ/นามสกุล/อีเมล/LINE ID) ไม่ใช่แค่ snapshot ตอนจอง — join จาก User ที่ผูกไว้ */
@@ -126,7 +128,7 @@ export class BookingsService {
       where: { id: dto.packageId },
       include: { courses: { include: { items: true } } },
     })
-    if (!pkg) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
+    if (!pkg || pkg.deletedAt) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
 
     const validMenuNames = new Set(pkg.courses.flatMap((c) => c.items.map((i) => i.name)))
     const invalidMenus = dto.menus.filter((name) => !validMenuNames.has(name))
@@ -146,7 +148,7 @@ export class BookingsService {
 
     for (let attempt = 1; attempt <= MAX_SERIALIZATION_RETRIES; attempt++) {
       try {
-        return await this.prisma.$transaction(
+        const created = await this.prisma.$transaction(
           async (tx) => {
             const conflict = await tx.booking.findFirst({
               where: { date: dto.date, status: { in: OCCUPIES_QUEUE } },
@@ -182,6 +184,8 @@ export class BookingsService {
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         )
+        this.realtime.emitBookingsChanged()
+        return created
       } catch (err) {
         if (!isSerializationConflict(err)) throw err
         if (attempt === MAX_SERIALIZATION_RETRIES) {
@@ -208,6 +212,7 @@ export class BookingsService {
       },
     })
     await this.audit.log(editorAuth0Sub, 'booking.update', 'Booking', id, before, after)
+    this.realtime.emitBookingsChanged()
     return after
   }
 
@@ -222,6 +227,7 @@ export class BookingsService {
     if (booking.paymentSlipUrl && booking.paymentSlipUrl !== after.paymentSlipUrl) {
       await this.uploads.deleteManagedFile(booking.paymentSlipUrl)
     }
+    this.realtime.emitBookingsChanged()
     return after
   }
 

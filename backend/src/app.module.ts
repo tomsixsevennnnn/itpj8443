@@ -9,6 +9,7 @@ import { GeoModule } from './geo/geo.module'
 import { MenusModule } from './menus/menus.module'
 import { PackagesModule } from './packages/packages.module'
 import { PrismaModule } from './prisma/prisma.module'
+import { RealtimeModule } from './realtime/realtime.module'
 import { SettingsModule } from './settings/settings.module'
 import { UploadsModule } from './uploads/uploads.module'
 import { UsersModule } from './users/users.module'
@@ -29,6 +30,7 @@ import { UsersModule } from './users/users.module'
     SettingsModule,
     GeoModule,
     UploadsModule,
+    RealtimeModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
