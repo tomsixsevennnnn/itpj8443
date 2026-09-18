@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Bell, CheckCircle, Clock, XCircle } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import { buildNotifications, isNotificationUnread, type NotificationKind } from '../notifications'
+import { buildNotifications, isNotificationUnread, timeAgo, type NotificationKind } from '../notifications'
 import type { Booking } from '../types'
 
 interface NotificationsProps {
@@ -45,13 +45,7 @@ export default function Notifications({ bookings, notifSeenAt }: NotificationsPr
               const ui = KIND_UI[item.kind]
               const Icon = ui.icon
               const isNew = isNotificationUnread(item, notifSeenAt)
-              const time = new Date(item.timestamp).toLocaleString('th-TH', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
+              const time = timeAgo(item.timestamp)
 
               return (
                 <div
@@ -82,9 +76,11 @@ export default function Notifications({ bookings, notifSeenAt }: NotificationsPr
           </div>
         )}
 
-        <div className="text-center mt-8">
-          <p className="text-gray-400 text-sm">แสดงการแจ้งเตือนทั้งหมดแล้ว</p>
-        </div>
+        {items.length > 0 && (
+          <div className="text-center mt-8">
+            <p className="text-gray-400 text-sm">แสดงการแจ้งเตือนทั้งหมดแล้ว</p>
+          </div>
+        )}
       </div>
     </div>
   )

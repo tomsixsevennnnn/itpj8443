@@ -65,10 +65,15 @@ export class MenusService {
       where: { id },
       data: { ...dto, imagePosition: dto.imagePosition ? { ...dto.imagePosition } : undefined, lastEditedBy: editorAuth0Sub },
     })
-    await this.audit.log(editorAuth0Sub, 'menu.update', 'MenuItem', id, before, after)
-    // เปลี่ยนรูปเมนู — ลบไฟล์เก่าทิ้งกัน orphan สะสมบน disk (ไม่บล็อกแม้ลบไม่สำเร็จ)
-    if (dto.image !== undefined && before?.image && before.image !== after.image) {
-      await this.uploads.deleteManagedFile(before.image)
+
+    // เปลี่ยนรูปเมนู — ไฟล์เก่ากำลังจะถูกลบทิ้งกัน orphan สะสมบน disk แต่ประวัติการแก้ไข (audit log) ต้องยังดู
+    // รูปเดิมย้อนหลังได้ เลยย่อเป็น thumbnail คุณภาพต่ำฝังไว้แทน path เดิมก่อนลบไฟล์จริงทิ้ง
+    const imageReplaced = dto.image !== undefined && before?.image && before.image !== after.image
+    const auditBefore =
+      before && imageReplaced ? { ...before, image: (await this.uploads.makeThumbnailDataUrl(before.image)) ?? before.image } : before
+    await this.audit.log(editorAuth0Sub, 'menu.update', 'MenuItem', id, auditBefore, after)
+    if (imageReplaced) {
+      await this.uploads.deleteManagedFile(before!.image)
     }
     return after
   }

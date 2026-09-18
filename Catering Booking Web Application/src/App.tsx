@@ -72,6 +72,8 @@ const BOOKING_FLOW_SCREENS: Screen[] = [
 ]
 
 const initialSettings: AppSettings = {
+  // ค่าเริ่มต้นก่อนโหลดจริงจาก backend — ตัวจริงจะมาแทนที่หลัง GET /settings เสมอ ห้ามใช้ค่านี้บันทึกจริง
+  version: 0,
   shopInfo: DEFAULT_SHOP_INFO,
   depositRate: DEFAULT_DEPOSIT_RATE,
   deliveryFee: DEFAULT_DELIVERY_FEE,
@@ -102,6 +104,9 @@ const SETTINGS_POLL_MS = 20_000
 /** ทางหลักที่ทำให้รายการจองเห็นการเปลี่ยนแปลงแบบ realtime คือ useBookingsStream (SSE) ด้านล่าง — ตัวนี้เป็นแค่
  *  fallback เผื่อ SSE เชื่อมต่อไม่ได้ (เช่น proxy/network บาง setup ไม่รองรับ event stream) จึง poll ห่างๆ พอ */
 const BOOKINGS_POLL_MS = 60_000
+/** เมนู/แพ็กเกจ/คิวช่วงเวลาจอง ไม่มีช่องทาง realtime แบบ bookings (ไม่มี SSE ให้) — poll ไว้กันแท็บ/เครื่องอื่น
+ *  แก้เมนู เพิ่มแพ็กเกจ หรือช่วงเวลาที่คนอื่นจองเต็มไปแล้ว ไม่เห็นจนกว่าจะ refresh เอง */
+const CATALOG_POLL_MS = 30_000
 /** เก็บ per-browser ไม่ใช่ per-account — ต้องล้างตอน logout ไม่งั้นลูกค้าคนถัดไปที่ใช้เครื่องเดียวกันจะเห็นค่าเก่าค้าง */
 const CUSTOMER_NOTIF_SEEN_KEY = 'customerNotifSeenAt'
 
@@ -263,6 +268,20 @@ export default function App() {
       .catch(() => {})
   }
 
+  // poll เมนู/แพ็กเกจ/คิวช่วงเวลาจองทุก 30 วิหลัง login — ไม่มี SSE ให้เหมือน bookings เลยต้อง poll เอง
+  // กันแท็บ/เครื่องอื่นแก้ข้อมูลพวกนี้แล้วหน้าที่เปิดค้างไว้เห็นข้อมูลเก่าจนกว่าจะ refresh เอง
+  usePolling(() => {
+    if (!isAuthenticated || !dataLoaded) return
+    withToken()
+      .then(token => Promise.all([api.bookingsAvailability(token), api.packages(token), api.menus(token)]))
+      .then(([avail, pkgs, mns]) => {
+        setAvailability(avail)
+        setPackages(pkgs)
+        setMenus(mns)
+      })
+      .catch(() => {})
+  }, CATALOG_POLL_MS)
+
   // SSE — backend ยิงสัญญาณทันทีที่มีการจอง/แก้ไขใบจอง (ดู backend/src/realtime) ให้ owner เห็นรายการจองใหม่
   // แทบจะทันทีโดยไม่ต้อง refresh เอง แทนที่จะรอ poll รอบถัดไป
   useBookingsStream(isAuthenticated && dataLoaded, withToken, refetchBookings)
@@ -354,14 +373,22 @@ export default function App() {
 
   const handleReorderPackages = (ids: string[]) =>
     runAction(async () => {
-      // จัดเรียงในจอทันทีตอนลากวาง ไม่ต้องรอ backend ตอบก่อนถึงจะเห็นผล
+      // จัดเรียงในจอทันทีตอนลากวาง ไม่ต้องรอ backend ตอบก่อนถึงจะเห็นผล — เก็บลำดับเดิมไว้เผื่อต้อง rollback
+      let prevPackages: Package[] = []
       setPackages(prev => {
+        prevPackages = prev
         const byId = new Map(prev.map(p => [p.id, p]))
         return ids.map(id => byId.get(id)).filter((p): p is Package => p != null)
       })
-      const token = await withToken()
-      const reordered = await api.reorderPackages(token, ids)
-      setPackages(reordered)
+      try {
+        const token = await withToken()
+        const reordered = await api.reorderPackages(token, ids)
+        setPackages(reordered)
+      } catch (err) {
+        // บันทึกลำดับใหม่ไม่สำเร็จ — ย้อนกลับไปลำดับเดิมก่อนแทนที่จะค้างโชว์ลำดับผิดที่ backend ไม่รู้จัก
+        setPackages(prevPackages)
+        throw err
+      }
     })
 
   /** role ที่แท้จริงมาจาก DB (backendUser) เสมอ — ไม่ใช้ claim ใน Auth0 token ตรงๆ เพราะ promote/demote ผ่านหน้า
@@ -471,8 +498,20 @@ export default function App() {
   const handleUpdateSettings = (patch: Partial<AppSettings>) =>
     runAction(async () => {
       const token = await withToken()
-      const updated = await api.updateSettings(token, patch)
-      setSettings(updated)
+      try {
+        const updated = await api.updateSettings(token, patch)
+        setSettings(updated)
+      } catch (err) {
+        // 409 = มีคนแก้ไขค่าตั้งค่าไปแล้วก่อนหน้านี้ (อีกแท็บ/อีกคน) — โหลดค่าล่าสุดจาก backend มาแทนที่ค่าในหน้าจอ
+        // แทนที่จะทิ้งข้อความ error ดิบให้ผู้ใช้เห็น (มี version เดิมค้างอยู่ ไม่มีทาง save ซ้ำผ่านได้จนกว่าจะ refresh)
+        const message = err instanceof Error ? err.message : ''
+        if (/-> 409/.test(message)) {
+          const fresh = await api.settings(token)
+          setSettings(fresh)
+          throw new Error('มีการแก้ไขค่าตั้งค่าจากที่อื่นไปแล้ว ระบบโหลดค่าล่าสุดมาให้แล้ว กรุณาตรวจสอบและบันทึกใหม่อีกครั้ง')
+        }
+        throw err
+      }
     })
 
   const handleConfirm = () =>

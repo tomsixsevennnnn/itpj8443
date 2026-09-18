@@ -77,6 +77,7 @@ const toFrontendQueueBooking = (b: BackendQueueBooking): QueueBooking => ({
 })
 
 interface BackendSettings {
+  version: number
   shopName: string
   shopNameEn: string
   shopInitials: string
@@ -123,6 +124,7 @@ interface BackendSettings {
 }
 
 const toFrontendSettings = (s: BackendSettings): AppSettings => ({
+  version: s.version ?? 0,
   shopInfo: {
     name: s.shopName,
     nameEn: s.shopNameEn,
@@ -176,6 +178,9 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
 
 const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unknown> => {
   const out: Record<string, unknown> = {}
+  // ต้องส่งเสมอ (ไม่ใช่ optional เหมือนฟิลด์อื่น) — backend ใช้เช็คว่ามีคนแก้ settings ไปก่อนหน้านี้หรือยัง
+  // (ดู settings.service.ts) ถ้าไม่ส่งมา validation ฝั่ง backend จะปฏิเสธ request ทันที
+  out.expectedVersion = patch.version ?? 0
   const si = patch.shopInfo
   if (si?.name !== undefined) out.shopName = si.name
   if (si?.nameEn !== undefined) out.shopNameEn = si.nameEn
@@ -227,6 +232,8 @@ export interface AuditLogEntry {
   id: string
   actorUserId: string
   actorRole: 'CUSTOMER' | 'OWNER'
+  /** อีเมลของผู้แก้ไข ณ ตอนที่แก้ — ค่าว่าง = แถวเก่าก่อนมีคอลัมน์นี้ (ไม่มีให้ย้อนหลัง) */
+  actorEmail: string
   action: string
   entityType: string
   entityId: string

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface AvatarProps {
   src?: string
@@ -13,6 +13,8 @@ const colorFor = (initial: string) => COLORS[initial.charCodeAt(0) % COLORS.leng
 /** โชว์รูปโปรไฟล์ ถ้าไม่มี src หรือโหลดไม่สำเร็จ (เช่น googleusercontent โดน rate limit) ใช้ตัวอักษรแรกของชื่อแทนแทนที่จะเป็นไอคอนรูปแตก */
 export default function Avatar({ src, name = '', className = '' }: AvatarProps) {
   const [failed, setFailed] = useState(false)
+  // src เปลี่ยน (เช่น อัปโหลดรูปใหม่ทับของเดิมที่เคยโหลดพลาด) — ต้องลองโหลดใหม่ ไม่งั้นค้างโชว์ตัวอักษรแทนตลอดไป
+  useEffect(() => setFailed(false), [src])
   const initial = name.trim().charAt(0).toUpperCase() || '?'
 
   if (!src || failed) {

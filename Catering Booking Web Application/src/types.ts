@@ -225,6 +225,9 @@ export type TimeSlotHours = Record<BaseSlotId, string>
 
 /** ค่าตั้งค่าของร้านที่เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
 export interface AppSettings {
+  /** เลข version ปัจจุบันของ settings — ต้องส่งกลับไปตอนบันทึกเสมอ (เป็น expectedVersion) กันสองแท็บ/สองคน
+   *  แก้ทับกันเงียบๆ (ดู App.tsx handleUpdateSettings และ backend settings.service.ts) */
+  version: number
   shopInfo: ShopInfo
   /** อัตรามัดจำ 0–1 เช่น 0.5 = 50% */
   depositRate: number

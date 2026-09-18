@@ -12,7 +12,7 @@ const makeService = () => {
     },
   } as any
   const audit = { log: jest.fn() } as any
-  const uploads = { deleteManagedFile: jest.fn() } as any
+  const uploads = { deleteManagedFile: jest.fn(), makeThumbnailDataUrl: jest.fn().mockResolvedValue(null) } as any
   return { service: new MenusService(prisma, audit, uploads), prisma, audit, uploads }
 }
 
@@ -92,6 +92,52 @@ describe('MenusService', () => {
 
     await service.update('m1', { image: '/uploads/menus/new.jpg' } as any, 'auth0|owner')
 
+    expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/menus/old.jpg')
+  })
+
+  it('update: เปลี่ยนรูปใหม่ — ย่อรูปเก่าเป็น thumbnail ฝังใน audit log ก่อนค่อยลบไฟล์จริงทิ้ง', async () => {
+    const { service, prisma, audit, uploads } = makeService()
+    const before = { id: 'm1', name: 'เมนู A', image: '/uploads/menus/old.jpg' }
+    const after = { id: 'm1', name: 'เมนู A', image: '/uploads/menus/new.jpg' }
+    prisma.menuItem.findUnique.mockResolvedValue(before)
+    prisma.menuItem.update.mockResolvedValue(after)
+    uploads.makeThumbnailDataUrl.mockResolvedValue('data:image/jpeg;base64,thumb')
+
+    const callOrder: string[] = []
+    uploads.makeThumbnailDataUrl.mockImplementation(async () => {
+      callOrder.push('thumbnail')
+      return 'data:image/jpeg;base64,thumb'
+    })
+    uploads.deleteManagedFile.mockImplementation(async () => {
+      callOrder.push('delete')
+    })
+
+    await service.update('m1', { image: '/uploads/menus/new.jpg' } as any, 'auth0|owner')
+
+    expect(uploads.makeThumbnailDataUrl).toHaveBeenCalledWith('/uploads/menus/old.jpg')
+    expect(audit.log).toHaveBeenCalledWith(
+      'auth0|owner',
+      'menu.update',
+      'MenuItem',
+      'm1',
+      { ...before, image: 'data:image/jpeg;base64,thumb' },
+      after,
+    )
+    // ต้องย่อ thumbnail (ต้องอ่านไฟล์ได้) ก่อนค่อยลบไฟล์จริงทิ้งเสมอ ไม่งั้นไฟล์หายก่อนอ่าน
+    expect(callOrder).toEqual(['thumbnail', 'delete'])
+  })
+
+  it('update: ย่อ thumbnail ไม่สำเร็จ — ยัง log path เดิมไว้ (ดีกว่าทำรายการไม่สำเร็จทั้งอัน) และลบไฟล์เก่าตามปกติ', async () => {
+    const { service, prisma, audit, uploads } = makeService()
+    const before = { id: 'm1', name: 'เมนู A', image: '/uploads/menus/old.jpg' }
+    const after = { id: 'm1', name: 'เมนู A', image: '/uploads/menus/new.jpg' }
+    prisma.menuItem.findUnique.mockResolvedValue(before)
+    prisma.menuItem.update.mockResolvedValue(after)
+    uploads.makeThumbnailDataUrl.mockResolvedValue(null)
+
+    await service.update('m1', { image: '/uploads/menus/new.jpg' } as any, 'auth0|owner')
+
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'menu.update', 'MenuItem', 'm1', before, after)
     expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/menus/old.jpg')
   })
 

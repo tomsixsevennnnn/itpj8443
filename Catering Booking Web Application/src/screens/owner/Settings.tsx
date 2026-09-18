@@ -31,6 +31,7 @@ import PromptPayQr from '../../components/PromptPayQr'
 import { pickImageAsDataUrl } from '../../imageUpload'
 import { resolveImageUrl, type UploadImageKind } from '../../api'
 import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
+import { deepTrim } from '../../deepTrim'
 
 interface SettingsProps {
   settings: AppSettings
@@ -105,7 +106,9 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
     setForm(f => (JSON.stringify(f) === JSON.stringify(prevSettings) ? settings : f))
   }, [settings])
 
-  const dirty = JSON.stringify(form) !== JSON.stringify(settings)
+  // เทียบด้วยค่าที่ trim whitespace หน้า/หลังแล้ว — กันเผลอเพิ่มช่องว่างท้ายข้อความแล้วนับเป็น "แก้ไข" ทั้งที่เนื้อหา
+  // จริงเหมือนเดิม (ไม่งั้นปุ่มติด dirty ทั้งที่ไม่มีอะไรเปลี่ยน แถมขึ้นในประวัติการแก้ไขเป็นการแก้ไขปลอม)
+  const dirty = JSON.stringify(deepTrim(form)) !== JSON.stringify(settings)
 
   const setShopField = (key: keyof AppSettings['shopInfo'], value: string) => {
     setForm(f => ({ ...f, shopInfo: { ...f.shopInfo, [key]: value } }))
@@ -259,7 +262,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
     if (saving) return
     setSaving(true)
     try {
-      await onUpdateSettings(form)
+      await onUpdateSettings(deepTrim(form))
       setSavedAt(Date.now())
     } finally {
       setSaving(false)

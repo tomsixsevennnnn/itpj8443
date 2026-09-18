@@ -140,6 +140,9 @@ model AuditLog {
   id          String   @id @default(cuid())
   actorUserId String
   actorRole   Role
+  /** อีเมลของผู้แก้ไข ณ ตอนนั้น — denormalize เก็บสำเนาไว้ตรงๆ (ไม่ join ตอนอ่าน) กันปัญหา user ถูกลบ/เปลี่ยนอีเมล
+   *  ภายหลังแล้วประวัติเก่าเปลี่ยนความหมายตามไปด้วย ค่าว่าง = แถวเก่าก่อนมีคอลัมน์นี้ (ไม่ย้อนหลังได้) */
+  actorEmail  String   @default("")
   /** เช่น "menu.delete", "package.delete", "booking.update" */
   action      String
   entityType  String
@@ -225,4 +228,9 @@ model Settings {
   categories             Json?
   updatedAt              DateTime @updatedAt
   lastEditedBy           String?
+  /** กันสองแท็บ/สองคนแก้ settings ทับกันเงียบๆ — client ต้องส่ง expectedVersion กลับมาตอนบันทึก (ดู settings.service.ts)
+   *  ใช้คู่กับ @@unique([id, version]) ด้านล่างเป็นเงื่อนไข update ครั้งเดียว ไม่ตรง = มีคนแก้ไปแล้วก่อนหน้านี้ */
+  version                Int      @default(0)
+
+  @@unique([id, version])
 }

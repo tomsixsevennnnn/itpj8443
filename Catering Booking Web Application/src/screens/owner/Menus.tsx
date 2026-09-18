@@ -154,11 +154,11 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
       description: form.description.trim(),
       active: editing?.active ?? true,
       ...(form.costPrice > 0 ? { costPrice: form.costPrice } : {}),
-      ...(form.image.trim() ? { image: form.image.trim() } : {}),
-      ...(form.image.trim() && (form.imagePosition.x !== DEFAULT_IMAGE_POSITION.x || form.imagePosition.y !== DEFAULT_IMAGE_POSITION.y)
-        ? { imagePosition: form.imagePosition }
-        : {}),
-      ...(form.image.trim() && form.imageScale !== 1 ? { imageScale: form.imageScale } : {}),
+      // ส่ง image เสมอแม้เป็นค่าว่าง (ไม่ใช่แค่ตอนมีรูป) — ไม่งั้นตอนกด "ลบรูป" แล้วบันทึก คีย์ image จะหายไปจาก
+      // payload ทั้งอัน (JSON.stringify ตัด key ที่ค่าเป็น undefined ทิ้ง) ทำให้ backend ไม่รู้ว่าต้องล้างค่าเดิม
+      // รูปเก่าเลยค้างอยู่ใน DB ต่อไปเงียบๆ
+      image: form.image.trim(),
+      ...(form.image.trim() ? { imagePosition: form.imagePosition, imageScale: form.imageScale } : {}),
     }
     setSaving(true)
     try {
@@ -240,7 +240,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                   isActive ? 'border-gray-100' : 'border-gray-100 opacity-60'
                 }`}
               >
-                <div className="relative aspect-video bg-gray-100">
+                <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
                   <DishTile item={menu} emojiClass="text-3xl" className={isActive ? '' : 'grayscale'} />
                   {!isActive && (
                     <div className="absolute inset-0 bg-gray-900/30 flex items-center justify-center">

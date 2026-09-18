@@ -38,4 +38,25 @@ describe('CreateBookingDto', () => {
     const errors = await validate(dto)
     expect(errors).toHaveLength(0)
   })
+
+  it('ไม่ผ่านถ้า date ไม่ใช่รูปแบบ YYYY-MM-DD', async () => {
+    const dto = plainToInstance(CreateBookingDto, { ...validPayload, date: '15/01/2026' })
+    const errors = await validate(dto)
+    expect(errors.some((e) => e.property === 'date')).toBe(true)
+  })
+
+  it('ผ่านเมื่อ locationDetail มีรูปแบบถูกต้อง', async () => {
+    const dto = plainToInstance(CreateBookingDto, {
+      ...validPayload,
+      locationDetail: { lat: 13.7, lng: 100.5, province: 'กรุงเทพมหานคร', detail: { houseNo: '99' } },
+    })
+    const errors = await validate(dto)
+    expect(errors).toHaveLength(0)
+  })
+
+  it('ไม่ผ่านถ้า locationDetail ขาด lat/lng', async () => {
+    const dto = plainToInstance(CreateBookingDto, { ...validPayload, locationDetail: { province: 'กรุงเทพมหานคร' } })
+    const errors = await validate(dto)
+    expect(errors.some((e) => e.property === 'locationDetail')).toBe(true)
+  })
 })

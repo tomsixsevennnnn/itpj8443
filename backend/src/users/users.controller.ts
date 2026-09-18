@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import { Role } from '@prisma/client'
 import { AUTH0_ROLE_CLAIM } from '../auth/auth.constants'
 import { CurrentUser } from '../auth/current-user.decorator'
@@ -20,6 +21,9 @@ export class UsersController {
    * frontend เรียกทันทีหลัง login สำเร็จ — ส่ง profile จาก ID token มาเอง (access token ไม่มี
    * name/email/picture ให้ เพราะ Auth0 Action ใส่แค่ custom claim ของ role ลง token)
    */
+  // จำกัดแรงกว่า global default (60/min ที่ app.module.ts) เพราะ endpoint นี้ยิงทุกครั้งที่ login — ไม่ควรมีใคร
+  // เรียกถี่ขนาดนั้นตามปกติ กันยิงรัวๆ โดยไม่จำเป็น
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('me')
   sync(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: SyncProfileDto) {
     const role = jwtUser[AUTH0_ROLE_CLAIM] === 'owner' ? Role.OWNER : Role.CUSTOMER

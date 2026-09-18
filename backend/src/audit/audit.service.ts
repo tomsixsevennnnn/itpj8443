@@ -18,11 +18,12 @@ export class AuditService {
     after?: unknown,
   ) {
     try {
-      const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { id: true, role: true } })
+      const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { id: true, role: true, email: true } })
       await this.prisma.auditLog.create({
         data: {
           actorUserId: user?.id ?? auth0Sub,
           actorRole: user?.role ?? Role.OWNER,
+          actorEmail: user?.email ?? '',
           action,
           entityType,
           entityId,

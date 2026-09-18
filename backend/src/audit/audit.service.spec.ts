@@ -11,9 +11,9 @@ const makeService = () => {
 }
 
 describe('AuditService', () => {
-  it('log: บันทึกด้วย actorUserId/actorRole จาก DB ของ auth0Sub นั้น', async () => {
+  it('log: บันทึกด้วย actorUserId/actorRole/actorEmail จาก DB ของ auth0Sub นั้น', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.OWNER })
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.OWNER, email: 'owner@shop.com' })
 
     await service.log('auth0|1', 'menu.delete', 'MenuItem', 'm1', { name: 'เดิม' }, undefined)
 
@@ -21,6 +21,7 @@ describe('AuditService', () => {
       data: {
         actorUserId: 'u1',
         actorRole: Role.OWNER,
+        actorEmail: 'owner@shop.com',
         action: 'menu.delete',
         entityType: 'MenuItem',
         entityId: 'm1',
@@ -30,14 +31,16 @@ describe('AuditService', () => {
     })
   })
 
-  it('log: ไม่พบ user ใน DB — fallback actorUserId เป็น auth0Sub ตรงๆ, actorRole เป็น OWNER', async () => {
+  it('log: ไม่พบ user ใน DB — fallback actorUserId เป็น auth0Sub ตรงๆ, actorRole เป็น OWNER, actorEmail ว่าง', async () => {
     const { service, prisma } = makeService()
     prisma.user.findUnique.mockResolvedValue(null)
 
     await service.log('auth0|orphan', 'settings.update', 'Settings', '1')
 
     expect(prisma.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ actorUserId: 'auth0|orphan', actorRole: Role.OWNER }) }),
+      expect.objectContaining({
+        data: expect.objectContaining({ actorUserId: 'auth0|orphan', actorRole: Role.OWNER, actorEmail: '' }),
+      }),
     )
   })
 

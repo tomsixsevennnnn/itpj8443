@@ -14,6 +14,7 @@ import type { AppSettings } from '../../types'
 import type { HomeStep } from '../../homeContent'
 import { pickImageAsDataUrl } from '../../imageUpload'
 import { resolveImageUrl, type UploadImageKind } from '../../api'
+import { deepTrim } from '../../deepTrim'
 
 interface PageContentProps {
   settings: AppSettings
@@ -42,7 +43,9 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
   const heroInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
-  const dirty = JSON.stringify(form) !== JSON.stringify(settings)
+  // เทียบด้วยค่าที่ trim whitespace หน้า/หลังแล้ว — กันเผลอเพิ่มช่องว่างท้ายข้อความแล้วนับเป็น "แก้ไข" ทั้งที่เนื้อหา
+  // จริงเหมือนเดิม (ไม่งั้นปุ่มติด dirty ทั้งที่ไม่มีอะไรเปลี่ยน แถมขึ้นในประวัติการแก้ไขเป็นการแก้ไขปลอม)
+  const dirty = JSON.stringify(deepTrim(form)) !== JSON.stringify(settings)
 
   const setHomeField = <K extends keyof AppSettings['homeContent']>(key: K, value: AppSettings['homeContent'][K]) => {
     setForm(f => ({ ...f, homeContent: { ...f.homeContent, [key]: value } }))
@@ -120,7 +123,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
     if (saving) return
     setSaving(true)
     try {
-      await onUpdateSettings(form)
+      await onUpdateSettings(deepTrim(form))
       setSavedAt(Date.now())
     } finally {
       setSaving(false)

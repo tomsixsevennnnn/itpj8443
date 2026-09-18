@@ -3,6 +3,7 @@ import { AlertCircle, Check, ChevronDown, Edit2, GripVertical, Loader2, Plus, Tr
 import type { AppSettings, Category, MenuItem, Package, PackageCourse } from '../../types'
 import { categoryMapOf, orderedCategories, requiredCourses } from '../../data'
 import type { CreatePackageInput, UpdatePackageInput } from '../../api'
+import { deepTrim } from '../../deepTrim'
 
 interface PackagesProps {
   packages: Package[]
@@ -174,14 +175,14 @@ export default function Packages({
       choose: c.choose,
       itemIds: c.items.map(i => i.id),
     }))
-    const base = {
+    const base = deepTrim({
       name: form.name,
       pricePerTable: form.pricePerTable,
       description: form.description,
-      badge: form.badge.trim(),
+      badge: form.badge,
       menuLimit: normalized.length,
       courses: courseInputs,
-    }
+    })
     setSaving(true)
     try {
       if (editing) {

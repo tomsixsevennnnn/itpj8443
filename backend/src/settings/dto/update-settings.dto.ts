@@ -1,6 +1,9 @@
 import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator'
 
 export class UpdateSettingsDto {
+  /** version ของ settings ที่ client โหลดมาตอนเปิดหน้า — กันสองแท็บ/สองคนแก้ทับกันเงียบๆ (ดู settings.service.ts) */
+  @IsInt() expectedVersion!: number
+
   @IsOptional() @IsString() shopName?: string
   @IsOptional() @IsString() shopNameEn?: string
   @IsOptional() @IsString() shopInitials?: string
