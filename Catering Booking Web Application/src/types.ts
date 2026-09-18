@@ -41,7 +41,6 @@ export interface MenuItem {
   imagePosition?: { x: number; y: number }
   /** ระดับซูมของภาพ 1x–3x — ค่าเริ่มต้นคือ 1 */
   imageScale?: number
-  extraPrice?: number
   /** ราคาทุนต่อจาน (บาท) — กรอกตรงๆ ไม่คำนวณจากวัตถุดิบ */
   costPrice?: number
   /** เปิด/ปิดการแสดงในคลังเมนูของร้าน (ไม่ตั้งค่า = เปิด) */
@@ -206,8 +205,14 @@ export interface ShopInfo {
   bankAccountName: string
   /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ใช้เป็น fallback ถ้ายังไม่ได้กรอก promptPayId */
   promptPayQr: string
+  /** ชื่อ-นามสกุลเจ้าของ QR พร้อมเพย์สำรอง (รูปที่อัปโหลด) — แสดงกำกับใต้รูป QR ให้ลูกค้าเช็คก่อนโอนได้ */
+  promptPayQrFirstName: string
+  promptPayQrLastName: string
   /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ตที่ผูกกับพร้อมเพย์ — มีแล้วระบบสร้าง QR ฝังยอดเงินให้อัตโนมัติต่อใบจอง (ดู PromptPayQr.tsx) */
   promptPayId: string
+  /** ชื่อ-นามสกุลเจ้าของเลขพร้อมเพย์ด้านบน — แสดงกำกับใต้ QR ที่ระบบสร้างอัตโนมัติ ให้ลูกค้าเช็คก่อนโอนได้ */
+  promptPayFirstName: string
+  promptPayLastName: string
   /** โลโก้ร้าน เก็บเป็น data URL — ว่าง = ใช้ไอคอนเริ่มต้น (ChefHat) แทน */
   logo: string
   /** คำโปรยใต้ชื่อร้านในหน้า Login — เจ้าของร้านแก้ไขเองได้ */

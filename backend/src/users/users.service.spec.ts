@@ -91,4 +91,42 @@ describe('UsersService', () => {
     expect(result).toBe(existing)
     expect(prisma.user.create).not.toHaveBeenCalled()
   })
+
+  it('syncProfile: ยังไม่มี user เลย — สร้างใหม่ด้วยชื่อจาก Auth0', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue(null)
+    prisma.user.create.mockResolvedValue({ id: 'u1' })
+
+    await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'Google', surname: 'Name', email: 'a@a.com' })
+
+    expect(prisma.user.create).toHaveBeenCalledWith({
+      data: { auth0Sub: 'auth0|1', role: Role.CUSTOMER, name: 'Google', surname: 'Name', email: 'a@a.com', avatar: '' },
+    })
+  })
+
+  it('syncProfile: มี user อยู่แล้วและกรอกชื่อ/นามสกุลเองไว้แล้ว — ไม่เขียนทับด้วยชื่อจาก Auth0', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', name: 'ชื่อที่แก้เอง', surname: 'นามสกุลที่แก้เอง' })
+    prisma.user.update.mockResolvedValue({ id: 'u1' })
+
+    await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'Google', surname: 'Name', email: 'a@a.com', avatar: 'pic.jpg' })
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { auth0Sub: 'auth0|1' },
+      data: { email: 'a@a.com', avatar: 'pic.jpg' },
+    })
+  })
+
+  it('syncProfile: มี user อยู่แล้วแต่ชื่อ/นามสกุลว่างอยู่ — เติมจาก Auth0 ให้ (fallback)', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', name: '', surname: '' })
+    prisma.user.update.mockResolvedValue({ id: 'u1' })
+
+    await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'Google', surname: 'Name', email: 'a@a.com' })
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { auth0Sub: 'auth0|1' },
+      data: { email: 'a@a.com', avatar: '', name: 'Google', surname: 'Name' },
+    })
+  })
 })

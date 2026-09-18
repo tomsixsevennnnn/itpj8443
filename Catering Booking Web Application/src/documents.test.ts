@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bahtText, bookingPricing, docNumber, quotationValidUntil } from './documents'
+import { bahtText, bookingCustomerName, bookingPricing, docNumber, quotationValidUntil } from './documents'
 import type { Booking } from './types'
 
 const makeBooking = (overrides: Partial<Booking>): Booking => ({
@@ -19,6 +19,21 @@ const makeBooking = (overrides: Partial<Booking>): Booking => ({
   menus: [],
   phone: '080-000-0000',
   ...overrides,
+})
+
+describe('bookingCustomerName', () => {
+  it('มี customer join (ฝั่ง owner) — ใช้ชื่อ-นามสกุลปัจจุบันจากโปรไฟล์ ไม่ใช่ snapshot', () => {
+    const booking = makeBooking({
+      customerName: 'ชื่อเก่าตอนจอง',
+      customer: { name: 'ชื่อใหม่', surname: 'นามสกุลใหม่', email: 'a@a.com', lineId: '' },
+    })
+    expect(bookingCustomerName(booking)).toBe('ชื่อใหม่ นามสกุลใหม่')
+  })
+
+  it('ไม่มี customer join (เช่นฝั่งลูกค้าเอง หรือบัญชีถูกลบ) — fallback กลับไปใช้ customerName snapshot', () => {
+    const booking = makeBooking({ customerName: 'ทดสอบ สกุล', customer: undefined })
+    expect(bookingCustomerName(booking)).toBe('ทดสอบ สกุล')
+  })
 })
 
 describe('bahtText', () => {

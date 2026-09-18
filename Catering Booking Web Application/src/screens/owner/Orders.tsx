@@ -5,7 +5,7 @@ import ImageLightbox from '../../components/ImageLightbox'
 import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
 import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
-import { docNumber } from '../../documents'
+import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 
 const STATUS_CONFIG = {
@@ -19,7 +19,7 @@ interface OrdersProps {
   bookings: Booking[]
   menus: MenuItem[]
   settings: AppSettings
-  onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
 }
 
@@ -30,6 +30,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
   const [noteDraft, setNoteDraft] = useState('')
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
   const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
@@ -42,7 +43,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
   }
 
   const filtered = bookings.filter(b =>
-    b.customerName.includes(search) || b.id.includes(search) || search === ''
+    bookingCustomerName(b).includes(search) || b.id.includes(search) || search === ''
   )
 
   const updateStatus = (id: string, status: Booking['status']) => {
@@ -120,10 +121,10 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-orange-100 rounded-lg text-xs font-bold text-orange-600 flex items-center justify-center">
-                          {booking.customerName[0]}
+                          {bookingCustomerName(booking)[0]}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-gray-800">{booking.customerName}</p>
+                          <p className="text-sm font-semibold text-gray-800">{bookingCustomerName(booking)}</p>
                           <p className="text-xs text-gray-400">{booking.phone}</p>
                         </div>
                       </div>
@@ -166,7 +167,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
             {/* Drawer header */}
             <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 flex items-start justify-between">
               <div>
-                <p className="font-bold text-white text-lg">{selected.customerName}</p>
+                <p className="font-bold text-white text-lg">{bookingCustomerName(selected)}</p>
                 <p className="text-orange-100 text-xs">{docNumber(selected, 'booking')}</p>
               </div>
               <button
@@ -494,24 +495,32 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
             <div className="p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-1.5">ยกเลิกการจองนี้?</h3>
               <p className="text-sm text-gray-500 mb-6">
-                การจองหมายเลข {docNumber(selected, 'booking')} ของ {selected.customerName} จะถูกยกเลิก
+                การจองหมายเลข {docNumber(selected, 'booking')} ของ {bookingCustomerName(selected)} จะถูกยกเลิก
                 ลูกค้าจะเห็นสถานะ "ยกเลิก" ทันที
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl py-3 font-semibold text-sm transition-colors"
+                  disabled={cancelling}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-2xl py-3 font-semibold text-sm transition-colors"
                 >
                   ไม่ยกเลิก
                 </button>
                 <button
-                  onClick={() => {
-                    updateStatus(selected.id, 'cancelled')
+                  onClick={async () => {
+                    setCancelling(true)
+                    try {
+                      await onUpdateBooking(selected.id, { status: 'cancelled' })
+                    } finally {
+                      setCancelling(false)
+                    }
                     setShowCancelConfirm(false)
                   }}
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-2xl py-3 font-semibold text-sm transition-colors"
+                  disabled={cancelling}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-2xl py-3 font-semibold text-sm transition-colors"
                 >
-                  ยืนยันยกเลิก
+                  {cancelling && <Loader2 size={14} className="animate-spin" />}
+                  {cancelling ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
                 </button>
               </div>
             </div>

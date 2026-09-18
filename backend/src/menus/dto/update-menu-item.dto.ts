@@ -10,7 +10,6 @@ export class UpdateMenuItemDto {
   @IsOptional() @ValidateNested() @Type(() => ImagePositionDto) imagePosition?: ImagePositionDto
   /** ต้องตรงช่วงกับ MIN_ZOOM/MAX_ZOOM ฝั่ง frontend (src/screens/owner/Menus.tsx) */
   @IsOptional() @IsNumber() @Min(1) @Max(3) imageScale?: number
-  @IsOptional() @IsInt() extraPrice?: number
   @IsOptional() @IsInt() costPrice?: number
   @IsOptional() @IsBoolean() active?: boolean
 }

@@ -202,11 +202,6 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
                         รวมให้แล้ว
                       </div>
                     )}
-                    {item.extraPrice && (
-                      <div className="absolute top-2 right-2 bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                        +{item.extraPrice}฿
-                      </div>
-                    )}
                   </div>
                   <div className="p-3">
                     <p className={`font-semibold text-sm leading-tight ${isSelected ? 'text-orange-700' : 'text-gray-800'}`}>

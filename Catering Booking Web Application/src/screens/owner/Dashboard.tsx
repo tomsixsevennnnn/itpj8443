@@ -18,6 +18,7 @@ import type { AppSettings, Booking, MenuItem } from '../../types'
 import { BOOKING_STATUS_INFO, TIME_SLOTS, slotIdOf } from '../../availability'
 import { calculateStaff, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
+import { bookingCustomerName } from '../../documents'
 
 interface DashboardProps {
   bookings: Booking[]
@@ -375,10 +376,10 @@ export default function Dashboard({ bookings, menus, settings }: DashboardProps)
               return (
                 <div key={b.id} className="flex items-center gap-3 py-3 border-b border-gray-50 last:border-0">
                   <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center text-sm font-bold text-orange-600 flex-shrink-0">
-                    {b.customerName[0]}
+                    {bookingCustomerName(b)[0]}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{b.customerName}</p>
+                    <p className="text-sm font-semibold text-gray-800 truncate">{bookingCustomerName(b)}</p>
                     <p className="text-xs text-gray-400 truncate">
                       {new Date(b.date + 'T00:00:00').toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })}
                       {' · '}{b.tables} โต๊ะ · {b.packageName} · พนักงาน {staff} คน

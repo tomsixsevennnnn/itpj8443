@@ -43,7 +43,6 @@ model MenuItem {
   imagePosition Json?
   /** ระดับซูมรูป (1 = ปกติ, สูงสุด 3) — คู่กับ imagePosition */
   imageScale  Float?
-  extraPrice  Int?
   /** ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ (owner เท่านั้นที่เห็นค่านี้ผ่าน API) */
   costPrice   Int?
   active      Boolean         @default(true)
@@ -172,8 +171,14 @@ model Settings {
   bankAccountName       String @default("")
   /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ใช้เป็น fallback ถ้ายังไม่ได้กรอก promptPayId */
   promptPayQr           String @default("")
+  /** ชื่อ-นามสกุลเจ้าของ QR พร้อมเพย์สำรอง (รูปที่อัปโหลด) — แสดงกำกับใต้รูป QR ให้ลูกค้าเช็คก่อนโอนได้ */
+  promptPayQrFirstName  String @default("")
+  promptPayQrLastName   String @default("")
   /** เลขพร้อมเพย์ (เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต) — มีแล้วระบบสร้าง QR แบบฝังยอดเงินให้อัตโนมัติต่อใบจอง แทนรูป QR คงที่ */
   promptPayId           String @default("")
+  /** ชื่อ-นามสกุลเจ้าของเลขพร้อมเพย์ด้านบน — แสดงกำกับใต้ QR ที่ระบบสร้างอัตโนมัติ ให้ลูกค้าเช็คก่อนโอนได้ */
+  promptPayFirstName    String @default("")
+  promptPayLastName     String @default("")
   /** 0–1 เช่น 0.5 = 50% */
   depositRate           Float
   deliveryFee           Int

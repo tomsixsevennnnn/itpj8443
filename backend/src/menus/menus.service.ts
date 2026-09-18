@@ -6,14 +6,13 @@ import { UploadsService } from '../uploads/uploads.service'
 import { CreateMenuItemDto } from './dto/create-menu-item.dto'
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto'
 
-/** ลูกค้าไม่ควรเห็นต้นทุนต่อจาน (ข้อมูลต้นทุน/กำไรภายในร้าน) — คนละเรื่องกับ extraPrice ที่เป็นราคาขายเพิ่มให้ลูกค้าเห็นได้ปกติ */
+/** ลูกค้าไม่ควรเห็นต้นทุนต่อจาน (ข้อมูลต้นทุน/กำไรภายในร้าน) */
 const CUSTOMER_SELECT = {
   id: true,
   name: true,
   category: true,
   description: true,
   image: true,
-  extraPrice: true,
   active: true,
 } as const
 

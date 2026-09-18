@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Eye, FileText, Printer, Search } from 'lucide-react'
 import BookingDocument from '../../components/BookingDocument'
-import { DOC_LABEL, docNumber, type DocType } from '../../documents'
+import { DOC_LABEL, bookingCustomerName, docNumber, type DocType } from '../../documents'
 import { bookingCostSummary } from '../../costing'
 import type { AppSettings, Booking, MenuItem } from '../../types'
 
@@ -17,7 +17,7 @@ export default function Documents({ bookings, menus, settings }: DocumentsProps)
   const [previewBooking, setPreviewBooking] = useState<Booking | null>(null)
 
   const filtered = bookings.filter(b =>
-    b.customerName.includes(search) || docNumber(b, activeTab).toLowerCase().includes(search.toLowerCase()) || search === ''
+    bookingCustomerName(b).includes(search) || docNumber(b, activeTab).toLowerCase().includes(search.toLowerCase()) || search === ''
   )
 
   const docLabel = DOC_LABEL[activeTab]
@@ -78,7 +78,7 @@ export default function Documents({ bookings, menus, settings }: DocumentsProps)
                           {b.status === 'confirmed' ? 'ยืนยัน' : b.status === 'pending' ? 'รอ' : 'เสร็จ'}
                         </span>
                       </div>
-                      <p className="font-semibold text-gray-800 text-sm">{b.customerName}</p>
+                      <p className="font-semibold text-gray-800 text-sm">{bookingCustomerName(b)}</p>
                       <p className="text-xs text-gray-400">
                         {new Date(b.date + 'T00:00:00').toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}
                         {' · '}฿{b.totalPrice.toLocaleString()}

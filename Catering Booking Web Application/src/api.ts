@@ -87,7 +87,11 @@ interface BackendSettings {
   bankAccountNumber: string
   bankAccountName: string
   promptPayQr: string
+  promptPayQrFirstName: string
+  promptPayQrLastName: string
   promptPayId: string
+  promptPayFirstName: string
+  promptPayLastName: string
   shopLogo: string
   shopLoginTagline: string
   depositRate: number
@@ -130,7 +134,11 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
     bankAccountNumber: s.bankAccountNumber,
     bankAccountName: s.bankAccountName,
     promptPayQr: s.promptPayQr,
+    promptPayQrFirstName: s.promptPayQrFirstName ?? '',
+    promptPayQrLastName: s.promptPayQrLastName ?? '',
     promptPayId: s.promptPayId ?? '',
+    promptPayFirstName: s.promptPayFirstName ?? '',
+    promptPayLastName: s.promptPayLastName ?? '',
     logo: s.shopLogo ?? '',
     loginTagline: s.shopLoginTagline ?? DEFAULT_SHOP_INFO.loginTagline,
   },
@@ -179,7 +187,11 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (si?.bankAccountNumber !== undefined) out.bankAccountNumber = si.bankAccountNumber
   if (si?.bankAccountName !== undefined) out.bankAccountName = si.bankAccountName
   if (si?.promptPayQr !== undefined) out.promptPayQr = si.promptPayQr
+  if (si?.promptPayQrFirstName !== undefined) out.promptPayQrFirstName = si.promptPayQrFirstName
+  if (si?.promptPayQrLastName !== undefined) out.promptPayQrLastName = si.promptPayQrLastName
   if (si?.promptPayId !== undefined) out.promptPayId = si.promptPayId
+  if (si?.promptPayFirstName !== undefined) out.promptPayFirstName = si.promptPayFirstName
+  if (si?.promptPayLastName !== undefined) out.promptPayLastName = si.promptPayLastName
   if (si?.logo !== undefined) out.shopLogo = si.logo
   if (si?.loginTagline !== undefined) out.shopLoginTagline = si.loginTagline
   if (patch.depositRate !== undefined) out.depositRate = patch.depositRate
@@ -395,7 +407,11 @@ export const api = {
       bankAccountNumber: '',
       bankAccountName: '',
       promptPayQr: '',
+      promptPayQrFirstName: '',
+      promptPayQrLastName: '',
       promptPayId: '',
+      promptPayFirstName: '',
+      promptPayLastName: '',
     }
   },
 

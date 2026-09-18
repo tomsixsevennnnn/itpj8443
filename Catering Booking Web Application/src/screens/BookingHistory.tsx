@@ -5,14 +5,14 @@ import BookingDocument from '../components/BookingDocument'
 import ImageLightbox from '../components/ImageLightbox'
 import PromptPayQr from '../components/PromptPayQr'
 import type { AppSettings, Booking } from '../types'
-import { DOC_LABEL, bookingPricing, docNumber, type DocType } from '../documents'
+import { DOC_LABEL, bookingCustomerName, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
 import { resolveImageUrl } from '../api'
 import { useAuthedSlipUrl } from '../useAuthedSlipUrl'
 
 interface BookingHistoryProps {
   bookings: Booking[]
-  onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
   settings: AppSettings
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
 }
@@ -32,6 +32,7 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings, on
   const [uploadingSlip, setUploadingSlip] = useState(false)
   const [slipError, setSlipError] = useState<string | null>(null)
   const [slipSent, setSlipSent] = useState(false)
+  const [submittingSlip, setSubmittingSlip] = useState(false)
   /** รูปที่เลือกไว้แต่ยังไม่ได้กดส่ง — ผูกกับ bookingId เพื่อกันเผลอโชว์ข้ามรายการ */
   const [slipDraft, setSlipDraft] = useState<{ id: string; dataUrl: string } | null>(null)
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
@@ -77,16 +78,21 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings, on
   }
 
   /** กดส่งจริง — ค่อยบันทึกสลิปเข้าใบจองให้ร้านเห็น */
-  const submitSlip = () => {
-    if (!slipDraft) return
-    onUpdateBooking(slipDraft.id, { paymentSlip: slipDraft.dataUrl, paymentSlipUploadedAt: new Date().toISOString() })
-    setSlipDraft(null)
-    setSlipSent(true)
+  const submitSlip = async () => {
+    if (!slipDraft || submittingSlip) return
+    setSubmittingSlip(true)
+    try {
+      await onUpdateBooking(slipDraft.id, { paymentSlip: slipDraft.dataUrl, paymentSlipUploadedAt: new Date().toISOString() })
+      setSlipDraft(null)
+      setSlipSent(true)
+    } finally {
+      setSubmittingSlip(false)
+    }
   }
 
   const filtered = allBookings.filter(b => {
     const matchSearch = docNumber(b, 'booking').toLowerCase().includes(search.toLowerCase()) ||
-      b.customerName.includes(search) || search === ''
+      bookingCustomerName(b).includes(search) || search === ''
     const matchStatus = statusFilter === 'all' || b.status === statusFilter
     return matchSearch && matchStatus
   })
@@ -339,11 +345,11 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings, on
             </div>
             <div className="p-6 space-y-4">
               {[
-                { label: 'ชื่อลูกค้า', value: detailBooking.customerName },
+                { label: 'ชื่อลูกค้า', value: bookingCustomerName(detailBooking) },
                 { label: 'วันที่', value: new Date(detailBooking.date + 'T00:00:00').toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) },
                 { label: 'ช่วงเวลา', value: detailBooking.timeSlot },
                 { label: 'จำนวนโต๊ะ', value: `${detailBooking.tables} โต๊ะ` },
-                { label: 'จำนวนคนที่ร่วมงาน', value: `${detailBooking.guestCount ?? detailBooking.tables * 10} คน` },
+                // { label: 'จำนวนคนที่ร่วมงาน', value: `${detailBooking.guestCount ?? detailBooking.tables * 10} คน` },
                 { label: 'แพ็กเกจ', value: detailBooking.packageName },
                 { label: 'สถานที่', value: detailBooking.location },
                 { label: 'เบอร์โทร', value: detailBooking.phone },
@@ -463,14 +469,15 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings, on
                     <div className="flex gap-2">
                       <button
                         onClick={submitSlip}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl py-2 text-xs font-semibold transition-colors"
+                        disabled={submittingSlip}
+                        className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white rounded-xl py-2 text-xs font-semibold transition-colors"
                       >
-                        <Send size={12} />
-                        ส่งสลิป
+                        {submittingSlip ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                        {submittingSlip ? 'กำลังส่ง...' : 'ส่งสลิป'}
                       </button>
                       <button
                         onClick={() => slipInputRef.current?.click()}
-                        disabled={uploadingSlip}
+                        disabled={uploadingSlip || submittingSlip}
                         className="px-3 text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
                       >
                         เลือกรูปใหม่

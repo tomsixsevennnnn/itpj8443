@@ -12,10 +12,22 @@ export const DEFAULT_SHOP_INFO: ShopInfo = {
   bankAccountNumber: '',
   bankAccountName: '',
   promptPayQr: '',
+  promptPayQrFirstName: '',
+  promptPayQrLastName: '',
   promptPayId: '',
+  promptPayFirstName: '',
+  promptPayLastName: '',
   logo: '',
   loginTagline: 'ระบบจองจัดเลี้ยงนอกสถานที่',
 }
+
+/**
+ * ชื่อลูกค้าที่ควรใช้แสดงผล — ใช้โปรไฟล์ปัจจุบัน (booking.customer, join สดจาก User) เป็นหลักเสมอถ้ามี เพราะ
+ * customerName เป็นแค่ snapshot ตอนจอง ไม่อัปเดตตามแม้ลูกค้าจะไปแก้ชื่อทีหลัง — customer จะไม่มีเฉพาะฝั่งที่ backend
+ * ไม่ join ให้ (เช่น endpoint ฝั่งลูกค้าเอง) หรือบัญชีถูกลบไปแล้ว จึง fallback กลับไปที่ snapshot เดิมในกรณีนั้น
+ */
+export const bookingCustomerName = (booking: Booking): string =>
+  booking.customer ? `${booking.customer.name} ${booking.customer.surname}`.trim() : booking.customerName
 
 export type DocType = 'quotation' | 'booking'
 

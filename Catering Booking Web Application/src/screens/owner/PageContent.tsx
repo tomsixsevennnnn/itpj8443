@@ -17,7 +17,7 @@ import { resolveImageUrl, type UploadImageKind } from '../../api'
 
 interface PageContentProps {
   settings: AppSettings
-  onUpdateSettings: (patch: Partial<AppSettings>) => void
+  onUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
   onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
 }
 
@@ -34,6 +34,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
   const [form, setForm] = useState<AppSettings>(settings)
   const [activeTab, setActiveTab] = useState<PageContentTab>('hero')
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
   const [heroUploading, setHeroUploading] = useState(false)
   const [heroError, setHeroError] = useState<string | null>(null)
   const [galleryUploading, setGalleryUploading] = useState(false)
@@ -115,9 +116,15 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
     }
   }
 
-  const handleSave = () => {
-    onUpdateSettings(form)
-    setSavedAt(Date.now())
+  const handleSave = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await onUpdateSettings(form)
+      setSavedAt(Date.now())
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -375,11 +382,11 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
       <div className="flex items-center gap-3">
         <button
           onClick={handleSave}
-          disabled={!dirty}
+          disabled={!dirty || saving}
           className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl px-6 py-3 text-sm font-semibold transition-colors"
         >
-          <Save size={16} />
-          บันทึกหน้าเว็บ
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {saving ? 'กำลังบันทึก...' : 'บันทึกหน้าเว็บ'}
         </button>
         {!dirty && savedAt && (
           <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">

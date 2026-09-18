@@ -34,7 +34,7 @@ import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
 
 interface SettingsProps {
   settings: AppSettings
-  onUpdateSettings: (patch: Partial<AppSettings>) => void
+  onUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
   onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
 }
 
@@ -80,6 +80,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
   const [form, setForm] = useState<AppSettings>(settings)
   const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
   const [newMetroProvince, setNewMetroProvince] = useState('')
   const [newClosedDate, setNewClosedDate] = useState('')
   const [newQuotationTerm, setNewQuotationTerm] = useState('')
@@ -254,9 +255,15 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
     setSavedAt(null)
   }
 
-  const handleSave = () => {
-    onUpdateSettings(form)
-    setSavedAt(Date.now())
+  const handleSave = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await onUpdateSettings(form)
+      setSavedAt(Date.now())
+    } finally {
+      setSaving(false)
+    }
   }
 
   /** สลับลำดับประเภทอาหารกับตัวก่อนหน้า/ถัดไป */
@@ -530,9 +537,36 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
             onChange={e => setShopField('promptPayId', e.target.value)}
             className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
           />
+          <div className="grid sm:grid-cols-2 gap-4 mt-3 max-w-md">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">ชื่อ</label>
+              <input
+                type="text"
+                value={form.shopInfo.promptPayFirstName}
+                placeholder="เช่น พิพัฒน์"
+                onChange={e => setShopField('promptPayFirstName', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">นามสกุล</label>
+              <input
+                type="text"
+                value={form.shopInfo.promptPayLastName}
+                placeholder="เช่น โภชนา"
+                onChange={e => setShopField('promptPayLastName', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
           {form.shopInfo.promptPayId && (
             <div className="mt-3">
               <PromptPayQr promptPayId={form.shopInfo.promptPayId} amount={100} className="w-28 h-28 rounded-xl border border-gray-200 bg-white" />
+              {(form.shopInfo.promptPayFirstName || form.shopInfo.promptPayLastName) && (
+                <p className="text-sm text-gray-600 mt-1.5">
+                  {form.shopInfo.promptPayFirstName} {form.shopInfo.promptPayLastName}
+                </p>
+              )}
               <p className="text-[11px] text-gray-400 mt-1">ตัวอย่าง QR (ยอด 100 บาท) — ของจริงจะฝังยอดมัดจำตามใบจองแต่ละใบ</p>
             </div>
           )}
@@ -542,6 +576,28 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             QR พร้อมเพย์ (สำรอง — ใช้ถ้ายังไม่ได้กรอกเลขพร้อมเพย์ด้านบน)
           </label>
+          <div className="grid sm:grid-cols-2 gap-4 mb-3 max-w-md">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">ชื่อ</label>
+              <input
+                type="text"
+                value={form.shopInfo.promptPayQrFirstName}
+                placeholder="เช่น พิพัฒน์"
+                onChange={e => setShopField('promptPayQrFirstName', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">นามสกุล</label>
+              <input
+                type="text"
+                value={form.shopInfo.promptPayQrLastName}
+                placeholder="เช่น โภชนา"
+                onChange={e => setShopField('promptPayQrLastName', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
           <input
             ref={qrInputRef}
             type="file"
@@ -552,11 +608,18 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
 
           {form.shopInfo.promptPayQr ? (
             <div className="flex items-center gap-4">
-              <img
-                src={resolveImageUrl(form.shopInfo.promptPayQr)}
-                alt="QR พร้อมเพย์"
-                className="w-28 h-28 rounded-xl border border-gray-200 object-contain bg-white"
-              />
+              <div>
+                <img
+                  src={resolveImageUrl(form.shopInfo.promptPayQr)}
+                  alt="QR พร้อมเพย์"
+                  className="w-28 h-28 rounded-xl border border-gray-200 object-contain bg-white"
+                />
+                {(form.shopInfo.promptPayQrFirstName || form.shopInfo.promptPayQrLastName) && (
+                  <p className="text-sm text-gray-600 mt-1.5">
+                    {form.shopInfo.promptPayQrFirstName} {form.shopInfo.promptPayQrLastName}
+                  </p>
+                )}
+              </div>
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
@@ -1097,11 +1160,11 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
         )}
         <button
           onClick={handleSave}
-          disabled={!dirty}
+          disabled={!dirty || saving}
           className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:text-gray-500 text-white rounded-full px-6 py-3.5 text-sm font-semibold shadow-lg shadow-orange-500/30 transition-colors"
         >
-          <Save size={16} />
-          บันทึกการตั้งค่า
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
         </button>
       </div>
     </div>

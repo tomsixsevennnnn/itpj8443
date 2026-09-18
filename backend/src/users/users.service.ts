@@ -41,23 +41,34 @@ export class UsersService {
     })
   }
 
-  /** เรียกทันทีหลัง login ทุกครั้ง — ฝั่ง frontend ส่ง profile จาก ID token มาเอง (access token ไม่มี name/email/picture) */
-  syncProfile(auth0Sub: string, role: Role, dto: SyncProfileDto) {
-    return this.prisma.user.upsert({
+  /**
+   * เรียกทันทีหลัง login ทุกครั้ง — ฝั่ง frontend ส่ง profile จาก ID token มาเอง (access token ไม่มี name/email/picture)
+   * name/surname sync จาก Auth0 (Google) เฉพาะตอนที่ DB ยังว่างอยู่เท่านั้น (สร้างครั้งแรก หรือช่องไหนหายไปทีหลัง)
+   * ถ้ามีค่าอยู่แล้วไม่เขียนทับ เพราะผู้ใช้อาจแก้ชื่อเองผ่าน updateProfile() (หน้า CompleteProfile) ซึ่งควรเป็นความจริง
+   * หลักกว่าค่าจาก Google เดิม syncProfile เขียนทับ name/surname ทุกครั้งที่ login ทำให้ชื่อที่แก้ไว้หายกลับไปเป็น
+   * ของ Google ทุกครั้ง — email/avatar ยังคง sync ทับได้ทุกครั้งเพราะไม่มีจุดให้ผู้ใช้แก้เอง (มาจาก Google อย่างเดียว)
+   */
+  async syncProfile(auth0Sub: string, role: Role, dto: SyncProfileDto) {
+    const existing = await this.prisma.user.findUnique({ where: { auth0Sub } })
+    if (!existing) {
+      return this.prisma.user.create({
+        data: {
+          auth0Sub,
+          role,
+          name: dto.name,
+          surname: dto.surname ?? '',
+          email: dto.email,
+          avatar: dto.avatar ?? '',
+        },
+      })
+    }
+    return this.prisma.user.update({
       where: { auth0Sub },
-      update: {
-        name: dto.name,
-        surname: dto.surname ?? '',
+      data: {
         email: dto.email,
         avatar: dto.avatar ?? '',
-      },
-      create: {
-        auth0Sub,
-        role,
-        name: dto.name,
-        surname: dto.surname ?? '',
-        email: dto.email,
-        avatar: dto.avatar ?? '',
+        ...(existing.name ? {} : { name: dto.name }),
+        ...(existing.surname ? {} : { surname: dto.surname ?? '' }),
       },
     })
   }

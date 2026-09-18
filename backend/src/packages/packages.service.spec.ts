@@ -3,7 +3,17 @@ import { PackagesService } from './packages.service'
 
 const makeService = () => {
   const prisma = {
-    package: { count: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
+    package: {
+      count: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    packageCourse: { deleteMany: jest.fn(), createMany: jest.fn() },
+    menuItem: { findMany: jest.fn().mockResolvedValue([]) },
+    $executeRaw: jest.fn(),
     $transaction: jest.fn((fn: any) => (typeof fn === 'function' ? fn(prisma) : Promise.all(fn))),
   } as any
   const audit = { log: jest.fn() } as any
@@ -11,7 +21,7 @@ const makeService = () => {
 }
 
 describe('PackagesService', () => {
-  it('create: บันทึก audit log พร้อม after = แพ็กเกจที่สร้างใหม่', async () => {
+  it('create: courses ว่าง — สร้างแพ็กเกจอย่างเดียวไม่ยิง createMany/join table/menuItem lookup', async () => {
     const { service, prisma, audit } = makeService()
     prisma.package.count.mockResolvedValue(0)
     const created = { id: 'p1', name: 'แพ็กเกจใหม่' }
@@ -19,8 +29,32 @@ describe('PackagesService', () => {
 
     const result = await service.create({ name: 'แพ็กเกจใหม่', courses: [] } as any, 'auth0|owner')
 
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.create', 'Package', 'p1', undefined, created)
-    expect(result).toBe(created)
+    expect(prisma.package.create).toHaveBeenCalledTimes(1)
+    expect(prisma.packageCourse.createMany).not.toHaveBeenCalled()
+    expect(prisma.$executeRaw).not.toHaveBeenCalled()
+    expect(prisma.menuItem.findMany).not.toHaveBeenCalled()
+    expect(result).toEqual({ ...created, courses: [] })
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.create', 'Package', 'p1', undefined, result)
+  })
+
+  it('create: มี courses — createMany course ใหม่ + insert join table แบบ batch + ดึง MenuItem แบบขนานกับ transaction', async () => {
+    const { service, prisma } = makeService()
+    prisma.package.count.mockResolvedValue(0)
+    const created = { id: 'p1', name: 'แพ็กเกจใหม่' }
+    prisma.package.create.mockResolvedValue(created)
+    const item = { id: 'm1', name: 'เมนู A' }
+    prisma.menuItem.findMany.mockResolvedValue([item])
+
+    const result = await service.create(
+      { name: 'แพ็กเกจใหม่', courses: [{ no: 1, title: 'ของว่าง', category: 'snack', choose: 1, itemIds: ['m1'] }] } as any,
+      'auth0|owner',
+    )
+
+    expect(prisma.packageCourse.createMany).toHaveBeenCalledTimes(1)
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
+    expect(prisma.menuItem.findMany).toHaveBeenCalledWith({ where: { id: { in: ['m1'] } } })
+    expect(result.courses).toHaveLength(1)
+    expect(result.courses[0].items).toEqual([item])
   })
 
   it('update: บันทึก audit log พร้อม before/after (ไม่ส่ง courses มา)', async () => {
@@ -33,6 +67,53 @@ describe('PackagesService', () => {
     await service.update('p1', { name: 'ใหม่' } as any, 'auth0|owner')
 
     expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, after)
+  })
+
+  it('update: ส่ง courses มาแต่เหมือนของเดิมทุกอย่าง — ข้าม delete+recreate ไปอัปเดตแค่ field ระดับบน', async () => {
+    const { service, prisma, audit } = makeService()
+    const before = {
+      id: 'p1',
+      name: 'เดิม',
+      courses: [{ no: 1, title: 'ของว่าง', icon: null, category: 'snack', choose: 1, items: [{ id: 'm1' }] }],
+    }
+    const after = { ...before, name: 'ใหม่' }
+    prisma.package.findUnique.mockResolvedValue(before)
+    prisma.package.update.mockResolvedValue(after)
+
+    const result = await service.update(
+      'p1',
+      { name: 'ใหม่', courses: [{ no: 1, title: 'ของว่าง', category: 'snack', choose: 1, itemIds: ['m1'] }] } as any,
+      'auth0|owner',
+    )
+
+    expect(prisma.packageCourse.deleteMany).not.toHaveBeenCalled()
+    expect(prisma.packageCourse.createMany).not.toHaveBeenCalled()
+    expect(prisma.$executeRaw).not.toHaveBeenCalled()
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, after)
+    expect(result).toBe(after)
+  })
+
+  it('update: ส่ง courses มาและเปลี่ยนจริง — ลบของเดิม, createMany course ใหม่ + insert join table แบบ batch + ดึง MenuItem แบบขนานกับ transaction', async () => {
+    const { service, prisma, audit } = makeService()
+    const before = { id: 'p1', name: 'เดิม', courses: [] }
+    const updated = { id: 'p1', name: 'ใหม่' }
+    const item = { id: 'm1', name: 'เมนู A' }
+    prisma.package.findUnique.mockResolvedValue(before)
+    prisma.package.update.mockResolvedValue(updated)
+    prisma.menuItem.findMany.mockResolvedValue([item])
+
+    const result = await service.update(
+      'p1',
+      { name: 'ใหม่', courses: [{ no: 1, title: 'ของว่าง', category: 'snack', choose: 1, itemIds: ['m1', 'm1'] }] } as any,
+      'auth0|owner',
+    )
+
+    expect(prisma.packageCourse.deleteMany).toHaveBeenCalledWith({ where: { packageId: 'p1' } })
+    expect(prisma.packageCourse.createMany).toHaveBeenCalledTimes(1)
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
+    expect(prisma.menuItem.findMany).toHaveBeenCalledWith({ where: { id: { in: ['m1'] } } })
+    expect((result as any).courses[0].items).toEqual([item])
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, result)
   })
 
   it('remove: soft delete — update deletedAt แทนการลบแถวจริง แล้วบันทึก audit log พร้อม before/after', async () => {

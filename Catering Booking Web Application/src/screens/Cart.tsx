@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, ChevronLeft, Clock, MapPin, Package, ShoppingBag, Users, X } from 'lucide-react'
+import { Calendar, ChevronLeft, Clock, Loader2, MapPin, Package, ShoppingBag, Users, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import DishTile from '../components/DishTile'
 import LocationMap from '../components/LocationMap'
@@ -12,7 +12,7 @@ interface CartProps {
   role: AppRole
   packages: PackageType[]
   booking: BookingData
-  onConfirm: () => void
+  onConfirm: () => Promise<void>
   deliveryFee: number
   freeDeliveryMinTables: number
   fuelCostPerKm: number
@@ -32,6 +32,7 @@ export default function Cart({
   const { navigate } = useNav()
   const [showConfirm, setShowConfirm] = useState(false)
   const [ownerBlocked, setOwnerBlocked] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const pkg = packages.find(p => p.id === booking.packageId) ?? null
   /** จับคู่เมนูที่เลือกกับ "ข้อ" ของแพ็กเกจ เพื่อแสดงตามลำดับเสิร์ฟ */
   const courseOf = (menuId: string) => pkg?.courses.find(c => c.items.some(i => i.id === menuId)) ?? null
@@ -43,15 +44,21 @@ export default function Cart({
       ? `ค่าเดินทาง (ระยะทาง ${((booking.location.distanceKm ?? 0) * 2).toFixed(1)} กม. ไป-กลับ)`
       : `ค่าขนส่ง (นอก${homeProvince} ไม่ถึง ${freeDeliveryMinTables} โต๊ะ)`
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     // เจ้าของร้านที่กด "มุมมองลูกค้า" มาลองจอง — ห้ามจองจริง เพราะไม่มีข้อมูลลูกค้า (ชื่อ/เบอร์โทร) ผูกกับบัญชี owner
     if (role === 'owner') {
       setOwnerBlocked(true)
       return
     }
-    setShowConfirm(false)
-    onConfirm()
-    navigate('history')
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      await onConfirm()
+      setShowConfirm(false)
+      navigate('history')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -87,7 +94,7 @@ export default function Cart({
                   { icon: Clock, label: 'ช่วงเวลา', value: booking.timeSlot || '-' },
                   { icon: MapPin, label: 'สถานที่จัดงาน', value: booking.location ? booking.location.name : '-' },
                   { icon: Users, label: 'จำนวนโต๊ะ', value: `${booking.tables} โต๊ะ (${booking.tables * 10} ที่นั่ง)` },
-                  { icon: Users, label: 'จำนวนคนที่ร่วมงาน', value: `${booking.guestCount} คน` },
+                  // { icon: Users, label: 'จำนวนคนที่ร่วมงาน', value: `${booking.guestCount} คน` },
                   { icon: Package, label: 'แพ็กเกจ', value: booking.packageName || '-' },
                 ].map(({ icon: Icon, label, value }) => (
                   <div key={label} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
@@ -181,9 +188,6 @@ export default function Cart({
                             )}
                           </p>
                           <p className="text-xs font-semibold text-gray-800 truncate">{menu.name}</p>
-                          {menu.extraPrice && (
-                            <p className="text-[10px] text-orange-500">+{menu.extraPrice} บาท</p>
-                          )}
                         </div>
                       </div>
                     )
@@ -294,15 +298,18 @@ export default function Cart({
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowConfirm(false)}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl py-3.5 font-semibold transition-colors"
+                  disabled={submitting}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-2xl py-3.5 font-semibold transition-colors"
                 >
                   ยกเลิก
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl py-3.5 font-semibold transition-all shadow-lg shadow-orange-200"
+                  disabled={submitting}
+                  className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white rounded-2xl py-3.5 font-semibold transition-all shadow-lg shadow-orange-200"
                 >
-                  ยืนยันการจอง
+                  {submitting && <Loader2 size={16} className="animate-spin" />}
+                  {submitting ? 'กำลังยืนยัน...' : 'ยืนยันการจอง'}
                 </button>
               </div>
             </div>

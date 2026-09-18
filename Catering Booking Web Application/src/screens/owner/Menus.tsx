@@ -11,8 +11,8 @@ interface MenusProps {
   menus: MenuItem[]
   packages: Package[]
   settings: AppSettings
-  onSaveMenu: (item: MenuItem) => void
-  onDeleteMenu: (id: string) => void
+  onSaveMenu: (item: MenuItem) => Promise<void>
+  onDeleteMenu: (id: string) => Promise<void>
   onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
 }
 
@@ -20,7 +20,6 @@ interface MenuForm {
   name: string
   category: string
   description: string
-  extraPrice: number
   costPrice: number
   image: string
   imagePosition: { x: number; y: number }
@@ -37,7 +36,6 @@ const emptyForm = (category: string): MenuForm => ({
   name: '',
   category,
   description: '',
-  extraPrice: 0,
   costPrice: 0,
   image: '',
   imagePosition: DEFAULT_IMAGE_POSITION,
@@ -52,6 +50,8 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
   const [editing, setEditing] = useState<MenuItem | null>(null)
   const [form, setForm] = useState<MenuForm>(emptyForm(categories[0].id))
   const [confirmDelete, setConfirmDelete] = useState<MenuItem | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -134,7 +134,6 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
       name: item.name,
       category: item.category,
       description: item.description,
-      extraPrice: item.extraPrice ?? 0,
       costPrice: item.costPrice ?? 0,
       image: item.image ?? '',
       imagePosition: item.imagePosition ?? DEFAULT_IMAGE_POSITION,
@@ -146,15 +145,14 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
 
   const canSave = form.name.trim().length > 0
 
-  const handleSave = () => {
-    if (!canSave) return
+  const handleSave = async () => {
+    if (!canSave || saving) return
     const item: MenuItem = {
       id: editing?.id ?? `menu-${Date.now()}`,
       name: form.name.trim(),
       category: form.category,
       description: form.description.trim(),
       active: editing?.active ?? true,
-      ...(form.extraPrice > 0 ? { extraPrice: form.extraPrice } : {}),
       ...(form.costPrice > 0 ? { costPrice: form.costPrice } : {}),
       ...(form.image.trim() ? { image: form.image.trim() } : {}),
       ...(form.image.trim() && (form.imagePosition.x !== DEFAULT_IMAGE_POSITION.x || form.imagePosition.y !== DEFAULT_IMAGE_POSITION.y)
@@ -162,9 +160,14 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
         : {}),
       ...(form.image.trim() && form.imageScale !== 1 ? { imageScale: form.imageScale } : {}),
     }
-    onSaveMenu(item)
-    setActiveCategory(item.category)
-    setShowModal(false)
+    setSaving(true)
+    try {
+      await onSaveMenu(item)
+      setActiveCategory(item.category)
+      setShowModal(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toggleActive = (item: MenuItem) => {
@@ -242,11 +245,6 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                   {!isActive && (
                     <div className="absolute inset-0 bg-gray-900/30 flex items-center justify-center">
                       <span className="bg-white/90 text-gray-600 text-xs font-bold px-3 py-1.5 rounded-full">ปิดใช้งาน</span>
-                    </div>
-                  )}
-                  {menu.extraPrice && (
-                    <div className="absolute top-2 left-2 bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      +{menu.extraPrice}฿
                     </div>
                   )}
                 </div>
@@ -373,18 +371,6 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                   placeholder="เช่น ปลากะพงนึ่งราดน้ำมะนาวพริกสด"
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">ราคาเพิ่ม (฿)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.extraPrice}
-                  onChange={e => setForm(f => ({ ...f, extraPrice: Math.max(0, Number(e.target.value) || 0) }))}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">0 = ไม่มีค่าใช้จ่ายเพิ่ม</p>
               </div>
 
               <div>
@@ -527,16 +513,18 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
             <div className="border-t border-gray-100 px-6 py-4 flex gap-3 flex-shrink-0">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-semibold text-sm transition-colors"
+                disabled={saving}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl py-3 font-semibold text-sm transition-colors"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={handleSave}
-                disabled={!canSave}
-                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl py-3 font-semibold text-sm transition-colors shadow-lg shadow-orange-200 disabled:shadow-none"
+                disabled={!canSave || saving}
+                className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl py-3 font-semibold text-sm transition-colors shadow-lg shadow-orange-200 disabled:shadow-none"
               >
-                {editing ? 'บันทึกการแก้ไข' : 'เพิ่มเมนู'}
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                {saving ? 'กำลังบันทึก...' : editing ? 'บันทึกการแก้ไข' : 'เพิ่มเมนู'}
               </button>
             </div>
           </div>
@@ -563,18 +551,26 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-semibold text-sm transition-colors"
+                disabled={deleting}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl py-3 font-semibold text-sm transition-colors"
               >
                 ยกเลิก
               </button>
               <button
-                onClick={() => {
-                  onDeleteMenu(confirmDelete.id)
+                onClick={async () => {
+                  setDeleting(true)
+                  try {
+                    await onDeleteMenu(confirmDelete.id)
+                  } finally {
+                    setDeleting(false)
+                  }
                   setConfirmDelete(null)
                 }}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 font-semibold text-sm transition-colors"
+                disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-xl py-3 font-semibold text-sm transition-colors"
               >
-                ลบเมนู
+                {deleting && <Loader2 size={14} className="animate-spin" />}
+                {deleting ? 'กำลังลบ...' : 'ลบเมนู'}
               </button>
             </div>
           </div>

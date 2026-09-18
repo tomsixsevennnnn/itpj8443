@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertCircle, Check, ChevronDown, Edit2, GripVertical, Plus, Trash2, X } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, Edit2, GripVertical, Loader2, Plus, Trash2, X } from 'lucide-react'
 import type { AppSettings, Category, MenuItem, Package, PackageCourse } from '../../types'
 import { categoryMapOf, orderedCategories, requiredCourses } from '../../data'
 import type { CreatePackageInput, UpdatePackageInput } from '../../api'
@@ -9,9 +9,9 @@ interface PackagesProps {
   /** คลังเมนูของร้าน — มาจากหน้า "เมนูอาหาร" */
   menus: MenuItem[]
   settings: AppSettings
-  onCreatePackage: (input: CreatePackageInput) => void
-  onUpdatePackage: (id: string, input: UpdatePackageInput) => void
-  onDeletePackage: (id: string) => void
+  onCreatePackage: (input: CreatePackageInput) => Promise<void>
+  onUpdatePackage: (id: string, input: UpdatePackageInput) => Promise<void>
+  onDeletePackage: (id: string) => Promise<void>
   onReorderPackages: (ids: string[]) => void
 }
 
@@ -54,6 +54,8 @@ export default function Packages({
   const [dragCourseNo, setDragCourseNo] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Package | null>(null)
   const [dragPkgId, setDragPkgId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const openAdd = () => {
     setEditing(null)
@@ -161,8 +163,8 @@ export default function Packages({
   const emptyCourses = courses.filter(c => c.items.length === 0)
   const canSave = form.name.trim().length > 0 && courses.length > 0 && emptyCourses.length === 0
 
-  const handleSave = () => {
-    if (!canSave) return
+  const handleSave = async () => {
+    if (!canSave || saving) return
     const normalized = courses.map((c, i) => ({ ...c, no: i + 1 }))
     const courseInputs = normalized.map(c => ({
       no: c.no,
@@ -180,12 +182,17 @@ export default function Packages({
       menuLimit: normalized.length,
       courses: courseInputs,
     }
-    if (editing) {
-      onUpdatePackage(editing.id, base)
-    } else {
-      onCreatePackage({ ...base, features: ['บริการเสิร์ฟ'] })
+    setSaving(true)
+    try {
+      if (editing) {
+        await onUpdatePackage(editing.id, base)
+      } else {
+        await onCreatePackage({ ...base, features: ['บริการเสิร์ฟ'] })
+      }
+      setShowModal(false)
+    } finally {
+      setSaving(false)
     }
-    setShowModal(false)
   }
 
   return (
@@ -560,10 +567,11 @@ export default function Packages({
               </button>
               <button
                 onClick={handleSave}
-                disabled={!canSave}
-                className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors shadow-lg shadow-orange-200 disabled:shadow-none"
+                disabled={!canSave || saving}
+                className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl px-5 py-2.5 text-sm font-semibold transition-colors shadow-lg shadow-orange-200 disabled:shadow-none"
               >
-                บันทึกแพ็กเกจ
+                {saving && <Loader2 size={16} className="animate-spin" />}
+                {saving ? 'กำลังบันทึก...' : 'บันทึกแพ็กเกจ'}
               </button>
             </div>
           </div>
@@ -587,18 +595,26 @@ export default function Packages({
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-semibold text-sm transition-colors"
+                disabled={deleting}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-xl py-3 font-semibold text-sm transition-colors"
               >
                 ยกเลิก
               </button>
               <button
-                onClick={() => {
-                  onDeletePackage(confirmDelete.id)
+                onClick={async () => {
+                  setDeleting(true)
+                  try {
+                    await onDeletePackage(confirmDelete.id)
+                  } finally {
+                    setDeleting(false)
+                  }
                   setConfirmDelete(null)
                 }}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white rounded-xl py-3 font-semibold text-sm transition-colors"
+                disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-xl py-3 font-semibold text-sm transition-colors"
               >
-                ลบแพ็กเกจ
+                {deleting && <Loader2 size={14} className="animate-spin" />}
+                {deleting ? 'กำลังลบ...' : 'ลบแพ็กเกจ'}
               </button>
             </div>
           </div>

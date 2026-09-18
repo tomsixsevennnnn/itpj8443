@@ -3,7 +3,7 @@ import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Loader2, MapPin,
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { Booking } from '../../types'
-import { docNumber } from '../../documents'
+import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import {
   BASE_SLOTS,
@@ -20,7 +20,7 @@ import {
 
 interface CalendarViewProps {
   bookings: Booking[]
-  onUpdateBooking: (id: string, patch: Partial<Booking>) => void
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
 }
 
@@ -201,9 +201,9 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                               setPopupId(ev.id)
                             }}
                             className={`w-full text-left text-[10px] font-medium px-1.5 py-1 rounded-lg border truncate transition-all hover:opacity-80 ${info.chip} ${info.border}`}
-                            title={`${ev.customerName} · ${SLOT_LABEL[slotIdOf(ev.timeSlot)]} · ${ev.tables} โต๊ะ · ${info.label}`}
+                            title={`${bookingCustomerName(ev)} · ${SLOT_LABEL[slotIdOf(ev.timeSlot)]} · ${ev.tables} โต๊ะ · ${info.label}`}
                           >
-                            {ev.customerName} · {ev.tables} โต๊ะ
+                            {bookingCustomerName(ev)} · {ev.tables} โต๊ะ
                           </button>
                         )
                       })}
@@ -260,7 +260,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                     className={`w-full text-left px-3.5 py-3 rounded-2xl border transition-all hover:opacity-80 ${info.chip} ${info.border}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-sm truncate">{ev.customerName}</p>
+                      <p className="font-semibold text-sm truncate">{bookingCustomerName(ev)}</p>
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/70 flex-shrink-0">{info.label}</span>
                     </div>
                     <p className="text-xs mt-1 opacity-80">
@@ -293,7 +293,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                   </button>
                 )}
                 <div className="min-w-0">
-                  <p className="font-bold text-gray-900 truncate">{popup.customerName}</p>
+                  <p className="font-bold text-gray-900 truncate">{bookingCustomerName(popup)}</p>
                   <p className="text-sm text-gray-600">{docNumber(popup, 'booking')}</p>
                 </div>
               </div>

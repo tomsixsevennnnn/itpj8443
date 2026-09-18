@@ -300,7 +300,6 @@ export default function App() {
         image: item.image,
         imagePosition: item.imagePosition,
         imageScale: item.imageScale,
-        extraPrice: item.extraPrice,
         costPrice: item.costPrice,
         active: item.active,
       }

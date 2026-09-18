@@ -13,6 +13,7 @@ import {
   docNumber,
   formatThaiDate,
   quotationValidUntil,
+  bookingCustomerName,
   type DocType,
 } from '../documents'
 import { DEFAULT_FREE_DELIVERY_MIN_TABLES, DEFAULT_HOME_PROVINCE } from '../geo'
@@ -102,7 +103,7 @@ export default function BookingDocument({
       <div className="grid sm:grid-cols-2 gap-4 mb-5">
         <div>
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">ข้อมูลลูกค้า</p>
-          <p className="font-semibold text-gray-800 text-sm">{booking.customerName}</p>
+          <p className="font-semibold text-gray-800 text-sm">{bookingCustomerName(booking)}</p>
           <p className="text-xs text-gray-500">โทร {booking.phone}</p>
         </div>
         <div>
@@ -227,17 +228,31 @@ export default function BookingDocument({
             )}
             {/* ฝังยอดมัดจำใน QR เหมือนกันทั้งใบเสนอราคาและใบจอง — ยอดที่ต้องโอนคือมัดจำเสมอ (ส่วนที่เหลือจ่ายวันงานจริง) */}
             {shopInfo.promptPayId ? (
-              <PromptPayQr
-                promptPayId={shopInfo.promptPayId}
-                amount={price.deposit}
-                className="w-28 h-28 rounded-lg border border-gray-200 bg-white flex-shrink-0"
-              />
+              <div className="flex-shrink-0 text-center">
+                <PromptPayQr
+                  promptPayId={shopInfo.promptPayId}
+                  amount={price.deposit}
+                  className="w-28 h-28 rounded-lg border border-gray-200 bg-white"
+                />
+                {(shopInfo.promptPayFirstName || shopInfo.promptPayLastName) && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    {shopInfo.promptPayFirstName} {shopInfo.promptPayLastName}
+                  </p>
+                )}
+              </div>
             ) : shopInfo.promptPayQr ? (
-              <img
-                src={resolveImageUrl(shopInfo.promptPayQr)}
-                alt="QR พร้อมเพย์"
-                className="w-28 h-28 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
-              />
+              <div className="flex-shrink-0 text-center">
+                <img
+                  src={resolveImageUrl(shopInfo.promptPayQr)}
+                  alt="QR พร้อมเพย์"
+                  className="w-28 h-28 rounded-lg border border-gray-200 object-contain bg-white"
+                />
+                {(shopInfo.promptPayQrFirstName || shopInfo.promptPayQrLastName) && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    {shopInfo.promptPayQrFirstName} {shopInfo.promptPayQrLastName}
+                  </p>
+                )}
+              </div>
             ) : null}
           </div>
         </div>
