@@ -381,22 +381,22 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
         </>
       )}
 
-      {/* Save */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleSave}
-          disabled={!dirty || saving}
-          className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl px-6 py-3 text-sm font-semibold transition-colors"
-        >
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-          {saving ? 'กำลังบันทึก...' : 'บันทึกหน้าเว็บ'}
-        </button>
+      {/* Save — ลอยมุมล่างขวาตลอด กันต้องเลื่อนจอลงมาสุดทุกครั้งที่จะบันทึก */}
+      <div className="fixed bottom-6 right-6 sm:right-8 lg:right-10 z-30 flex flex-col items-end gap-2">
         {!dirty && savedAt && (
-          <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+          <span className="flex items-center gap-1.5 text-sm text-green-600 font-medium bg-white px-3 py-1.5 rounded-full shadow-md border border-green-100">
             <Check size={14} />
             บันทึกแล้ว
           </span>
         )}
+        <button
+          onClick={handleSave}
+          disabled={!dirty || saving}
+          className="flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:text-gray-500 text-white rounded-full px-6 py-3.5 text-sm font-semibold shadow-lg shadow-orange-500/30 transition-colors"
+        >
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {saving ? 'กำลังบันทึก...' : 'บันทึกหน้าเว็บ'}
+        </button>
       </div>
     </div>
   )
