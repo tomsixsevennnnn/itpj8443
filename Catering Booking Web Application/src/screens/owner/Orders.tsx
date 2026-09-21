@@ -100,7 +100,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
 
       <div className="flex gap-5 flex-1">
         {/* Table */}
-        <div className={`flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto transition-all ${selected ? 'hidden lg:block' : ''}`}>
+        <div className={`flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto transition-all ${selected ? 'hidden' : ''}`}>
           <table className="w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
@@ -148,9 +148,9 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
                       <span className="font-bold text-orange-600">{booking.totalPrice.toLocaleString()}</span>
                       <span className="text-xs text-gray-400 ml-0.5">฿</span>
                     </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium px-2.5 py-1 rounded-full ${sc.bg} ${sc.text}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${sc.dot} flex-shrink-0`} />
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${sc.bg} ${sc.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sc.dot}`} />
                         {sc.label}
                       </span>
                     </td>
@@ -161,24 +161,27 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
           </table>
         </div>
 
-        {/* Drawer */}
+        {/* รายละเอียดใบจอง — แสดงเต็มจอแทนตาราง ไม่ใช่ side panel แต่จำกัดความกว้างไม่ให้ยืดเต็มจอกว้างเกินไป */}
         {selected && (
-          <div className="w-full lg:w-96 lg:flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="w-full max-w-3xl mx-auto bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
             {/* Drawer header */}
-            <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 flex items-start justify-between">
-              <div>
-                <p className="font-bold text-white text-lg">{bookingCustomerName(selected)}</p>
-                <p className="text-orange-100 text-xs">{docNumber(selected, 'booking')}</p>
+            <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5">
+              <div className="max-w-2xl mx-auto flex items-start justify-between">
+                <div>
+                  <p className="font-bold text-white text-lg">{bookingCustomerName(selected)}</p>
+                  <p className="text-orange-100 text-xs">{docNumber(selected, 'booking')}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedId(null)}
+                  className="w-7 h-7 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white transition-colors"
+                >
+                  <X size={14} />
+                </button>
               </div>
-              <button
-                onClick={() => setSelectedId(null)}
-                className="w-7 h-7 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center text-white transition-colors"
-              >
-                <X size={14} />
-              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            <div className="flex-1 overflow-y-auto p-5">
+            <div className="max-w-2xl mx-auto space-y-5">
               {/* Customer info */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">ข้อมูลลูกค้า</p>
@@ -445,9 +448,11 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
                 )}
               </div>
             </div>
+            </div>
 
             {/* Status buttons */}
-            <div className="p-5 border-t border-gray-100 space-y-2">
+            <div className="p-5 border-t border-gray-100">
+            <div className="max-w-2xl mx-auto space-y-2">
               <p className="text-xs font-semibold text-gray-400 mb-3">อัปเดตสถานะ</p>
               {selected.status === 'cancelled' ? (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 rounded-xl px-3 py-2.5 text-sm font-medium">
@@ -483,6 +488,7 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
                   </button>
                 </>
               )}
+            </div>
             </div>
           </div>
         )}

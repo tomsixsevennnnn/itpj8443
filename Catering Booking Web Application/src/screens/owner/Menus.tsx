@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { AlertTriangle, Edit2, Eye, EyeOff, ImagePlus, Loader2, Minus, Plus, RotateCcw, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Edit2, Eye, EyeOff, ImagePlus, Loader2, Plus, RotateCcw, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
 import DishTile from '../../components/DishTile'
 import type { AppSettings, MenuItem, Package } from '../../types'
 import { categoryMapOf, orderedCategories } from '../../data'
@@ -74,11 +74,6 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
-
-  const isImageAdjusted =
-    form.imagePosition.x !== DEFAULT_IMAGE_POSITION.x ||
-    form.imagePosition.y !== DEFAULT_IMAGE_POSITION.y ||
-    form.imageScale !== 1
 
   const resetImageAdjust = () => {
     setForm(f => ({ ...f, imagePosition: DEFAULT_IMAGE_POSITION, imageScale: 1 }))
@@ -240,7 +235,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                   isActive ? 'border-gray-100' : 'border-gray-100 opacity-60'
                 }`}
               >
-                <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
+                <div className="relative aspect-video bg-gray-100 overflow-hidden">
                   <DishTile item={menu} emojiClass="text-3xl" className={isActive ? '' : 'grayscale'} />
                   {!isActive && (
                     <div className="absolute inset-0 bg-gray-900/30 flex items-center justify-center">
@@ -396,18 +391,18 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                 />
 
                 {form.image ? (
-                  <div>
+                  <div className="space-y-2">
                     <div
                       ref={cropBoxRef}
                       onPointerDown={handleCropPointerDown}
                       onPointerMove={handleCropPointerMove}
                       onPointerUp={handleCropPointerUp}
                       onPointerCancel={handleCropPointerUp}
-                      className="relative aspect-video w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-100 cursor-grab active:cursor-grabbing touch-none select-none"
+                      className="relative w-full aspect-video rounded-xl border border-gray-200 overflow-hidden cursor-move touch-none select-none"
                     >
                       <img
                         src={resolveImageUrl(form.image)}
-                        alt="ลากเพื่อปรับตำแหน่งรูป"
+                        alt="รูปเมนู"
                         draggable={false}
                         className="w-full h-full object-cover pointer-events-none"
                         style={{
@@ -416,30 +411,31 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                           transformOrigin: `${form.imagePosition.x}% ${form.imagePosition.y}%`,
                         }}
                       />
-                      {isImageAdjusted && (
-                        <button
-                          onClick={resetImageAdjust}
-                          className="absolute top-2 right-2 flex items-center gap-1 text-[11px] font-medium bg-white/90 hover:bg-white text-gray-700 px-2.5 py-1.5 rounded-lg shadow-sm transition-colors"
-                        >
-                          <RotateCcw size={11} />
-                          รีเซ็ตตำแหน่ง
-                        </button>
-                      )}
+                      <button
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={resetImageAdjust}
+                        className="absolute top-2 right-2 flex items-center gap-1 text-[11px] font-medium bg-white/90 hover:bg-white text-gray-700 px-2.5 py-1.5 rounded-lg shadow-sm transition-colors"
+                      >
+                        <RotateCcw size={12} />
+                        รีเซ็ตตำแหน่ง
+                      </button>
                     </div>
+                    <p className="text-[10px] text-gray-400 text-center">ลากภาพเพื่อจัดตำแหน่ง</p>
 
-                    <div className="flex items-center gap-2 mt-2.5">
+                    {/* ซูมภาพ */}
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => setZoom(form.imageScale - 0.1)}
                         disabled={form.imageScale <= MIN_ZOOM}
-                        className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 flex-shrink-0"
                       >
-                        <Minus size={13} />
+                        <ZoomOut size={13} />
                       </button>
                       <input
                         type="range"
                         min={MIN_ZOOM}
                         max={MAX_ZOOM}
-                        step={0.01}
+                        step={0.05}
                         value={form.imageScale}
                         onChange={e => setZoom(Number(e.target.value))}
                         className="flex-1 accent-orange-500"
@@ -447,25 +443,27 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                       <button
                         onClick={() => setZoom(form.imageScale + 0.1)}
                         disabled={form.imageScale >= MAX_ZOOM}
-                        className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40 flex-shrink-0"
                       >
-                        <Plus size={13} />
+                        <ZoomIn size={13} />
                       </button>
-                      <span className="text-xs text-gray-400 w-9 text-right flex-shrink-0">{form.imageScale.toFixed(1)}x</span>
+                      <span className="text-xs text-gray-500 font-medium w-9 text-right flex-shrink-0">
+                        {form.imageScale.toFixed(1)}x
+                      </span>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-2.5">
+                    <div className="flex gap-2">
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploading}
-                        className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
                       >
                         <ImagePlus size={13} />
                         เปลี่ยนรูป
                       </button>
                       <button
                         onClick={() => setForm(f => ({ ...f, image: '', imagePosition: DEFAULT_IMAGE_POSITION, imageScale: 1 }))}
-                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg font-medium transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 border border-red-100 px-3 py-2 rounded-lg font-medium transition-colors"
                       >
                         <Trash2 size={13} />
                         ลบรูป
