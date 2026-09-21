@@ -433,11 +433,18 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings, on
                           <p className="text-[10px] text-gray-400 mt-1">สแกนแล้วยอดขึ้นอัตโนมัติ</p>
                         </div>
                       ) : (
-                        <img
-                          src={resolveImageUrl(settings.shopInfo.promptPayQr)}
-                          alt="QR พร้อมเพย์"
-                          className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
-                        />
+                        <div className="flex-shrink-0 text-center">
+                          <img
+                            src={resolveImageUrl(settings.shopInfo.promptPayQr)}
+                            alt="QR พร้อมเพย์"
+                            className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white"
+                          />
+                          {(settings.shopInfo.promptPayQrFirstName || settings.shopInfo.promptPayQrLastName) && (
+                            <p className="text-xs text-gray-600 mt-1">
+                              {settings.shopInfo.promptPayQrFirstName} {settings.shopInfo.promptPayQrLastName}
+                            </p>
+                          )}
+                        </div>
                       )
                     )}
                   </div>
