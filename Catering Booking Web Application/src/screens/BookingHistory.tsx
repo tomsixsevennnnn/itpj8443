@@ -424,25 +424,34 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings, on
                     )}
                     {(payMethod === 'qr' || !hasBankTransfer) && hasQr && (
                       settings.shopInfo.promptPayId ? (
-                        <div className="flex-shrink-0 text-center">
+                        <div className="flex items-center gap-3">
                           <PromptPayQr
                             promptPayId={settings.shopInfo.promptPayId}
                             amount={bookingPricing(detailBooking, settings.depositRate).deposit}
-                            className="w-32 h-32 rounded-lg border border-gray-200 bg-white"
+                            className="w-32 h-32 rounded-lg border border-gray-200 bg-white flex-shrink-0"
                           />
-                          <p className="text-[10px] text-gray-400 mt-1">สแกนแล้วยอดขึ้นอัตโนมัติ</p>
+                          <div className="text-left space-y-1">
+                            {(settings.shopInfo.promptPayFirstName || settings.shopInfo.promptPayLastName) && (
+                              <p className="text-lg font-bold text-gray-900 leading-tight">
+                                {settings.shopInfo.promptPayFirstName} {settings.shopInfo.promptPayLastName}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-400">สแกนแล้วยอดขึ้นอัตโนมัติ</p>
+                          </div>
                         </div>
                       ) : (
-                        <div className="flex-shrink-0 text-center">
+                        <div className="flex items-center gap-3">
                           <img
                             src={resolveImageUrl(settings.shopInfo.promptPayQr)}
                             alt="QR พร้อมเพย์"
-                            className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white"
+                            className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
                           />
                           {(settings.shopInfo.promptPayQrFirstName || settings.shopInfo.promptPayQrLastName) && (
-                            <p className="text-xs text-gray-600 mt-1">
-                              {settings.shopInfo.promptPayQrFirstName} {settings.shopInfo.promptPayQrLastName}
-                            </p>
+                            <div className="text-left">
+                              <p className="text-lg font-bold text-gray-900 leading-tight">
+                                {settings.shopInfo.promptPayQrFirstName} {settings.shopInfo.promptPayQrLastName}
+                              </p>
+                            </div>
                           )}
                         </div>
                       )
