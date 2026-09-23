@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Loader2, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Loader2, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
 import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
@@ -7,6 +7,8 @@ import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../
 import { bookingCostSummary } from '../../costing'
 import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
+
+const PAGE_SIZE = 20
 
 const STATUS_CONFIG = {
   pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
@@ -36,6 +38,8 @@ export default function Orders({
   onOpenBookingIdHandled,
 }: OrdersProps) {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [staffDraft, setStaffDraft] = useState<StaffPlan | null>(null)
   const [noteDraft, setNoteDraft] = useState('')
@@ -53,9 +57,28 @@ export default function Orders({
     staffRemainderThreshold: settings.staffRemainderThreshold,
   }
 
+  // debounce ช่องค้นหา 300ms กันคำนวณ filter รัวๆ ทุกตัวอักษรที่พิมพ์ — bookings อัปเดตแบบ realtime อยู่แล้ว
+  // ผ่าน SSE (ดู useBookingsStream ใน App.tsx) จึงกรอง/แบ่งหน้าฝั่ง client ล้วนๆ ได้โดยไม่ต้องยิง request เพิ่ม
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // เปลี่ยนคำค้นหา = กลับไปหน้า 1 เสมอ กันค้างอยู่หน้าที่ไม่มีผลลัพธ์แล้ว
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
+
   const filtered = bookings.filter(b =>
-    bookingCustomerName(b).includes(search) || b.id.includes(search) || search === ''
+    bookingCustomerName(b).includes(debouncedSearch) || b.id.includes(debouncedSearch) || debouncedSearch === ''
   )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  // ข้อมูลใหม่เข้ามาแล้วหน้าปัจจุบันเกินจำนวนหน้าที่มีจริง (เช่นมีคนยกเลิก/ลบจนผลลัพธ์น้อยลง) — ดึงกลับมาหน้าสุดท้ายที่ยังมีอยู่
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const updateStatus = (id: string, status: Booking['status']) => {
     onUpdateBooking(id, { status })
@@ -131,7 +154,7 @@ export default function Orders({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map(booking => {
+              {paginated.map(booking => {
                 const sc = STATUS_CONFIG[booking.status]
                 return (
                   <tr
@@ -180,6 +203,33 @@ export default function Orders({
               })}
             </tbody>
           </table>
+
+          {filtered.length === 0 && (
+            <div className="text-center py-10 text-gray-400 text-sm">ไม่พบรายการจอง</div>
+          )}
+
+          {filtered.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-xs text-gray-500">
+              <span>ทั้งหมด {filtered.length.toLocaleString()} รายการ</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 disabled:opacity-40 hover:border-orange-300 transition-colors"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span>หน้า {page} / {totalPages}</span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 disabled:opacity-40 hover:border-orange-300 transition-colors"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* รายละเอียดใบจอง — แสดงเต็มจอแทนตาราง ไม่ใช่ side panel แต่จำกัดความกว้างไม่ให้ยืดเต็มจอกว้างเกินไป */}

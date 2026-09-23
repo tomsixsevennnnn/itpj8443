@@ -35,7 +35,7 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
         id: `${booking.id}-pending`,
         kind: 'pending',
         title: 'รอการยืนยัน',
-        message: `การจองหมายเลข ${no} กำลังรอการยืนยันจากเจ้าของร้าน`,
+        message: `การจองหมายเลข ${no} กำลังรอการชำระเงินจาก ${booking.customerName} และยืนยันจากทีมงาน วันที่ ${booking.date} ${booking.timeSlot}`,
         timestamp: booking.createdAt,
         bookingId: booking.id,
       })

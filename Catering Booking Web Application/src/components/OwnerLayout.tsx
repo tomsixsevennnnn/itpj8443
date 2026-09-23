@@ -223,7 +223,7 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
                                 <span className="w-1.5 h-1.5 bg-orange-500 rounded-full flex-shrink-0" />
                               )}
                             </div>
-                            <p className="text-xs text-gray-500 leading-relaxed line-clamp-2">{item.message}</p>
+                            <p className="text-xs text-gray-500 leading-relaxed">{item.message}</p>
                             <p className="text-[11px] text-gray-400 mt-1">{timeAgo(item.timestamp)}</p>
                           </button>
                         ))

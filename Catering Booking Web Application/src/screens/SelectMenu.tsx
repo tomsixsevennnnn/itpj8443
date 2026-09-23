@@ -56,6 +56,9 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
 
   const activeCourse = pkg.courses.find(c => c.no === activeCourseNo) ?? pkg.courses[0]
   const chosenIn = (course: PackageCourse) => course.items.find(i => selectedIds.has(i.id)) ?? null
+  /** เมนูที่เจ้าของร้านปิดใช้งานแล้ว (active === false) ไม่ให้ลูกค้าเลือกอีก แต่ถ้าเผลอถูกเลือกไปแล้วก่อนหน้านี้
+   *  ยังโชว์ค้างไว้ให้เห็น กันตัวเลือกที่เลือกอยู่หายไปจากตาโดยไม่รู้ตัว */
+  const selectableItems = (course: PackageCourse) => course.items.filter(i => i.active !== false || selectedIds.has(i.id))
 
   const required = requiredCourses(pkg)
   /** ข้อที่แพ็กเกจรวมมาให้แล้ว ไม่ต้องเลือก แต่นับรวมเป็นอาหารบนโต๊ะด้วย */
@@ -145,7 +148,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
                     <span className="truncate">{course.title}</span>
                   </span>
                   <span className="block text-[10px] leading-tight mt-0.5 truncate text-gray-400">
-                    {course.choose === 0 ? 'รวมในแพ็กเกจ' : chosen ? chosen.name : `${course.items.length} ตัวเลือก`}
+                    {course.choose === 0 ? 'รวมในแพ็กเกจ' : chosen ? chosen.name : `${selectableItems(course).length} ตัวเลือก`}
                   </span>
                 </span>
               </button>
@@ -174,7 +177,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {activeCourse.items.map(item => {
+            {selectableItems(activeCourse).map(item => {
               const isSelected = selectedIds.has(item.id)
               const isFixed = activeCourse.choose === 0
 
