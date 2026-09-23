@@ -50,7 +50,7 @@ const sidebarItems = [
 ]
 
 export default function OwnerLayout({ currentScreen, bookings, children }: OwnerLayoutProps) {
-  const { navigate, user, shopInfo } = useNav()
+  const { navigate, user, shopInfo, openNotificationBooking } = useNav()
   // ต่ำกว่า lg (จอแท็บเล็ตแนวตั้งอย่าง iPad) sidebar ซ่อนเป็น off-canvas drawer เปิดผ่านปุ่มแฮมเบอร์เกอร์
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
@@ -213,7 +213,7 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
                             key={item.id}
                             onClick={() => {
                               setNotifOpen(false)
-                              navigate('owner-orders')
+                              openNotificationBooking(item.bookingId)
                             }}
                             className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
                           >

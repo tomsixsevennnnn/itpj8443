@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import { Bell, CheckCircle, Clock, XCircle } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import { buildNotifications, isNotificationUnread, timeAgo, type NotificationKind } from '../notifications'
+import { buildNotifications, isNotificationUnread, timeAgo, type NotificationItem, type NotificationKind } from '../notifications'
+import { useNav } from '../NavContext'
 import type { Booking } from '../types'
 
 interface NotificationsProps {
@@ -18,7 +19,12 @@ const KIND_UI: Record<NotificationKind, { icon: typeof Clock; color: string; bg:
 }
 
 export default function Notifications({ bookings, notifSeenAt }: NotificationsProps) {
+  const { openNotificationBooking } = useNav()
   const items = useMemo(() => buildNotifications(bookings), [bookings])
+
+  const handleClick = (item: NotificationItem) => {
+    openNotificationBooking(item.bookingId)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -48,9 +54,11 @@ export default function Notifications({ bookings, notifSeenAt }: NotificationsPr
               const time = timeAgo(item.timestamp)
 
               return (
-                <div
+                <button
                   key={item.id}
-                  className={`bg-white rounded-2xl border shadow-sm p-4 transition-all hover:shadow-md ${
+                  type="button"
+                  onClick={() => handleClick(item)}
+                  className={`w-full text-left bg-white rounded-2xl border shadow-sm p-4 transition-all hover:shadow-md ${
                     isNew ? 'border-orange-100' : 'border-gray-100'
                   }`}
                 >
@@ -70,7 +78,7 @@ export default function Notifications({ bookings, notifSeenAt }: NotificationsPr
                     </div>
                     {isNew && <div className="w-2.5 h-2.5 bg-orange-500 rounded-full flex-shrink-0 mt-1" />}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>

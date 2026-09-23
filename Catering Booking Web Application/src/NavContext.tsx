@@ -11,6 +11,9 @@ export interface NavContextValue {
   user: UserProfile | null
   shopInfo: ShopInfo
   notifCount: number
+  /** คลิกการ์ดแจ้งเตือน (ทั้ง dropdown ฝั่งเจ้าของร้านและหน้าแจ้งเตือนเต็มฝั่งลูกค้า) — พาไปหน้ารายการที่ถูกต้อง
+   *  ตาม role แล้วเปิดรายละเอียดใบจองนั้นให้ทันที ไม่ต้องค้นหาเอง */
+  openNotificationBooking: (bookingId: string) => void
   /** ประเภทอาหารเรียงตามลำดับที่เจ้าของร้านตั้งไว้แล้ว (AppSettings.categories + categoryOrder) */
   categories: Category[]
   categoryMap: Record<string, Category>

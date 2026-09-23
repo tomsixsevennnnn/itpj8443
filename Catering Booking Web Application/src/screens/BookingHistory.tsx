@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Calendar, Check, Eye, FileText, Filter, Landmark, Loader2, Printer, QrCode, Search, Send, Upload, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
@@ -15,6 +15,9 @@ interface BookingHistoryProps {
   onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
   settings: AppSettings
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
+  /** ใบจองที่ต้องเปิด detail ให้อัตโนมัติ (มาจากคลิกการ์ดแจ้งเตือน) */
+  openBookingId?: string | null
+  onOpenBookingIdHandled?: () => void
 }
 
 const STATUS_CONFIG = {
@@ -24,7 +27,14 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
-export default function BookingHistory({ bookings, onUpdateBooking, settings, onFetchPaymentSlip }: BookingHistoryProps) {
+export default function BookingHistory({
+  bookings,
+  onUpdateBooking,
+  settings,
+  onFetchPaymentSlip,
+  openBookingId,
+  onOpenBookingIdHandled,
+}: BookingHistoryProps) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -59,6 +69,15 @@ export default function BookingHistory({ bookings, onUpdateBooking, settings, on
     setSlipSent(false)
     setSlipZoom(null)
   }
+
+  /** มาจากคลิกการ์ดแจ้งเตือน — พอเจอใบจองที่ระบุไว้ในรายการ (bookings) แล้วเปิด detail ให้ทันที แล้วเคลียร์สัญญาณ
+   *  ทิ้งกันเปิดซ้ำถ้ากลับมาหน้านี้อีกครั้งทีหลังโดยไม่ได้ตั้งใจ */
+  useEffect(() => {
+    if (!openBookingId) return
+    if (bookings.some(b => b.id === openBookingId)) openDetail(openBookingId)
+    onOpenBookingIdHandled?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openBookingId, bookings])
 
   /** เลือกรูปสลิป — ย่อขนาดแล้วพักไว้เป็นตัวอย่าง ยังไม่บันทึกจนกว่าจะกด "ส่ง" */
   const handlePickSlip = async (bookingId: string, file: File | undefined) => {

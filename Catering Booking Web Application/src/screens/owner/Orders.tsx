@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Loader2, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
@@ -21,9 +21,20 @@ interface OrdersProps {
   settings: AppSettings
   onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
+  /** ใบจองที่ต้องเปิด detail ให้อัตโนมัติ (มาจากคลิกการ์ดแจ้งเตือน) */
+  openBookingId?: string | null
+  onOpenBookingIdHandled?: () => void
 }
 
-export default function Orders({ bookings, menus, settings, onUpdateBooking, onFetchPaymentSlip }: OrdersProps) {
+export default function Orders({
+  bookings,
+  menus,
+  settings,
+  onUpdateBooking,
+  onFetchPaymentSlip,
+  openBookingId,
+  onOpenBookingIdHandled,
+}: OrdersProps) {
   const [search, setSearch] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [staffDraft, setStaffDraft] = useState<StaffPlan | null>(null)
@@ -61,6 +72,16 @@ export default function Orders({ bookings, menus, settings, onUpdateBooking, onF
     setNoteDraft(booking.staffNote ?? '')
     setShowCancelConfirm(false)
   }
+
+  /** มาจากคลิกการ์ดแจ้งเตือน — พอเจอใบจองที่ระบุไว้ในรายการ (bookings) แล้วเปิด detail ให้ทันที แล้วเคลียร์สัญญาณ
+   *  ทิ้งกันเปิดซ้ำถ้ากลับมาหน้านี้อีกครั้งทีหลังโดยไม่ได้ตั้งใจ */
+  useEffect(() => {
+    if (!openBookingId) return
+    const booking = bookings.find(b => b.id === openBookingId)
+    if (booking) openBooking(booking)
+    onOpenBookingIdHandled?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openBookingId, bookings])
 
   const adjustStaff = (key: keyof StaffPlan, delta: number) => {
     setStaffDraft(prev => (prev ? { ...prev, [key]: Math.max(0, prev[key] + delta) } : prev))

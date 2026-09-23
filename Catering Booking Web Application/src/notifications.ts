@@ -9,6 +9,8 @@ export interface NotificationItem {
   title: string
   message: string
   timestamp: string
+  /** ใบจองที่แจ้งเตือนนี้อ้างถึง — ใช้เปิดรายละเอียดใบจองนั้นทันทีเมื่อคลิกการ์ดแจ้งเตือน */
+  bookingId: string
 }
 
 /** ยังไม่เคยเปิดหน้า/dropdown แจ้งเตือนมาก่อนเลย (ไม่มีค่า seenAt เก็บไว้) — ใช้ช่วง 24 ชม.ที่ผ่านมาเป็นค่าเริ่มต้นของ
@@ -35,6 +37,7 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
         title: 'รอการยืนยัน',
         message: `การจองหมายเลข ${no} กำลังรอการยืนยันจากเจ้าของร้าน`,
         timestamp: booking.createdAt,
+        bookingId: booking.id,
       })
     } else if (booking.status === 'confirmed') {
       items.push({
@@ -43,6 +46,7 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
         title: 'ยืนยันการจองแล้ว',
         message: `การจองหมายเลข ${no} ได้รับการยืนยัน วันที่ ${booking.date} ${booking.timeSlot}`,
         timestamp: booking.createdAt,
+        bookingId: booking.id,
       })
       if (booking.date === tomorrowKey) {
         items.push({
@@ -53,6 +57,7 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
           // ผูกกับ booking.date (คงที่) แทน new Date().toISOString() — ค่าเดิมเปลี่ยนใหม่ทุกครั้งที่ re-render
           // ทำให้เทียบกับ seenAt แล้ว "ใหม่กว่าเสมอ" ไม่มีทางถูกนับเป็นอ่านแล้วสักที
           timestamp: new Date(new Date(booking.date + 'T00:00:00').getTime() - 86_400_000).toISOString(),
+          bookingId: booking.id,
         })
       }
     } else if (booking.status === 'completed') {
@@ -62,6 +67,7 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
         title: 'งานเสร็จสมบูรณ์',
         message: `งานจัดเลี้ยง ${no} เสร็จสิ้นแล้ว ขอบคุณที่ใช้บริการ`,
         timestamp: booking.createdAt,
+        bookingId: booking.id,
       })
     } else if (booking.status === 'cancelled') {
       items.push({
@@ -70,6 +76,7 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
         title: 'การจองถูกยกเลิก',
         message: `การจองหมายเลข ${no} ถูกยกเลิก`,
         timestamp: booking.createdAt,
+        bookingId: booking.id,
       })
     }
   }

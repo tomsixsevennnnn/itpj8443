@@ -147,6 +147,9 @@ export default function App() {
   // ค่า notifSeenAt "ก่อนหน้า" ที่ freeze ไว้ตอนเข้าหน้าแจ้งเตือนรอบนี้ — ใช้ตัดสินป้าย "ยังไม่อ่าน" รายรายการ
   // ในหน้านั้นเอง (โชว์สิ่งที่ใหม่ตั้งแต่ครั้งก่อนที่เปิดดู) แยกจาก notifSeenAt ที่อัปเดตทันทีเพื่อให้ตัวเลขที่กระดิ่งหายทันที
   const [notifPageSeenAt, setNotifPageSeenAt] = useState(notifSeenAt)
+  // ใบจองที่คลิกมาจากการ์ดแจ้งเตือน — พอ Orders/BookingHistory เจอใบจองนี้ในหน้าตัวเองแล้วจะเปิด detail ให้อัตโนมัติ
+  // แล้วเคลียร์ค่านี้ทิ้งทันที (onOpenBookingIdHandled) กันเปิดซ้ำเวลากลับมาหน้าเดิมทีหลังโดยไม่ได้ตั้งใจ
+  const [pendingNotifBookingId, setPendingNotifBookingId] = useState<string | null>(null)
 
   // ชื่อ tab เบราว์เซอร์ — title ใน index.html มาจาก .figma/make/site.json (static ตอน build)
   // ก่อน login หน้า Login เป็นคนดึง/ตั้ง title เอง (ดู screens/Login.tsx) ส่วนนี้ sync ต่อหลัง login โหลดเสร็จ
@@ -440,6 +443,13 @@ export default function App() {
     setScreen(s)
   }
 
+  /** คลิกการ์ดแจ้งเตือน (dropdown ฝั่งเจ้าของร้าน หรือหน้าแจ้งเตือนเต็มฝั่งลูกค้า) — เก็บ bookingId ไว้แล้วพาไปหน้า
+   *  รายการที่ถูกต้องตาม role ให้หน้านั้นเปิดรายละเอียดใบจองนี้ให้เองทันที ไม่ต้องค้นหาเอง */
+  const openNotificationBooking = (bookingId: string) => {
+    setPendingNotifBookingId(bookingId)
+    navigate(role === 'owner' ? 'owner-orders' : 'history')
+  }
+
   /** ค่า "chrome"/config ระดับแอปที่หลายจุดดึงใช้ผ่าน useNav() แทนการรับเป็น props ทีละชั้น — ดู NavContext.tsx */
   const navContext: NavContextValue = useMemo(() => {
     const categories = orderedCategories(settings.categoryOrder, settings.categories)
@@ -450,8 +460,9 @@ export default function App() {
       notifCount,
       categories,
       categoryMap: categoryMapOf(categories),
+      openNotificationBooking,
     }
-  }, [navigate, user, settings.shopInfo, notifCount, settings.categoryOrder, settings.categories])
+  }, [navigate, user, settings.shopInfo, notifCount, settings.categoryOrder, settings.categories, openNotificationBooking])
 
   /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที */
   const effectiveScreen: Screen =
@@ -631,6 +642,8 @@ export default function App() {
               settings={settings}
               onUpdateBooking={handleUpdateBooking}
               onFetchPaymentSlip={handleFetchPaymentSlip}
+              openBookingId={pendingNotifBookingId}
+              onOpenBookingIdHandled={() => setPendingNotifBookingId(null)}
             />
           )}
           {effectiveScreen === 'owner-calendar' && (
@@ -775,6 +788,8 @@ export default function App() {
           onUpdateBooking={handleUpdateBooking}
           settings={settings}
           onFetchPaymentSlip={handleFetchPaymentSlip}
+          openBookingId={pendingNotifBookingId}
+          onOpenBookingIdHandled={() => setPendingNotifBookingId(null)}
         />
       )}
       {effectiveScreen === 'notifications' && <Notifications bookings={bookings} notifSeenAt={notifPageSeenAt} />}
