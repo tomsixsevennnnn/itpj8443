@@ -55,7 +55,12 @@ export default function Home({ homeContent }: HomeProps) {
                     เริ่มจองเลย
                     <ArrowRight size={20} />
                   </button>
-                  <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-semibold backdrop-blur-sm transition-all border border-white/20">
+                  <button
+                    onClick={() =>
+                      document.getElementById('gallery')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-semibold backdrop-blur-sm transition-all border border-white/20"
+                  >
                     ดูตัวอย่างงาน
                   </button>
                 </div>
@@ -109,7 +114,7 @@ export default function Home({ homeContent }: HomeProps) {
         </section>
 
         {/* Gallery */}
-        <section>
+        <section id="gallery">
           <div className="text-center mb-12">
             <p className="text-orange-500 font-semibold text-sm mb-2">ผลงานของเรา</p>
             <h2 className="text-3xl font-bold text-gray-900">ตัวอย่างงานที่ผ่านมา</h2>
