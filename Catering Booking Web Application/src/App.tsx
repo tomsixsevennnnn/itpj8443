@@ -33,6 +33,7 @@ import { roleFromAuth0User } from './auth'
 import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput, type UploadImageKind } from './api'
 import { usePolling } from './usePolling'
 import { useBookingsStream } from './useBookingsStream'
+import { useAppStream } from './useAppStream'
 import { isSessionExpiredError } from './sessionExpired'
 import ErrorBanner from './components/ErrorBanner'
 import Login from './screens/Login'
@@ -100,13 +101,12 @@ const initialSettings: AppSettings = {
   homeContent: DEFAULT_HOME_CONTENT,
 }
 
-const SETTINGS_POLL_MS = 20_000
-/** ทางหลักที่ทำให้รายการจองเห็นการเปลี่ยนแปลงแบบ realtime คือ useBookingsStream (SSE) ด้านล่าง — ตัวนี้เป็นแค่
- *  fallback เผื่อ SSE เชื่อมต่อไม่ได้ (เช่น proxy/network บาง setup ไม่รองรับ event stream) จึง poll ห่างๆ พอ */
+/** ทางหลักที่ทำให้ settings/เมนู-แพ็กเกจ-คิวช่วงเวลา/bookings เห็นการเปลี่ยนแปลงแบบ realtime คือ SSE
+ *  (useAppStream + useBookingsStream ด้านล่าง) — ค่า poll ที่เหลือนี้เป็นแค่ fallback เผื่อ SSE เชื่อมต่อไม่ได้
+ *  (เช่น proxy/network บาง setup ไม่รองรับ event stream) จึง poll ห่างๆ พอ */
+const SETTINGS_POLL_MS = 60_000
 const BOOKINGS_POLL_MS = 60_000
-/** เมนู/แพ็กเกจ/คิวช่วงเวลาจอง ไม่มีช่องทาง realtime แบบ bookings (ไม่มี SSE ให้) — poll ไว้กันแท็บ/เครื่องอื่น
- *  แก้เมนู เพิ่มแพ็กเกจ หรือช่วงเวลาที่คนอื่นจองเต็มไปแล้ว ไม่เห็นจนกว่าจะ refresh เอง */
-const CATALOG_POLL_MS = 30_000
+const CATALOG_POLL_MS = 60_000
 /** เก็บ per-browser ไม่ใช่ per-account — ต้องล้างตอน logout ไม่งั้นลูกค้าคนถัดไปที่ใช้เครื่องเดียวกันจะเห็นค่าเก่าค้าง */
 const CUSTOMER_NOTIF_SEEN_KEY = 'customerNotifSeenAt'
 
@@ -254,27 +254,14 @@ export default function App() {
         throw err
       })
 
-  // poll ค่าตั้งค่าร้านทุก 20 วิหลัง login (หยุดพักตอนสลับแท็บ) — เจ้าของร้านแก้ชื่อร้าน/ค่าอื่นๆ
-  // จากเครื่อง/แท็บอื่น หน้าที่เปิดค้างไว้จะเห็นการเปลี่ยนแปลงโดยไม่ต้องกด refresh เอง
-  usePolling(() => {
-    if (!isAuthenticated) return
+  const refetchSettings = () => {
     withToken()
       .then(token => api.settings(token))
       .then(setSettings)
       .catch(() => {})
-  }, SETTINGS_POLL_MS)
-
-  const refetchBookings = () => {
-    withToken()
-      .then(token => api.bookings(token))
-      .then(setBookings)
-      .catch(() => {})
   }
 
-  // poll เมนู/แพ็กเกจ/คิวช่วงเวลาจองทุก 30 วิหลัง login — ไม่มี SSE ให้เหมือน bookings เลยต้อง poll เอง
-  // กันแท็บ/เครื่องอื่นแก้ข้อมูลพวกนี้แล้วหน้าที่เปิดค้างไว้เห็นข้อมูลเก่าจนกว่าจะ refresh เอง
-  usePolling(() => {
-    if (!isAuthenticated || !dataLoaded) return
+  const refetchCatalog = () => {
     withToken()
       .then(token => Promise.all([api.bookingsAvailability(token), api.packages(token), api.menus(token)]))
       .then(([avail, pkgs, mns]) => {
@@ -283,11 +270,45 @@ export default function App() {
         setMenus(mns)
       })
       .catch(() => {})
+  }
+
+  const refetchBookings = () => {
+    withToken()
+      .then(token => api.bookings(token))
+      .then(setBookings)
+      .catch(() => {})
+  }
+
+  // นับรอบเพิ่มทุกครั้งที่ backend แจ้งว่าประวัติการแก้ไข/สิทธิ์ผู้ใช้เปลี่ยน — ส่งเป็น prop ให้ AuditLog/UserRoles
+  // ใช้เป็น dependency สั่ง refetch เอง เพราะข้อมูลสองส่วนนี้เป็น state ภายในหน้านั้น ไม่ได้ยกขึ้นมาไว้ที่ App
+  const [auditRefreshSignal, setAuditRefreshSignal] = useState(0)
+  const [usersRefreshSignal, setUsersRefreshSignal] = useState(0)
+
+  // poll ค่าตั้งค่าร้าน/เมนู-แพ็กเกจ-คิวช่วงเวลาจองห่างๆ หลัง login (หยุดพักตอนสลับแท็บ) — เป็นแค่ fallback เผื่อ
+  // useAppStream (SSE) ด้านล่างเชื่อมต่อไม่ได้ ทางหลักที่ทำให้เห็นการเปลี่ยนแปลงเกือบทันทีคือ SSE
+  usePolling(() => {
+    if (!isAuthenticated) return
+    refetchSettings()
+  }, SETTINGS_POLL_MS)
+
+  usePolling(() => {
+    if (!isAuthenticated || !dataLoaded) return
+    refetchCatalog()
   }, CATALOG_POLL_MS)
 
   // SSE — backend ยิงสัญญาณทันทีที่มีการจอง/แก้ไขใบจอง (ดู backend/src/realtime) ให้ owner เห็นรายการจองใหม่
   // แทบจะทันทีโดยไม่ต้อง refresh เอง แทนที่จะรอ poll รอบถัดไป
   useBookingsStream(isAuthenticated && dataLoaded, withToken, refetchBookings)
+
+  // SSE ช่องรวมของหัวข้ออื่น — settings/เมนู-แพ็กเกจ/สิทธิ์ผู้ใช้/ประวัติการแก้ไข เปลี่ยนจากเครื่อง/แท็บไหนก็ตาม
+  // เห็นผลแทบจะทันทีเหมือนกัน แทนที่จะรอ poll รอบถัดไป (ดู useAppStream.ts + backend/src/audit/audit.service.ts
+  // ที่เป็นจุดเดียวที่ยิงสัญญาณนี้ออกมา เพราะทุก mutation ที่เกี่ยวข้องเรียก audit.log() อยู่แล้ว)
+  useAppStream(isAuthenticated && dataLoaded, withToken, topic => {
+    if (topic === 'settings') refetchSettings()
+    else if (topic === 'catalog') refetchCatalog()
+    else if (topic === 'audit') setAuditRefreshSignal(v => v + 1)
+    else if (topic === 'users') setUsersRefreshSignal(v => v + 1)
+  })
 
   // fallback poll ห่างๆ เผื่อ SSE เชื่อมต่อไม่ได้ — เช็ค dataLoaded กันยิง request ซ้อนกับตอนโหลดครั้งแรกที่ยังไม่เสร็จ
   usePolling(() => {
@@ -696,10 +717,14 @@ export default function App() {
               }
               onListOwners={() => withToken().then(token => api.listOwners(token))}
               currentAuth0Sub={auth0User?.sub}
+              refreshSignal={usersRefreshSignal}
             />
           )}
           {effectiveScreen === 'owner-audit-log' && (
-            <AuditLog onFetchPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))} />
+            <AuditLog
+              onFetchPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))}
+              refreshSignal={auditRefreshSignal}
+            />
           )}
         </OwnerLayout>
       </NavProvider>

@@ -30,6 +30,10 @@ export const resolveImageUrl = (url: string | null | undefined): string => {
 export const bookingsStreamUrl = (token: string): string =>
   `${API_BASE}/realtime/bookings?access_token=${encodeURIComponent(token)}`
 
+/** ช่องรวมของหัวข้ออื่นนอกจาก bookings — settings/catalog (เมนู+แพ็กเกจ)/users/audit (ดู useAppStream.ts) */
+export const appStreamUrl = (token: string): string =>
+  `${API_BASE}/realtime/app?access_token=${encodeURIComponent(token)}`
+
 export type UploadImageKind = 'menu-image' | 'promptpay-qr' | 'shop-logo' | 'content-image' | 'payment-slip'
 
 async function request<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {

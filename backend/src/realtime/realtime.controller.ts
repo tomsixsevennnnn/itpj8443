@@ -25,4 +25,14 @@ export class RealtimeController {
       interval(HEARTBEAT_MS).pipe(map((): SseMessage => ({ data: 'ping' }))),
     )
   }
+
+  /** ช่องรวมของหัวข้ออื่นนอกจาก bookings — ตั้งค่าร้าน/เมนู-แพ็กเกจ/สิทธิ์ผู้ใช้/ประวัติการแก้ไข ส่ง topic name
+   *  มาให้ frontend เลือก refetch เฉพาะส่วนที่เกี่ยวข้อง (ดู useAppStream.ts ฝั่ง frontend) */
+  @Sse('app')
+  appStream(): Observable<SseMessage> {
+    return merge(
+      this.realtime.appChanged$.pipe(map((topic): SseMessage => ({ data: topic }))),
+      interval(HEARTBEAT_MS).pipe(map((): SseMessage => ({ data: 'ping' }))),
+    )
+  }
 }

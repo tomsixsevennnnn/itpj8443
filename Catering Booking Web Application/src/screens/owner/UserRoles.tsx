@@ -9,6 +9,9 @@ interface UserRolesProps {
   /** auth0Sub ของ owner ที่ login อยู่ตอนนี้ — กันเผลอถอดสิทธิ์ owner ตัวเอง (backend กันแค่เคส "คนสุดท้าย"
    *  แต่เคสนี้ยังทำได้ถ้ามี owner คนอื่นเหลืออยู่ ซึ่งอาจไม่ตั้งใจ) */
   currentAuth0Sub?: string
+  /** เพิ่มค่านี้ทุกครั้งที่ backend แจ้งผ่าน SSE ว่ามีการเปลี่ยนสิทธิ์ผู้ใช้ (ดู useAppStream ใน App.tsx) —
+   *  ใช้เป็น dependency สั่งโหลดรายชื่อ owner ใหม่เงียบๆ โดยไม่ต้องรอ reload หน้าเอง */
+  refreshSignal?: number
 }
 
 interface UserRowProps {
@@ -66,7 +69,7 @@ function UserRow({ user, isSelf, busy, onPromote, onDemote }: UserRowProps) {
   )
 }
 
-export default function UserRoles({ onSearchUser, onSetRole, onListOwners, currentAuth0Sub }: UserRolesProps) {
+export default function UserRoles({ onSearchUser, onSetRole, onListOwners, currentAuth0Sub, refreshSignal }: UserRolesProps) {
   const [owners, setOwners] = useState<BackendUser[] | null>(null)
   const [loadingOwners, setLoadingOwners] = useState(true)
   const [ownersError, setOwnersError] = useState<string | null>(null)
@@ -80,19 +83,31 @@ export default function UserRoles({ onSearchUser, onSetRole, onListOwners, curre
   const [actioningId, setActioningId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const loadOwners = () => {
-    setLoadingOwners(true)
-    setOwnersError(null)
+  const loadOwners = (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoadingOwners(true)
+    if (!opts.silent) setOwnersError(null)
     onListOwners()
       .then(setOwners)
-      .catch(err => setOwnersError(err instanceof Error ? err.message : 'โหลดรายชื่อ owner ไม่สำเร็จ'))
-      .finally(() => setLoadingOwners(false))
+      .catch(err => {
+        if (!opts.silent) setOwnersError(err instanceof Error ? err.message : 'โหลดรายชื่อ owner ไม่สำเร็จ')
+      })
+      .finally(() => {
+        if (!opts.silent) setLoadingOwners(false)
+      })
   }
 
   useEffect(() => {
     loadOwners()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // มีการเปลี่ยนสิทธิ์ผู้ใช้จาก SSE ระหว่างเปิดหน้าค้างไว้ (เช่นจากแท็บ/เครื่องอื่น) — โหลดรายชื่อ owner ใหม่เงียบๆ
+  // ไม่โชว์ loading spinner ทับตารางเดิม (เฉพาะครั้งถัดจากที่ mount แล้ว — ครั้งแรก refreshSignal ยังเป็น 0 อยู่แล้ว)
+  useEffect(() => {
+    if (!refreshSignal) return
+    loadOwners({ silent: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal])
 
   // debounce ช่องค้นหา 300ms กันยิง request รัวๆ ทุกตัวอักษรที่พิมพ์ (เหมือน Orders.tsx/BookingHistory.tsx)
   useEffect(() => {

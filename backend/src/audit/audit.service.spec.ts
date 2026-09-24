@@ -7,7 +7,8 @@ const makeService = () => {
     auditLog: { create: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   } as any
-  return { service: new AuditService(prisma), prisma }
+  const realtime = { emitAppChanged: jest.fn() } as any
+  return { service: new AuditService(prisma, realtime), prisma, realtime }
 }
 
 describe('AuditService', () => {

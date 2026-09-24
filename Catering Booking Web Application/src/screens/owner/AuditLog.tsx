@@ -4,6 +4,9 @@ import { resolveImageUrl, type AuditLogEntry, type AuditLogPage } from '../../ap
 
 interface AuditLogProps {
   onFetchPage: (page: number, pageSize: number) => Promise<AuditLogPage>
+  /** เพิ่มค่านี้ทุกครั้งที่ backend แจ้งผ่าน SSE ว่ามีประวัติใหม่ (ดู useAppStream ใน App.tsx) — ใช้เป็น dependency
+   *  สั่ง refetch หน้าปัจจุบันซ้ำ โดยไม่ต้องรอ poll หรือให้ผู้ใช้เปลี่ยนหน้าเอง */
+  refreshSignal?: number
 }
 
 const PAGE_SIZE = 20
@@ -457,7 +460,7 @@ function EntryRow({ entry, viewMode }: { entry: AuditLogEntry; viewMode: 'friend
   )
 }
 
-export default function AuditLog({ onFetchPage }: AuditLogProps) {
+export default function AuditLog({ onFetchPage, refreshSignal }: AuditLogProps) {
   const [page, setPage] = useState(1)
   const [data, setData] = useState<AuditLogPage | null>(null)
   const [loading, setLoading] = useState(true)
@@ -473,6 +476,16 @@ export default function AuditLog({ onFetchPage }: AuditLogProps) {
       .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
+
+  // มีประวัติใหม่จาก SSE ระหว่างเปิดหน้าค้างไว้ — refetch หน้าปัจจุบันเงียบๆ ไม่โชว์ loading spinner/error banner
+  // ทับตารางเดิม (จะเห็นบ่อยเพราะทุก mutation ในระบบ owner ยิง topic นี้) พังก็เงียบไปเฉยๆ รอรอบถัดไปพอ
+  useEffect(() => {
+    if (!refreshSignal) return
+    onFetchPage(page, PAGE_SIZE)
+      .then(setData)
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal])
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 

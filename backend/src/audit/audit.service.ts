@@ -1,13 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { AppChangeTopic, RealtimeService } from '../realtime/realtime.service'
+
+/** entityType ที่ call site ส่งเข้ามา -> topic realtime ที่ต้องแจ้ง client ให้ refetch (ดู RealtimeService)
+ *  'Booking' ไม่อยู่ในนี้เพราะ bookings.service.ts ยิง emitBookingsChanged() ของตัวเองอยู่แล้วโดยตรง */
+const ENTITY_TOPIC: Record<string, AppChangeTopic> = {
+  Settings: 'settings',
+  Package: 'catalog',
+  MenuItem: 'catalog',
+  User: 'users',
+}
 
 /** บันทึกประวัติการลบ/แก้ไขข้อมูลสำคัญโดย owner — ทุก call site ตอนนี้อยู่หลัง @Roles('owner') อยู่แล้ว จึงไม่ต้องรับ role จาก caller เอง แค่ auth0Sub พอ */
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name)
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private realtime: RealtimeService,
+  ) {}
 
   async log(
     auth0Sub: string,
@@ -31,6 +44,10 @@ export class AuditService {
           after: (after ?? undefined) as any,
         },
       })
+      // แจ้งหน้าประวัติการแก้ไขที่เปิดค้างไว้เสมอ บวก topic เฉพาะเจาะจงถ้า entity นี้มีหน้าที่ต้อง refetch ทันที
+      this.realtime.emitAppChanged('audit')
+      const topic = ENTITY_TOPIC[entityType]
+      if (topic) this.realtime.emitAppChanged(topic)
     } catch (err) {
       // การเขียน audit log ต้องไม่มีวันบล็อกการทำงานจริง (ลบเมนู/แก้ booking) แม้บันทึกประวัติไม่สำเร็จ
       this.logger.warn(`เขียน audit log ไม่สำเร็จ (action=${action} entity=${entityType}:${entityId})`, err as Error)
