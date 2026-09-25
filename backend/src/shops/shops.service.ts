@@ -99,4 +99,18 @@ export class ShopsService {
     await this.audit.log(editorAuth0Sub, 'shop.addOwner', 'Shop', shopId, undefined, { userId: user.id, email }, shopId)
     return after
   }
+
+  /** ถอด owner ออกจากร้าน (กลับไปเป็น CUSTOMER ธรรมดา) — super admin เท่านั้น ไม่บังคับต้องเหลือ owner อย่างน้อย
+   *  1 คนเหมือนตอน owner ถอดกันเอง (setRole) เพราะ super admin มีสิทธิ์เต็มอยู่แล้ว เพิ่ม owner คนใหม่เข้าไปทีหลังได้เสมอ */
+  async removeOwner(shopId: string, userId: string, editorAuth0Sub: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!user) throw new NotFoundException('ไม่พบผู้ใช้นี้')
+    if (user.role !== Role.OWNER || user.shopId !== shopId) {
+      throw new BadRequestException('ผู้ใช้นี้ไม่ใช่เจ้าของร้านนี้')
+    }
+
+    const after = await this.prisma.user.update({ where: { id: userId }, data: { role: Role.CUSTOMER, shopId: null } })
+    await this.audit.log(editorAuth0Sub, 'shop.removeOwner', 'Shop', shopId, { userId, email: user.email }, undefined, shopId)
+    return after
+  }
 }

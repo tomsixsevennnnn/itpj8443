@@ -1,18 +1,21 @@
 import { useState } from 'react'
-import { Loader2, LogOut, Plus, Power, Shield, Store, UserPlus } from 'lucide-react'
+import { Loader2, LogOut, Plus, Power, Shield, Store, UserMinus, UserPlus } from 'lucide-react'
 import { useNav } from '../NavContext'
-import type { ShopAdmin } from '../api'
+import type { BackendUser, ShopAdmin } from '../api'
 
 interface SuperAdminProps {
   shops: ShopAdmin[]
+  /** owner ทุกคนข้ามทุกร้าน (มี .shop กำกับ) — ใช้แสดงรายชื่อ owner ใต้การ์ดแต่ละร้าน */
+  owners: BackendUser[]
   onCreateShop: (input: { name: string; ownerEmail: string }) => Promise<void>
   onSetShopStatus: (id: string, status: 'ACTIVE' | 'SUSPENDED') => Promise<void>
   onAddOwner: (id: string, email: string) => Promise<void>
+  onRemoveOwner: (shopId: string, userId: string) => Promise<void>
 }
 
-/** หน้าเดียวจบสำหรับ super admin — จัดการร้านทั้งระบบ (สร้าง/ระงับ-เปิดใช้งาน/เพิ่ม owner) ไม่ใช้ OwnerLayout
+/** หน้าเดียวจบสำหรับ super admin — จัดการร้านทั้งระบบ (สร้าง/ระงับ-เปิดใช้งาน/เพิ่ม-ถอด owner) ไม่ใช้ OwnerLayout
  *  เพราะเป็นบทบาทที่ไม่ผูกกับร้านไหนเลย ไม่มีเมนูฝั่งร้าน (แดชบอร์ด/รายการจอง ฯลฯ) ให้ใช้ */
-export default function SuperAdmin({ shops, onCreateShop, onSetShopStatus, onAddOwner }: SuperAdminProps) {
+export default function SuperAdmin({ shops, owners, onCreateShop, onSetShopStatus, onAddOwner, onRemoveOwner }: SuperAdminProps) {
   const { navigate } = useNav()
   const [newName, setNewName] = useState('')
   const [newOwnerEmail, setNewOwnerEmail] = useState('')
@@ -23,6 +26,7 @@ export default function SuperAdmin({ shops, onCreateShop, onSetShopStatus, onAdd
   const [addingOwner, setAddingOwner] = useState(false)
 
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [removingOwnerId, setRemovingOwnerId] = useState<string | null>(null)
 
   const handleCreate = async () => {
     if (!newName.trim() || !newOwnerEmail.trim() || creating) return
@@ -54,6 +58,15 @@ export default function SuperAdmin({ shops, onCreateShop, onSetShopStatus, onAdd
       setAddOwnerEmail('')
     } finally {
       setAddingOwner(false)
+    }
+  }
+
+  const handleRemoveOwner = async (shopId: string, userId: string) => {
+    setRemovingOwnerId(userId)
+    try {
+      await onRemoveOwner(shopId, userId)
+    } finally {
+      setRemovingOwnerId(null)
     }
   }
 
@@ -144,6 +157,39 @@ export default function SuperAdmin({ shops, onCreateShop, onSetShopStatus, onAdd
                       {shop.status === 'ACTIVE' ? 'เปิดใช้งาน' : 'ระงับอยู่'}
                     </span>
                   </div>
+
+                  {/* เจ้าของร้านนี้ทั้งหมด — ถอดออกได้ทีละคน (กลับไปเป็นลูกค้าธรรมดา) */}
+                  {owners.filter(o => o.shop?.id === shop.id).length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {owners
+                        .filter(o => o.shop?.id === shop.id)
+                        .map(owner => (
+                          <div
+                            key={owner.id}
+                            className="flex items-center justify-between gap-2 bg-gray-50 rounded-xl px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm text-gray-700 truncate">
+                                {owner.name} {owner.surname}
+                              </p>
+                              <p className="text-xs text-gray-400 truncate">{owner.email}</p>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveOwner(shop.id, owner.id)}
+                              disabled={removingOwnerId === owner.id}
+                              className="flex items-center gap-1 text-[11px] font-semibold text-red-500 hover:text-red-600 disabled:opacity-50 flex-shrink-0"
+                            >
+                              {removingOwnerId === owner.id ? (
+                                <Loader2 size={11} className="animate-spin" />
+                              ) : (
+                                <UserMinus size={11} />
+                              )}
+                              ถอดออก
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2 mt-3">
                     <button

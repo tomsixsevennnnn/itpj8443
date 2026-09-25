@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
@@ -50,5 +50,12 @@ export class ShopsController {
   @Post(':id/owners')
   addOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: AddOwnerDto) {
     return this.shops.addOwner(id, dto.email, jwtUser.sub)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Delete(':id/owners/:userId')
+  removeOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Param('userId') userId: string) {
+    return this.shops.removeOwner(id, userId, jwtUser.sub)
   }
 }

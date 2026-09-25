@@ -209,8 +209,9 @@ export default function App() {
   // แจ้งเตือนลอยตอนทำรายการ (จอง/แก้แพ็กเกจ/แก้เมนู ฯลฯ) ไม่สำเร็จ — คนละเรื่องกับ loadError ที่บล็อกทั้งหน้า
   const [actionError, setActionError] = useState<string | null>(null)
 
-  // รายชื่อร้านทั้งหมด (พร้อมจำนวน owner) — เฉพาะ super admin เท่านั้นที่เห็น/ใช้หน้า super-admin
+  // รายชื่อร้านทั้งหมด (พร้อมจำนวน owner) และ owner ทุกคนข้ามทุกร้าน — เฉพาะ super admin เท่านั้นที่เห็น/ใช้หน้า super-admin
   const [shopsAdmin, setShopsAdmin] = useState<ShopAdmin[]>([])
+  const [ownersAdmin, setOwnersAdmin] = useState<BackendUser[]>([])
 
   /**
    * โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — sync user ก่อนเสมอเพื่อรู้ role/shopId จริง แล้วค่อยแยก
@@ -236,9 +237,10 @@ export default function App() {
         setBackendUser(me)
 
         if (me.role === 'SUPER_ADMIN') {
-          const shops = await api.shopsList(token)
+          const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
           if (cancelled) return
           setShopsAdmin(shops)
+          setOwnersAdmin(owners)
           setDataLoaded(true)
           return
         }
@@ -749,11 +751,13 @@ export default function App() {
         {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
         <SuperAdmin
           shops={shopsAdmin}
+          owners={ownersAdmin}
           onCreateShop={(input) =>
             runAction(async () => {
               const token = await withToken()
               const created = await api.createShop(token, input)
               setShopsAdmin(prev => [created, ...prev])
+              setOwnersAdmin(await api.listOwners(token))
             })
           }
           onSetShopStatus={(id, status) =>
@@ -767,8 +771,18 @@ export default function App() {
             runAction(async () => {
               const token = await withToken()
               await api.addShopOwner(token, id, email)
-              const refreshed = await api.shopsList(token)
-              setShopsAdmin(refreshed)
+              const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
+              setShopsAdmin(shops)
+              setOwnersAdmin(owners)
+            })
+          }
+          onRemoveOwner={(shopId, userId) =>
+            runAction(async () => {
+              const token = await withToken()
+              await api.removeShopOwner(token, shopId, userId)
+              const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
+              setShopsAdmin(shops)
+              setOwnersAdmin(owners)
             })
           }
         />

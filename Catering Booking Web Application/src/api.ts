@@ -509,4 +509,8 @@ export const api = {
   /** เพิ่ม owner คนใหม่เข้าร้านที่มีอยู่แล้ว — email ต้องเป็น user ที่เคย login เข้าระบบมาแล้วและยังไม่มีร้านอื่นผูกอยู่ */
   addShopOwner: (token: string, id: string, email: string) =>
     request<BackendUser>(token, `/shops/${id}/owners`, { method: 'POST', body: JSON.stringify({ email }) }),
+
+  /** ถอด owner ออกจากร้าน (กลับไปเป็นลูกค้าธรรมดา) */
+  removeShopOwner: (token: string, id: string, userId: string) =>
+    request<BackendUser>(token, `/shops/${id}/owners/${userId}`, { method: 'DELETE' }),
 }
