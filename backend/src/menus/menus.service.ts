@@ -27,10 +27,10 @@ export class MenusService {
   /** isOwner = false → strip costPrice ออกจาก response ทั้งหมด (ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม)
    *  ทั้งสองฝั่งกรอง deletedAt: null เสมอ — เมนูที่ถูกลบ (soft delete) ยังอยู่ในตารางเพื่อให้ course ของแพ็กเกจเก่า
    *  และประวัติ booking เก่าอ้างถึงได้ แต่ต้องไม่โผล่ในรายการเมนูที่ใช้เลือก/จัดการตามปกติ */
-  async findAll(isOwner: boolean, page?: number, limit?: number) {
+  async findAll(shopId: string, isOwner: boolean, page?: number, limit?: number) {
     const args = pageArgsFor(page, limit)
     const orderBy = { name: 'asc' as const }
-    const where = { deletedAt: null }
+    const where = { shopId, deletedAt: null }
 
     if (isOwner) {
       if (!args) return this.prisma.menuItem.findMany({ where, orderBy })
@@ -49,18 +49,25 @@ export class MenusService {
     return { data, total, page: args.page, limit: args.limit }
   }
 
-  async create(dto: CreateMenuItemDto, editorAuth0Sub: string) {
+  async create(dto: CreateMenuItemDto, editorAuth0Sub: string, shopId: string) {
     // imagePosition เป็น class instance จาก class-transformer (ValidationPipe transform: true) — ต้อง spread เป็น
     // plain object ก่อนส่งเข้า Prisma เพราะคอลัมน์ Json ต้องการ index signature ตรงๆ ไม่รับ instance ของ class
     const after = await this.prisma.menuItem.create({
-      data: { ...dto, imagePosition: dto.imagePosition ? { ...dto.imagePosition } : undefined, lastEditedBy: editorAuth0Sub },
+      data: { ...dto, shopId, imagePosition: dto.imagePosition ? { ...dto.imagePosition } : undefined, lastEditedBy: editorAuth0Sub },
     })
-    await this.audit.log(editorAuth0Sub, 'menu.create', 'MenuItem', after.id, undefined, after)
+    await this.audit.log(editorAuth0Sub, 'menu.create', 'MenuItem', after.id, undefined, after, shopId)
     return after
   }
 
-  async update(id: string, dto: UpdateMenuItemDto, editorAuth0Sub: string) {
-    const before = await this.prisma.menuItem.findUnique({ where: { id } })
+  /** ต้องเช็คว่าเมนูนี้เป็นของร้านที่ editor สังกัดอยู่จริงก่อนทุกครั้ง กัน owner ร้าน A แก้/ลบเมนูร้าน B ผ่าน id ตรงๆ */
+  private async assertOwnedByShop(id: string, shopId: string) {
+    const item = await this.prisma.menuItem.findUnique({ where: { id } })
+    if (!item || item.shopId !== shopId) throw new NotFoundException('ไม่พบเมนูนี้')
+    return item
+  }
+
+  async update(id: string, dto: UpdateMenuItemDto, editorAuth0Sub: string, shopId: string) {
+    const before = await this.assertOwnedByShop(id, shopId)
     const after = await this.prisma.menuItem.update({
       where: { id },
       data: { ...dto, imagePosition: dto.imagePosition ? { ...dto.imagePosition } : undefined, lastEditedBy: editorAuth0Sub },
@@ -71,7 +78,7 @@ export class MenusService {
     const imageReplaced = dto.image !== undefined && before?.image && before.image !== after.image
     const auditBefore =
       before && imageReplaced ? { ...before, image: (await this.uploads.makeThumbnailDataUrl(before.image)) ?? before.image } : before
-    await this.audit.log(editorAuth0Sub, 'menu.update', 'MenuItem', id, auditBefore, after)
+    await this.audit.log(editorAuth0Sub, 'menu.update', 'MenuItem', id, auditBefore, after, shopId)
     if (imageReplaced) {
       await this.uploads.deleteManagedFile(before!.image)
     }
@@ -80,12 +87,11 @@ export class MenusService {
 
   /** soft delete — ยังอยู่ใน course เดิมที่อ้างถึง (ประวัติ booking/แพ็กเกจเก่าไม่พัง) แค่ซ่อนจากรายการเมนูปกติ
    *  ไม่ลบไฟล์รูปทิ้งเหมือนตอน hard delete เพราะแถวยังอยู่จริงและอาจถูกแสดงในหน้าแพ็กเกจเก่าที่ยังอ้างถึงอยู่ */
-  async remove(id: string, editorAuth0Sub: string) {
-    const before = await this.prisma.menuItem.findUnique({ where: { id } })
-    if (!before) throw new NotFoundException('ไม่พบเมนูนี้')
+  async remove(id: string, editorAuth0Sub: string, shopId: string) {
+    const before = await this.assertOwnedByShop(id, shopId)
 
     const after = await this.prisma.menuItem.update({ where: { id }, data: { deletedAt: new Date() } })
-    await this.audit.log(editorAuth0Sub, 'menu.delete', 'MenuItem', id, before, after)
+    await this.audit.log(editorAuth0Sub, 'menu.delete', 'MenuItem', id, before, after, shopId)
     return after
   }
 }

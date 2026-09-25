@@ -1,0 +1,54 @@
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
+import { CurrentUser } from '../auth/current-user.decorator'
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'
+import { Roles } from '../auth/roles.decorator'
+import { RolesGuard } from '../auth/roles.guard'
+import { AddOwnerDto } from './dto/add-owner.dto'
+import { CreateShopDto } from './dto/create-shop.dto'
+import { SetShopStatusDto } from './dto/set-shop-status.dto'
+import { ShopsService } from './shops.service'
+
+@Controller('shops')
+export class ShopsController {
+  constructor(private shops: ShopsService) {}
+
+  /** ไม่ต้อง login — หน้ารายชื่อร้านให้ลูกค้าเลือกก่อนเริ่มจอง */
+  @Get('public')
+  listPublic() {
+    return this.shops.listActivePublic()
+  }
+
+  /** ไม่ต้อง login — เปิดจาก URL เฉพาะร้าน (/shop/:slug) ก่อนเข้าสู่ flow การจองของร้านนั้น */
+  @Get(':slug/public')
+  getPublicBySlug(@Param('slug') slug: string) {
+    return this.shops.findBySlugPublic(slug)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Get()
+  listAll() {
+    return this.shops.listAll()
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Post()
+  create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreateShopDto) {
+    return this.shops.createShop(dto, jwtUser.sub)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Patch(':id/status')
+  setStatus(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: SetShopStatusDto) {
+    return this.shops.setStatus(id, dto.status, jwtUser.sub)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Post(':id/owners')
+  addOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: AddOwnerDto) {
+    return this.shops.addOwner(id, dto.email, jwtUser.sub)
+  }
+}

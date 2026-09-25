@@ -29,11 +29,14 @@ export class AuditService {
     entityId: string,
     before?: unknown,
     after?: unknown,
+    /** ร้านที่ action นี้เกิดขึ้น — null/undefined = action ระดับ super admin ที่ไม่ผูกกับร้านไหน (เช่นสร้างร้านใหม่) */
+    shopId?: string | null,
   ) {
     try {
       const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { id: true, role: true, email: true } })
       await this.prisma.auditLog.create({
         data: {
+          shopId: shopId ?? undefined,
           actorUserId: user?.id ?? auth0Sub,
           actorRole: user?.role ?? Role.OWNER,
           actorEmail: user?.email ?? '',
@@ -54,11 +57,13 @@ export class AuditService {
     }
   }
 
-  async findPage(page: number, pageSize: number) {
+  /** shopId = null → ประวัติทั้งหมดข้ามทุกร้าน (เฉพาะ super admin เรียกทางนี้) */
+  async findPage(page: number, pageSize: number, shopId: string | null) {
     const skip = (page - 1) * pageSize
+    const where = shopId ? { shopId } : {}
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.auditLog.findMany({ orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
-      this.prisma.auditLog.count(),
+      this.prisma.auditLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
+      this.prisma.auditLog.count({ where }),
     ])
     return { items, total, page, pageSize }
   }

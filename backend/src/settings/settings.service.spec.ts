@@ -16,7 +16,7 @@ describe('SettingsService', () => {
     const { service, prisma } = makeService()
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW })
 
-    const result = await service.get(false)
+    const result = await service.get('shop1', false)
 
     expect(result).not.toHaveProperty('wageChef')
   })
@@ -25,7 +25,7 @@ describe('SettingsService', () => {
     const { service, prisma } = makeService()
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW })
 
-    const result = await service.get(true)
+    const result = await service.get('shop1', true)
 
     expect(result).toHaveProperty('wageChef', 1200)
   })
@@ -35,7 +35,7 @@ describe('SettingsService', () => {
     prisma.settings.findUnique.mockResolvedValue(null)
     prisma.settings.create.mockResolvedValue({ ...BASE_ROW })
 
-    await service.get(true)
+    await service.get('shop1', true)
 
     expect(prisma.settings.create).toHaveBeenCalled()
   })
@@ -45,7 +45,7 @@ describe('SettingsService', () => {
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW })
     prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopName: 'ใหม่' })
 
-    await service.update({ shopName: 'ใหม่' } as any, 'auth0|owner')
+    await service.update('shop1', { shopName: 'ใหม่' } as any, 'auth0|owner')
 
     expect(audit.log).toHaveBeenCalledWith(
       'auth0|owner',
@@ -54,6 +54,7 @@ describe('SettingsService', () => {
       '1',
       { ...BASE_ROW },
       { ...BASE_ROW, shopName: 'ใหม่' },
+      'shop1',
     )
   })
 
@@ -62,7 +63,7 @@ describe('SettingsService', () => {
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, version: 3 })
     prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopName: 'ใหม่', version: 4 })
 
-    await service.update({ shopName: 'ใหม่', expectedVersion: 3 } as any, 'auth0|owner')
+    await service.update('shop1', { shopName: 'ใหม่', expectedVersion: 3 } as any, 'auth0|owner')
 
     expect(prisma.settings.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -79,7 +80,7 @@ describe('SettingsService', () => {
       new Prisma.PrismaClientKnownRequestError('No record found', { code: 'P2025', clientVersion: '6.19.3' }),
     )
 
-    await expect(service.update({ shopName: 'ใหม่', expectedVersion: 1 } as any, 'auth0|owner')).rejects.toThrow(
+    await expect(service.update('shop1', { shopName: 'ใหม่', expectedVersion: 1 } as any, 'auth0|owner')).rejects.toThrow(
       ConflictException,
     )
     expect(audit.log).not.toHaveBeenCalled()
@@ -90,7 +91,7 @@ describe('SettingsService', () => {
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, shopLogo: '/uploads/logo/old.png' })
     prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopLogo: '/uploads/logo/new.png' })
 
-    await service.update({ shopLogo: '/uploads/logo/new.png' } as any, 'auth0|owner')
+    await service.update('shop1', { shopLogo: '/uploads/logo/new.png' } as any, 'auth0|owner')
 
     expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/logo/old.png')
   })
@@ -100,7 +101,7 @@ describe('SettingsService', () => {
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, shopLogo: '/uploads/logo/old.png' })
     prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopLogo: '/uploads/logo/old.png', shopName: 'ใหม่' })
 
-    await service.update({ shopName: 'ใหม่' } as any, 'auth0|owner')
+    await service.update('shop1', { shopName: 'ใหม่' } as any, 'auth0|owner')
 
     expect(uploads.deleteManagedFile).not.toHaveBeenCalled()
   })
@@ -111,7 +112,7 @@ describe('SettingsService', () => {
     prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopLogo: '/uploads/logo/new.png' })
     uploads.makeThumbnailDataUrl.mockResolvedValue('data:image/jpeg;base64,thumb')
 
-    await service.update({ shopLogo: '/uploads/logo/new.png' } as any, 'auth0|owner')
+    await service.update('shop1', { shopLogo: '/uploads/logo/new.png' } as any, 'auth0|owner')
 
     expect(uploads.makeThumbnailDataUrl).toHaveBeenCalledWith('/uploads/logo/old.png')
     expect(audit.log).toHaveBeenCalledWith(
@@ -121,6 +122,7 @@ describe('SettingsService', () => {
       '1',
       { ...BASE_ROW, shopLogo: 'data:image/jpeg;base64,thumb' },
       { ...BASE_ROW, shopLogo: '/uploads/logo/new.png' },
+      'shop1',
     )
   })
 
@@ -129,7 +131,7 @@ describe('SettingsService', () => {
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, homeContent: { heroImage: '/uploads/content/old-hero.jpg', gallery: [] } })
     prisma.settings.update.mockResolvedValue({ ...BASE_ROW, homeContent: { heroImage: '/uploads/content/new-hero.jpg', gallery: [] } })
 
-    await service.update({ homeContent: { heroImage: '/uploads/content/new-hero.jpg', gallery: [] } } as any, 'auth0|owner')
+    await service.update('shop1', { homeContent: { heroImage: '/uploads/content/new-hero.jpg', gallery: [] } } as any, 'auth0|owner')
 
     expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/content/old-hero.jpg')
     expect(uploads.deleteManagedFile).toHaveBeenCalledTimes(1)
@@ -146,7 +148,7 @@ describe('SettingsService', () => {
       homeContent: { heroImage: '', gallery: ['/uploads/content/a.jpg'] },
     })
 
-    await service.update({ homeContent: { heroImage: '', gallery: ['/uploads/content/a.jpg'] } } as any, 'auth0|owner')
+    await service.update('shop1', { homeContent: { heroImage: '', gallery: ['/uploads/content/a.jpg'] } } as any, 'auth0|owner')
 
     expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/content/b.jpg')
     expect(uploads.deleteManagedFile).not.toHaveBeenCalledWith('/uploads/content/a.jpg')
@@ -165,7 +167,7 @@ describe('SettingsService', () => {
       homeContent: { heroImage: '/uploads/content/old-hero.jpg', gallery: ['/uploads/content/a.jpg'] },
     })
 
-    await service.update({ shopName: 'ใหม่' } as any, 'auth0|owner')
+    await service.update('shop1', { shopName: 'ใหม่' } as any, 'auth0|owner')
 
     expect(uploads.deleteManagedFile).not.toHaveBeenCalled()
   })

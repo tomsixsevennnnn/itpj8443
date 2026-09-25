@@ -16,9 +16,9 @@ function homeContentImages(value: unknown): { heroImage?: string; gallery?: stri
   }
 }
 
-/** ค่าเริ่มต้น — ต้องตรงกับ DEFAULT_* ใน frontend src/documents.ts และ src/geo.ts */
-const DEFAULT_SETTINGS = {
-  id: 1,
+/** ค่าเริ่มต้น — ต้องตรงกับ DEFAULT_* ใน frontend src/documents.ts และ src/geo.ts — export ไว้ให้ ShopsService
+ *  ใช้สร้างแถว Settings เริ่มต้นให้ร้านใหม่ทุกร้าน (เดิมมีแถวเดียวตายตัว id=1 ทั้งระบบตอนยังเป็นร้านเดียว) */
+export const DEFAULT_SETTINGS = {
   shopName: 'ร้านพิพัฒน์โภชนา',
   shopNameEn: 'Pipat Phochana Catering',
   shopInitials: 'PP',
@@ -82,15 +82,17 @@ export class SettingsService {
 
   // เดิม cache ไว้ในหน่วยความจำ (TTL 1 วิ) กัน round-trip ไป DB ที่โฮสต์ไกล (Railway) — แต่ backend รันได้
   // หลาย process ชี้ DB เดียวกัน แก้ที่ process หนึ่งแล้ว process อื่นเห็นค่าเก่าค้างได้จนกว่า cache หมดอายุ
-  // ตารางนี้มีแถวเดียวและอ่านไม่ถี่พอจะคุ้มเสี่ยงความไม่ตรงกันข้าม process จึงตัด cache ออก อ่าน DB ตรงทุกครั้ง
-  private async getRaw(): Promise<Settings> {
-    const existing = await this.prisma.settings.findUnique({ where: { id: 1 } })
-    return existing ?? this.prisma.settings.create({ data: DEFAULT_SETTINGS })
+  // ตารางนี้อ่านไม่ถี่พอจะคุ้มเสี่ยงความไม่ตรงกันข้าม process จึงตัด cache ออก อ่าน DB ตรงทุกครั้ง
+  // ปกติไม่ควร miss เลยเพราะ ShopsService.createShop สร้างแถว Settings คู่กับ Shop ไว้ตั้งแต่แรกแล้ว — fallback
+  // สร้างอัตโนมัติตรงนี้ไว้กันแค่ข้อมูลเก่า/เคส edge case เท่านั้น
+  private async getRaw(shopId: string): Promise<Settings> {
+    const existing = await this.prisma.settings.findUnique({ where: { shopId } })
+    return existing ?? this.prisma.settings.create({ data: { ...DEFAULT_SETTINGS, shopId } })
   }
 
   /** ลูกค้าไม่ควรเห็นค่าแรงพนักงาน (ต้นทุนภายใน) — เดิม endpoint นี้คืนทุกฟิลด์ให้ทุก role ที่ล็อกอินอยู่ */
-  async get(isOwner: boolean): Promise<Settings> {
-    const settings = await this.getRaw()
+  async get(shopId: string, isOwner: boolean): Promise<Settings> {
+    const settings = await this.getRaw(shopId)
     if (isOwner) return settings
     const stripped = { ...settings }
     for (const field of OWNER_ONLY_FIELDS) delete (stripped as Record<string, unknown>)[field]
@@ -98,8 +100,8 @@ export class SettingsService {
   }
 
   /** เฉพาะข้อมูลร้านที่โชว์หน้าตาได้ — ไม่มี auth guard จึงต้องไม่รวมค่ามัดจำ/ค่าแรง/พิกัดร้าน ฯลฯ */
-  async getPublicShopInfo() {
-    const s = await this.getRaw()
+  async getPublicShopInfo(shopId: string) {
+    const s = await this.getRaw(shopId)
     return {
       shopName: s.shopName,
       shopNameEn: s.shopNameEn,
@@ -113,14 +115,14 @@ export class SettingsService {
     }
   }
 
-  async update(dto: UpdateSettingsDto, editorAuth0Sub: string) {
+  async update(shopId: string, dto: UpdateSettingsDto, editorAuth0Sub: string) {
     const { expectedVersion, ...patch } = dto
-    const before = await this.getRaw()
+    const before = await this.getRaw(shopId)
 
     let after: Settings
     try {
       after = await this.prisma.settings.update({
-        where: { id_version: { id: 1, version: expectedVersion } },
+        where: { id_version: { id: before.id, version: expectedVersion } },
         data: { ...patch, version: { increment: 1 }, lastEditedBy: editorAuth0Sub } as any,
       })
     } catch (err) {
@@ -142,7 +144,7 @@ export class SettingsService {
     if (qrReplaced) {
       auditBefore = { ...auditBefore, promptPayQr: (await this.uploads.makeThumbnailDataUrl(before.promptPayQr)) ?? before.promptPayQr }
     }
-    await this.audit.log(editorAuth0Sub, 'settings.update', 'Settings', String(after.id), auditBefore, after)
+    await this.audit.log(editorAuth0Sub, 'settings.update', 'Settings', String(after.id), auditBefore, after, shopId)
 
     if (logoReplaced) await this.uploads.deleteManagedFile(before.shopLogo)
     if (qrReplaced) await this.uploads.deleteManagedFile(before.promptPayQr)

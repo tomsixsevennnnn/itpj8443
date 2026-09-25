@@ -3,6 +3,7 @@ import { validate } from 'class-validator'
 import { CreateBookingDto } from './create-booking.dto'
 
 const validPayload = {
+  shopId: 'shop_test123',
   date: '2026-01-15',
   timeSlot: 'เย็น (17:00-21:00)',
   tables: 5,

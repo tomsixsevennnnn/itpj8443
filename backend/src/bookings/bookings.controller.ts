@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Res, UseGuards } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { Role } from '@prisma/client'
@@ -21,19 +21,24 @@ export class BookingsController {
     private users: UsersService,
   ) {}
 
-  /** owner เห็นทุกใบจอง, customer เห็นเฉพาะของตัวเอง — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */
+  /** owner เห็นทุกใบจองของร้านตัวเอง, customer เห็นใบจองของตัวเอง (ข้ามทุกร้าน) — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */
   @Get()
   async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
-    if (await this.users.isOwner(jwtUser.sub)) return this.bookings.findAllForOwner(query.page, query.limit)
+    const ctx = await this.users.shopContextFor(jwtUser.sub)
+    if (ctx?.role === Role.OWNER) {
+      if (!ctx.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
+      return this.bookings.findAllForOwner(ctx.shopId, query.page, query.limit)
+    }
 
     const user = await this.syncCustomer(jwtUser)
     return this.bookings.findAllForCustomer(user.id, query.page, query.limit)
   }
 
-  /** คิวรับงานทุกใบจอง (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควัน/ช่วงเวลาที่เต็มแล้วตอนลูกค้าเลือกวันจัดงาน */
+  /** คิวรับงานของร้านเดียว (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควัน/ช่วงเวลาที่เต็มแล้วตอนลูกค้าเลือกวันจัดงาน
+   *  ต้องระบุ shopId เสมอ (ลูกค้าเลือกร้านมาก่อนแล้วจากหน้ารายชื่อร้าน) */
   @Get('availability')
-  findAvailability() {
-    return this.bookings.findAvailability()
+  findAvailability(@Query('shopId') shopId: string) {
+    return this.bookings.findAvailability(shopId)
   }
 
   // เข้มกว่า default ของทั้ง API (60/นาที) — สร้างใบจองไม่ควรมีใครยิงถี่ขนาดนั้นได้ตามปกติ กันสแปมใบจองปลอม
@@ -47,8 +52,10 @@ export class BookingsController {
 
   @Patch(':id')
   @Roles('owner')
-  updateAsOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdateBookingDto) {
-    return this.bookings.updateAsOwner(id, dto, jwtUser.sub)
+  async updateAsOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdateBookingDto) {
+    const ctx = await this.users.shopContextFor(jwtUser.sub)
+    if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
+    return this.bookings.updateAsOwner(id, dto, jwtUser.sub, ctx.shopId)
   }
 
   @Patch(':id/payment-slip')
@@ -68,9 +75,10 @@ export class BookingsController {
    */
   @Get(':id/payment-slip')
   async getSlip(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Res() res: Response) {
-    const isOwner = await this.users.isOwner(jwtUser.sub)
+    const ctx = await this.users.shopContextFor(jwtUser.sub)
+    const isOwner = ctx?.role === Role.OWNER
     const requesterId = isOwner ? '' : (await this.syncCustomer(jwtUser)).id
-    const path = await this.bookings.getPaymentSlipPath(id, requesterId, isOwner)
+    const path = await this.bookings.getPaymentSlipPath(id, requesterId, isOwner, ctx?.shopId ?? null)
     res.sendFile(path)
   }
 

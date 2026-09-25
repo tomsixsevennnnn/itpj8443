@@ -20,6 +20,8 @@ const makeService = () => {
   return { service: new PackagesService(prisma, audit), prisma, audit }
 }
 
+const SHOP = 'shop1'
+
 describe('PackagesService', () => {
   it('create: courses ว่าง — สร้างแพ็กเกจอย่างเดียวไม่ยิง createMany/join table/menuItem lookup', async () => {
     const { service, prisma, audit } = makeService()
@@ -27,14 +29,14 @@ describe('PackagesService', () => {
     const created = { id: 'p1', name: 'แพ็กเกจใหม่' }
     prisma.package.create.mockResolvedValue(created)
 
-    const result = await service.create({ name: 'แพ็กเกจใหม่', courses: [] } as any, 'auth0|owner')
+    const result = await service.create({ name: 'แพ็กเกจใหม่', courses: [] } as any, 'auth0|owner', SHOP)
 
     expect(prisma.package.create).toHaveBeenCalledTimes(1)
     expect(prisma.packageCourse.createMany).not.toHaveBeenCalled()
     expect(prisma.$executeRaw).not.toHaveBeenCalled()
     expect(prisma.menuItem.findMany).not.toHaveBeenCalled()
     expect(result).toEqual({ ...created, courses: [] })
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.create', 'Package', 'p1', undefined, result)
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.create', 'Package', 'p1', undefined, result, SHOP)
   })
 
   it('create: มี courses — createMany course ใหม่ + insert join table แบบ batch + ดึง MenuItem แบบขนานกับ transaction', async () => {
@@ -45,10 +47,7 @@ describe('PackagesService', () => {
     const item = { id: 'm1', name: 'เมนู A' }
     prisma.menuItem.findMany.mockResolvedValue([item])
 
-    const result = await service.create(
-      { name: 'แพ็กเกจใหม่', courses: [{ no: 1, title: 'ของว่าง', category: 'snack', choose: 1, itemIds: ['m1'] }] } as any,
-      'auth0|owner',
-    )
+    const result = await service.create({ name: 'แพ็กเกจใหม่', courses: [{ no: 1, title: 'ของว่าง', category: 'snack', choose: 1, itemIds: ['m1'] }] } as any, 'auth0|owner', SHOP)
 
     expect(prisma.packageCourse.createMany).toHaveBeenCalledTimes(1)
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
@@ -59,14 +58,19 @@ describe('PackagesService', () => {
 
   it('update: บันทึก audit log พร้อม before/after (ไม่ส่ง courses มา)', async () => {
     const { service, prisma, audit } = makeService()
-    const before = { id: 'p1', name: 'เดิม' }
+    const before = { id: 'p1', name: 'เดิม', shopId: SHOP }
     const after = { id: 'p1', name: 'ใหม่' }
     prisma.package.findUnique.mockResolvedValue(before)
     prisma.package.update.mockResolvedValue(after)
 
-    await service.update('p1', { name: 'ใหม่' } as any, 'auth0|owner')
+    await service.update(
+      'p1',
+      { name: 'ใหม่' } as any,
+      'auth0|owner',
+      SHOP,
+    )
 
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, after)
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, after, SHOP)
   })
 
   it('update: ส่ง courses มาแต่เหมือนของเดิมทุกอย่าง — ข้าม delete+recreate ไปอัปเดตแค่ field ระดับบน', async () => {
@@ -75,6 +79,7 @@ describe('PackagesService', () => {
       id: 'p1',
       name: 'เดิม',
       courses: [{ no: 1, title: 'ของว่าง', icon: null, category: 'snack', choose: 1, items: [{ id: 'm1' }] }],
+      shopId: SHOP,
     }
     const after = { ...before, name: 'ใหม่' }
     prisma.package.findUnique.mockResolvedValue(before)
@@ -84,18 +89,19 @@ describe('PackagesService', () => {
       'p1',
       { name: 'ใหม่', courses: [{ no: 1, title: 'ของว่าง', category: 'snack', choose: 1, itemIds: ['m1'] }] } as any,
       'auth0|owner',
+      SHOP,
     )
 
     expect(prisma.packageCourse.deleteMany).not.toHaveBeenCalled()
     expect(prisma.packageCourse.createMany).not.toHaveBeenCalled()
     expect(prisma.$executeRaw).not.toHaveBeenCalled()
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, after)
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, after, SHOP)
     expect(result).toBe(after)
   })
 
   it('update: ส่ง courses มาและเปลี่ยนจริง — ลบของเดิม, createMany course ใหม่ + insert join table แบบ batch + ดึง MenuItem แบบขนานกับ transaction', async () => {
     const { service, prisma, audit } = makeService()
-    const before = { id: 'p1', name: 'เดิม', courses: [] }
+    const before = { id: 'p1', name: 'เดิม', courses: [], shopId: SHOP }
     const updated = { id: 'p1', name: 'ใหม่' }
     const item = { id: 'm1', name: 'เมนู A' }
     prisma.package.findUnique.mockResolvedValue(before)
@@ -106,6 +112,7 @@ describe('PackagesService', () => {
       'p1',
       { name: 'ใหม่', courses: [{ no: 1, title: 'ของว่าง', category: 'snack', choose: 1, itemIds: ['m1', 'm1'] }] } as any,
       'auth0|owner',
+      SHOP,
     )
 
     expect(prisma.packageCourse.deleteMany).toHaveBeenCalledWith({ where: { packageId: 'p1' } })
@@ -113,21 +120,21 @@ describe('PackagesService', () => {
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1)
     expect(prisma.menuItem.findMany).toHaveBeenCalledWith({ where: { id: { in: ['m1'] } } })
     expect((result as any).courses[0].items).toEqual([item])
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, result)
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.update', 'Package', 'p1', before, result, SHOP)
   })
 
   it('remove: soft delete — update deletedAt แทนการลบแถวจริง แล้วบันทึก audit log พร้อม before/after', async () => {
     const { service, prisma, audit } = makeService()
-    const before = { id: 'p1', name: 'แพ็กเกจ A', deletedAt: null }
+    const before = { id: 'p1', name: 'แพ็กเกจ A', deletedAt: null, shopId: SHOP }
     const after = { id: 'p1', name: 'แพ็กเกจ A', deletedAt: new Date() }
     prisma.package.findUnique.mockResolvedValue(before)
     prisma.package.update.mockResolvedValue(after)
 
-    const result = await service.remove('p1', 'auth0|owner')
+    const result = await service.remove('p1', 'auth0|owner', SHOP)
 
     expect(prisma.package.delete).not.toHaveBeenCalled()
     expect(prisma.package.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { deletedAt: expect.any(Date) } })
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.delete', 'Package', 'p1', before, after)
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'package.delete', 'Package', 'p1', before, after, SHOP)
     expect(result).toBe(after)
   })
 
@@ -135,28 +142,28 @@ describe('PackagesService', () => {
     const { service, prisma } = makeService()
     prisma.package.findUnique.mockResolvedValue(null)
 
-    await expect(service.remove('missing', 'auth0|owner')).rejects.toThrow('ไม่พบแพ็กเกจนี้')
+    await expect(service.remove('missing', 'auth0|owner', SHOP)).rejects.toThrow('ไม่พบแพ็กเกจนี้')
   })
 
   it('reorder: ids ไม่ตรงกับแพ็กเกจทั้งหมดที่มีอยู่ (ขาด/เกิน) throw BadRequestException', async () => {
     const { service, prisma } = makeService()
     prisma.package.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }])
 
-    await expect(service.reorder({ ids: ['p1'] })).rejects.toThrow(BadRequestException)
+    await expect(service.reorder({ ids: ['p1'] }, SHOP)).rejects.toThrow(BadRequestException)
   })
 
   it('reorder: ids ซ้ำกันเอง throw BadRequestException', async () => {
     const { service, prisma } = makeService()
     prisma.package.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }])
 
-    await expect(service.reorder({ ids: ['p1', 'p1'] })).rejects.toThrow(BadRequestException)
+    await expect(service.reorder({ ids: ['p1', 'p1'] }, SHOP)).rejects.toThrow(BadRequestException)
   })
 
   it('reorder: ids ครบตรงกันพอดี — อัปเดต sortOrder ตามลำดับใหม่', async () => {
     const { service, prisma } = makeService()
     prisma.package.findMany.mockResolvedValueOnce([{ id: 'p1' }, { id: 'p2' }]).mockResolvedValueOnce([])
 
-    await service.reorder({ ids: ['p2', 'p1'] })
+    await service.reorder({ ids: ['p2', 'p1'] }, SHOP)
 
     expect(prisma.package.update).toHaveBeenCalledWith({ where: { id: 'p2' }, data: { sortOrder: 0 } })
     expect(prisma.package.update).toHaveBeenCalledWith({ where: { id: 'p1' }, data: { sortOrder: 1 } })

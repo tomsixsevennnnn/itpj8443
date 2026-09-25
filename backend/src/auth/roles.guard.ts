@@ -4,7 +4,7 @@ import { Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ROLES_KEY } from './roles.decorator'
 
-type AppRole = 'owner' | 'customer'
+type AppRole = 'owner' | 'customer' | 'super_admin'
 
 /** เช็ค role จาก DB เสมอ (ไม่ใช่ JWT claim) — กัน access token เก่า/ถูกปลอมอ้าง role ผิดหลัง promote/demote ผ่านหน้า owner
  *  cache ผลไว้สั้นๆ ต่อ auth0Sub กัน DB query ทุก request (role แทบไม่เปลี่ยนระหว่างใช้งานปกติ) — ไม่ได้ผ่อนความเข้ม
@@ -44,7 +44,7 @@ export class RolesGuard implements CanActivate {
     // ไม่พบ user ใน DB เลย = ถือเป็น customer โดย default เสมอ ไม่ cache เคสนี้ไว้ (แถวอาจถูกสร้างในวินาทีถัดไปหลัง sync)
     if (!dbUser) return 'customer'
 
-    const role: AppRole = dbUser.role === Role.OWNER ? 'owner' : 'customer'
+    const role: AppRole = dbUser.role === Role.OWNER ? 'owner' : dbUser.role === Role.SUPER_ADMIN ? 'super_admin' : 'customer'
     this.cache.set(sub, { role, at: Date.now() })
     return role
   }

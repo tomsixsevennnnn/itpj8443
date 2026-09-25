@@ -10,6 +10,10 @@ datasource db {
 enum Role {
   CUSTOMER
   OWNER
+  /**
+   * ดูแลทุกร้านในระบบ — สร้าง/ระงับร้าน, แต่งตั้ง owner คนแรกของแต่ละร้าน (ดู SuperAdminModule) ไม่ผูกกับ shopId ใดๆ
+   */
+  SUPER_ADMIN
 }
 
 enum BookingStatus {
@@ -17,6 +21,34 @@ enum BookingStatus {
   CONFIRMED
   COMPLETED
   CANCELLED
+}
+
+enum ShopStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/**
+ * ร้านแต่ละร้านในระบบ multi-tenant — ทุกตารางข้อมูลจริง (Booking/MenuItem/Package/Settings/AuditLog) ผูกกับ
+ * shopId เพื่อแยกข้อมูลกันเด็ดขาดระหว่างร้าน มีแค่ SUPER_ADMIN เท่านั้นที่มองเห็น/จัดการได้ข้ามร้าน
+ */
+model Shop {
+  id        String     @id @default(cuid())
+  name      String
+  /**
+   * ใช้ทำ URL เฉพาะร้าน (เช่น /shop/pipat-catering) ให้ลูกค้าเลือกร้านก่อนเริ่มจอง
+   */
+  slug      String     @unique
+  status    ShopStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+
+  owners          User[]
+  bookings        Booking[]
+  menuItems       MenuItem[]
+  packages        Package[]
+  bookingCounters BookingCounter[]
+  auditLogs       AuditLog[]
+  settings        Settings?
 }
 
 model User {
@@ -31,44 +63,75 @@ model User {
   avatar    String    @default("")
   createdAt DateTime  @default(now())
   bookings  Booking[]
+
+  /**
+   * ร้านที่ผูกอยู่ — บังคับให้มีค่าเฉพาะ role OWNER เท่านั้น (เช็คระดับ application ไม่ใช่ DB constraint เพราะ
+   * CUSTOMER/SUPER_ADMIN ต้องไม่ผูกกับร้านไหนเลย — CUSTOMER จองข้ามร้านได้, SUPER_ADMIN ดูแลทุกร้าน)
+   */
+  shop   Shop?   @relation(fields: [shopId], references: [id])
+  shopId String?
+
+  @@index([shopId])
 }
 
 model MenuItem {
-  id          String          @id @default(cuid())
-  name        String
-  category    String
-  description String          @default("")
-  image       String?
-  /** ตำแหน่งครอปรูป { x, y } เป็น % ของกรอบ — คู่กับ imageScale ใช้จัดกรอบตอนแสดงผล (object-position/transform ดู DishTile.tsx) */
+  id            String          @id @default(cuid())
+  shop          Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId        String
+  name          String
+  category      String
+  description   String          @default("")
+  image         String?
+  /**
+   * ตำแหน่งครอปรูป { x, y } เป็น % ของกรอบ — คู่กับ imageScale ใช้จัดกรอบตอนแสดงผล (object-position/transform ดู DishTile.tsx)
+   */
   imagePosition Json?
-  /** ระดับซูมรูป (1 = ปกติ, สูงสุด 3) — คู่กับ imagePosition */
-  imageScale  Float?
-  /** ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ (owner เท่านั้นที่เห็นค่านี้ผ่าน API) */
-  costPrice   Int?
-  active      Boolean         @default(true)
-  courses     PackageCourse[] @relation("CourseItems")
-  updatedAt   DateTime        @updatedAt
-  /** auth0Sub ของ owner ที่แก้ไขล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก) */
-  lastEditedBy String?
-  /** soft delete — ตั้งค่าแทนการลบแถวจริง กันประวัติ booking เก่าที่อ้างเมนูนี้ (ผ่าน course) ข้อมูลขาดหาย มีค่า = ถูกลบ ไม่แสดงในรายการปกติ */
-  deletedAt   DateTime?
+  /**
+   * ระดับซูมรูป (1 = ปกติ, สูงสุด 3) — คู่กับ imagePosition
+   */
+  imageScale    Float?
+  /**
+   * ราคาทุนต่อจาน (บาท) — เจ้าของร้านกรอกตรงๆ ไม่คำนวณจากวัตถุดิบ (owner เท่านั้นที่เห็นค่านี้ผ่าน API)
+   */
+  costPrice     Int?
+  active        Boolean         @default(true)
+  courses       PackageCourse[] @relation("CourseItems")
+  updatedAt     DateTime        @updatedAt
+  /**
+   * auth0Sub ของ owner ที่แก้ไขล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก)
+   */
+  lastEditedBy  String?
+  /**
+   * soft delete — ตั้งค่าแทนการลบแถวจริง กันประวัติ booking เก่าที่อ้างเมนูนี้ (ผ่าน course) ข้อมูลขาดหาย มีค่า = ถูกลบ ไม่แสดงในรายการปกติ
+   */
+  deletedAt     DateTime?
+
+  @@index([shopId])
 }
 
 model Package {
   id            String          @id @default(cuid())
+  shop          Shop            @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId        String
   name          String
   pricePerTable Int
   menuLimit     Int
   description   String          @default("")
   features      String[]
   badge         String?
-  /** ลำดับที่เจ้าของร้านลากจัดเรียงเอง — เลขน้อยแสดงก่อน ทั้งในหน้าจัดการและหน้าลูกค้าเลือกแพ็กเกจ */
+  /**
+   * ลำดับที่เจ้าของร้านลากจัดเรียงเอง — เลขน้อยแสดงก่อน ทั้งในหน้าจัดการและหน้าลูกค้าเลือกแพ็กเกจ
+   */
   sortOrder     Int             @default(0)
   courses       PackageCourse[]
   updatedAt     DateTime        @updatedAt
   lastEditedBy  String?
-  /** soft delete — ตั้งค่าแทนการลบแถวจริง กันประวัติ booking เก่าที่อ้าง packageId นี้ข้อมูลขาดหาย มีค่า = ถูกลบ ไม่แสดงในรายการปกติ */
+  /**
+   * soft delete — ตั้งค่าแทนการลบแถวจริง กันประวัติ booking เก่าที่อ้าง packageId นี้ข้อมูลขาดหาย มีค่า = ถูกลบ ไม่แสดงในรายการปกติ
+   */
   deletedAt     DateTime?
+
+  @@index([shopId])
 }
 
 model PackageCourse {
@@ -77,22 +140,32 @@ model PackageCourse {
   packageId String
   no        Int
   title     String
-  /** ไอคอน (emoji) ที่แสดงหน้าชื่อข้อ — ไม่กรอก = ใช้ไอคอนของประเภทอาหาร (category) แทน */
+  /**
+   * ไอคอน (emoji) ที่แสดงหน้าชื่อข้อ — ไม่กรอก = ใช้ไอคอนของประเภทอาหาร (category) แทน
+   */
   icon      String?
   category  String
-  /** 0 = รวมมาในแพ็กเกจแล้ว ไม่ต้องเลือก, >0 = ลูกค้าเลือกได้เองกี่อย่าง */
+  /**
+   * 0 = รวมมาในแพ็กเกจแล้ว ไม่ต้องเลือก, >0 = ลูกค้าเลือกได้เองกี่อย่าง
+   */
   choose    Int
   items     MenuItem[] @relation("CourseItems")
 }
 
 model Booking {
   id                    String        @id @default(cuid())
+  shop                  Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId                String
   customer              User?         @relation(fields: [customerId], references: [id])
   customerId            String?
   customerName          String
-  /** ปีที่ออกเลขที่ใบจอง (ปี ค.ศ. ของ createdAt) — คู่กับ bookingNo ใช้ประกอบเลขที่ใบจอง BK-{bookingYear}-{bookingNo} */
+  /**
+   * ปีที่ออกเลขที่ใบจอง (ปี ค.ศ. ของ createdAt) — คู่กับ bookingNo ใช้ประกอบเลขที่ใบจอง BK-{bookingYear}-{bookingNo}
+   */
   bookingYear           Int
-  /** เลขลำดับใบจองภายในปีนั้น เริ่ม 1 ทุกปี — จองจาก BookingCounter แบบ atomic ตอนสร้าง */
+  /**
+   * เลขลำดับใบจองภายในปีนั้น เริ่ม 1 ทุกปี — จองจาก BookingCounter แบบ atomic ตอนสร้าง
+   */
   bookingNo             Int
   date                  String
   timeSlot              String
@@ -104,11 +177,15 @@ model Booking {
   deliveryFee           Int?
   status                BookingStatus @default(PENDING)
   location              String
-  /** พิกัด + รายละเอียดสถานที่จากแผนที่ (EventLocation ฝั่ง frontend) */
+  /**
+   * พิกัด + รายละเอียดสถานที่จากแผนที่ (EventLocation ฝั่ง frontend)
+   */
   locationDetail        Json?
   menus                 String[]
   phone                 String
-  /** Line ID ของลูกค้า ณ ตอนจอง (ถ้ามี) */
+  /**
+   * Line ID ของลูกค้า ณ ตอนจอง (ถ้ามี)
+   */
   lineId                String?
   staffAuto             Json?
   staffActual           Json?
@@ -118,18 +195,27 @@ model Booking {
   paymentSlipUploadedAt DateTime?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
-  /** auth0Sub ของ owner ที่แก้ไขสถานะ/แผนกำลังคนล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก) */
+  /**
+   * auth0Sub ของ owner ที่แก้ไขสถานะ/แผนกำลังคนล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก)
+   */
   lastEditedBy          String?
 
-  @@unique([bookingYear, bookingNo])
+  @@unique([shopId, bookingYear, bookingNo])
   @@index([customerId])
-  @@index([date])
+  @@index([shopId, date])
 }
 
-/** ตัวนับเลขที่ใบจองแยกตามปี — แถวละ 1 ปี เพิ่มค่า lastNo แบบ atomic ตอนสร้างใบจองใหม่ */
+/**
+ * ตัวนับเลขที่ใบจองแยกตามร้าน+ปี — แถวละ 1 ร้าน/1 ปี เพิ่มค่า lastNo แบบ atomic ตอนสร้างใบจองใหม่ ทำให้แต่ละร้าน
+ * มีเลขที่ใบจอง BK-{ปี}-{เลข} ของตัวเอง ไม่ชนกันข้ามร้าน (เดิมคีย์แค่ปีเดียวเพราะมีร้านเดียวทั้งระบบ)
+ */
 model BookingCounter {
-  year   Int @id
-  lastNo Int @default(0)
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId String
+  year   Int
+  lastNo Int    @default(0)
+
+  @@id([shopId, year])
 }
 
 /**
@@ -138,12 +224,22 @@ model BookingCounter {
  */
 model AuditLog {
   id          String   @id @default(cuid())
+  /**
+   * null = action ระดับ super admin ที่ไม่ผูกกับร้านไหน (เช่นสร้าง/ระงับร้าน) — ที่เหลือทุก action ของ owner
+   * ต้องมี shopId เสมอ เพื่อให้หน้า "ประวัติการแก้ไข" กรองแยกร้านได้
+   */
+  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId      String?
   actorUserId String
   actorRole   Role
-  /** อีเมลของผู้แก้ไข ณ ตอนนั้น — denormalize เก็บสำเนาไว้ตรงๆ (ไม่ join ตอนอ่าน) กันปัญหา user ถูกลบ/เปลี่ยนอีเมล
-   *  ภายหลังแล้วประวัติเก่าเปลี่ยนความหมายตามไปด้วย ค่าว่าง = แถวเก่าก่อนมีคอลัมน์นี้ (ไม่ย้อนหลังได้) */
+  /**
+   * อีเมลของผู้แก้ไข ณ ตอนนั้น — denormalize เก็บสำเนาไว้ตรงๆ (ไม่ join ตอนอ่าน) กันปัญหา user ถูกลบ/เปลี่ยนอีเมล
+   * ภายหลังแล้วประวัติเก่าเปลี่ยนความหมายตามไปด้วย ค่าว่าง = แถวเก่าก่อนมีคอลัมน์นี้ (ไม่ย้อนหลังได้)
+   */
   actorEmail  String   @default("")
-  /** เช่น "menu.delete", "package.delete", "booking.update" */
+  /**
+   * เช่น "menu.delete", "package.delete", "booking.update"
+   */
   action      String
   entityType  String
   entityId    String
@@ -152,85 +248,142 @@ model AuditLog {
   createdAt   DateTime @default(now())
 
   @@index([entityType, entityId])
+  @@index([shopId, createdAt])
   @@index([createdAt])
 }
 
-/** ตั้งใจให้มีแถวเดียวเสมอ (id = 1) เก็บค่าตั้งค่าร้าน */
+/**
+ * ตั้งใจให้มีแถวเดียวต่อร้าน (unique shopId) เก็บค่าตั้งค่าร้าน — เดิมมีแถวเดียวตายตัว (id=1) ทั้งระบบตอนยังเป็นร้านเดียว
+ */
 model Settings {
-  id                    Int    @id @default(1)
-  shopName              String
-  shopNameEn            String
-  shopInitials          String
-  shopAddress           String
-  shopPhone             String
-  shopLine              String
-  /** โลโก้ร้าน เก็บเป็น data URL (เหมือนรูปเมนู) — ว่าง = ใช้ไอคอนเริ่มต้นฝั่ง frontend */
-  shopLogo              String @default("")
-  /** คำโปรยใต้ชื่อร้านในหน้า Login — เจ้าของร้านแก้ไขเองได้ */
-  shopLoginTagline      String @default("ระบบจองจัดเลี้ยงนอกสถานที่")
-  /** ข้อมูลบัญชี/QR พร้อมเพย์ให้ลูกค้าโอนมัดจำ — แสดงในใบเสนอราคา/ใบจองและตอนแนบสลิป */
-  bankName              String @default("")
-  bankAccountNumber     String @default("")
-  bankAccountName       String @default("")
-  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ใช้เป็น fallback ถ้ายังไม่ได้กรอก promptPayId */
-  promptPayQr           String @default("")
-  /** ชื่อ-นามสกุลเจ้าของ QR พร้อมเพย์สำรอง (รูปที่อัปโหลด) — แสดงกำกับใต้รูป QR ให้ลูกค้าเช็คก่อนโอนได้ */
-  promptPayQrFirstName  String @default("")
-  promptPayQrLastName   String @default("")
-  /** เลขพร้อมเพย์ (เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต) — มีแล้วระบบสร้าง QR แบบฝังยอดเงินให้อัตโนมัติต่อใบจอง แทนรูป QR คงที่ */
-  promptPayId           String @default("")
-  /** ชื่อ-นามสกุลเจ้าของเลขพร้อมเพย์ด้านบน — แสดงกำกับใต้ QR ที่ระบบสร้างอัตโนมัติ ให้ลูกค้าเช็คก่อนโอนได้ */
-  promptPayFirstName    String @default("")
-  promptPayLastName     String @default("")
-  /** 0–1 เช่น 0.5 = 50% */
-  depositRate           Float
-  deliveryFee           Int
-  freeDeliveryMinTables Int
-  /** รายชื่อจังหวัด/คำที่นับเป็นโซน "กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง" (metro) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
-  metroProvinces        String[] @default(["กรุงเทพมหานคร", "นนทบุรี", "ปทุมธานี", "สมุทรปราการ", "สมุทรสาคร", "สมุทรสงคราม", "สุพรรณบุรี", "ราชบุรี", "กาญจนบุรี"])
-  /** จังหวัดที่ร้านตั้งอยู่ (โซน home — ไม่มีค่าขนส่ง) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
-  homeProvince           String   @default("นครปฐม")
-  /** สีหลักของแบรนด์ (hex) — ทาทับสีส้ม Tailwind ทั้งแอปที่ runtime ดู frontend src/theme.ts */
-  brandColor             String   @default("#F97316")
-  /** อัตราค่าแรง flat ต่อคน ต่องาน (บาท) */
-  wageChef              Int    @default(1200)
-  wageAssistant         Int    @default(1000)
-  /** ค่าแรงเสิร์ฟ คิดต่อโต๊ะ (ไม่ใช่ต่อคน) */
-  wageServerPerTable    Int    @default(100)
-  wageDishwasher        Int    @default(500)
-  /** พนักงานเสิร์ฟ 1 คนต่อกี่โต๊ะ — ใช้คำนวณแผนกำลังคนอัตโนมัติ */
-  tablesPerServer       Int    @default(8)
-  /** ผู้ช่วยพ่อครัว/พนักงานล้างจาน 1 คนต่อกี่โต๊ะ */
-  tablesPerSupport      Int    @default(20)
-  /** หารแล้วเหลือเศษเกินกี่โต๊ะ ให้เพิ่มผู้ช่วยพ่อครัว/ล้างจานอีก 1 คน */
-  staffRemainderThreshold Int  @default(10)
-  /** เวลาของแต่ละช่วงจอง (เช่น "08:00 - 12:00") — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
-  slotMorningHours      String @default("08:00 - 12:00")
-  slotNoonHours         String @default("12:00 - 16:00")
-  slotEveningHours      String @default("17:00 - 21:00")
-  /** ใบเสนอราคายืนราคากี่วันนับจากวันที่ออก */
-  quotationValidDays    Int    @default(7)
-  /** เงื่อนไขเพิ่มเติมท้ายใบเสนอราคา/ใบจอง (นอกเหนือจากที่ระบบคำนวณอัตโนมัติ) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
-  quotationTerms        String[] @default(["ราคานี้รวมอุปกรณ์จัดเลี้ยง โต๊ะ เก้าอี้ และพนักงานเสิร์ฟแล้ว ไม่มีค่าบริการเพิ่ม"])
-  bookingTerms           String[] @default(["ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง", "แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน", "ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ"])
-  /** ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง */
-  categoryOrder         String[] @default(["snack", "appetizer", "soup", "salad", "main", "fish", "rice-noodle", "hotpot", "dessert"])
-  /** วันที่ร้านปิด ไม่รับจอง (เช่น วันหยุดนักขัตฤกษ์) รูปแบบ "YYYY-MM-DD" — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า" */
-  closedDates           String[] @default([])
-  /** พิกัดร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ (ค่าเริ่มต้น: องค์พระปฐมเจดีย์) */
-  shopLocationLat        Float  @default(13.8196)
-  shopLocationLng        Float  @default(100.0603)
-  /** ค่าน้ำมัน (บาท/กิโลเมตร) — คูณระยะทางไป-กลับคำนวณค่าเดินทางงานนอกพื้นที่ */
-  fuelCostPerKm          Float  @default(8)
-  /** เนื้อหาหน้าแรก (Hero, การ์ดจุดเด่น, ขั้นตอนการจอง, แกลเลอรี, CTA) — โครงสร้างคือ HomeContent ฝั่ง frontend, null = ยังไม่เคย customize ใช้ค่า default ในโค้ด */
-  homeContent            Json?
-  /** ประเภทอาหารทั้งหมดของร้าน (id/label/labelEn/icon/gradient) — โครงสร้างคือ Category[] ฝั่ง frontend, null = ยังไม่เคย customize ใช้ค่า default ในโค้ด */
-  categories             Json?
-  updatedAt              DateTime @updatedAt
-  lastEditedBy           String?
-  /** กันสองแท็บ/สองคนแก้ settings ทับกันเงียบๆ — client ต้องส่ง expectedVersion กลับมาตอนบันทึก (ดู settings.service.ts)
-   *  ใช้คู่กับ @@unique([id, version]) ด้านล่างเป็นเงื่อนไข update ครั้งเดียว ไม่ตรง = มีคนแก้ไปแล้วก่อนหน้านี้ */
-  version                Int      @default(0)
+  id                      String   @id @default(cuid())
+  shop                    Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId                  String   @unique
+  shopName                String
+  shopNameEn              String
+  shopInitials            String
+  shopAddress             String
+  shopPhone               String
+  shopLine                String
+  /**
+   * โลโก้ร้าน เก็บเป็น data URL (เหมือนรูปเมนู) — ว่าง = ใช้ไอคอนเริ่มต้นฝั่ง frontend
+   */
+  shopLogo                String   @default("")
+  /**
+   * คำโปรยใต้ชื่อร้านในหน้า Login — เจ้าของร้านแก้ไขเองได้
+   */
+  shopLoginTagline        String   @default("ระบบจองจัดเลี้ยงนอกสถานที่")
+  /**
+   * ข้อมูลบัญชี/QR พร้อมเพย์ให้ลูกค้าโอนมัดจำ — แสดงในใบเสนอราคา/ใบจองและตอนแนบสลิป
+   */
+  bankName                String   @default("")
+  bankAccountNumber       String   @default("")
+  bankAccountName         String   @default("")
+  /**
+   * รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ใช้เป็น fallback ถ้ายังไม่ได้กรอก promptPayId
+   */
+  promptPayQr             String   @default("")
+  /**
+   * ชื่อ-นามสกุลเจ้าของ QR พร้อมเพย์สำรอง (รูปที่อัปโหลด) — แสดงกำกับใต้รูป QR ให้ลูกค้าเช็คก่อนโอนได้
+   */
+  promptPayQrFirstName    String   @default("")
+  promptPayQrLastName     String   @default("")
+  /**
+   * เลขพร้อมเพย์ (เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต) — มีแล้วระบบสร้าง QR แบบฝังยอดเงินให้อัตโนมัติต่อใบจอง แทนรูป QR คงที่
+   */
+  promptPayId             String   @default("")
+  /**
+   * ชื่อ-นามสกุลเจ้าของเลขพร้อมเพย์ด้านบน — แสดงกำกับใต้ QR ที่ระบบสร้างอัตโนมัติ ให้ลูกค้าเช็คก่อนโอนได้
+   */
+  promptPayFirstName      String   @default("")
+  promptPayLastName       String   @default("")
+  /**
+   * 0–1 เช่น 0.5 = 50%
+   */
+  depositRate             Float
+  deliveryFee             Int
+  freeDeliveryMinTables   Int
+  /**
+   * รายชื่อจังหวัด/คำที่นับเป็นโซน "กรุงเทพ ปริมณฑล และจังหวัดใกล้เคียง" (metro) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า"
+   */
+  metroProvinces          String[] @default(["กรุงเทพมหานคร", "นนทบุรี", "ปทุมธานี", "สมุทรปราการ", "สมุทรสาคร", "สมุทรสงคราม", "สุพรรณบุรี", "ราชบุรี", "กาญจนบุรี"])
+  /**
+   * จังหวัดที่ร้านตั้งอยู่ (โซน home — ไม่มีค่าขนส่ง) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า"
+   */
+  homeProvince            String   @default("นครปฐม")
+  /**
+   * สีหลักของแบรนด์ (hex) — ทาทับสีส้ม Tailwind ทั้งแอปที่ runtime ดู frontend src/theme.ts
+   */
+  brandColor              String   @default("#F97316")
+  /**
+   * อัตราค่าแรง flat ต่อคน ต่องาน (บาท)
+   */
+  wageChef                Int      @default(1200)
+  wageAssistant           Int      @default(1000)
+  /**
+   * ค่าแรงเสิร์ฟ คิดต่อโต๊ะ (ไม่ใช่ต่อคน)
+   */
+  wageServerPerTable      Int      @default(100)
+  wageDishwasher          Int      @default(500)
+  /**
+   * พนักงานเสิร์ฟ 1 คนต่อกี่โต๊ะ — ใช้คำนวณแผนกำลังคนอัตโนมัติ
+   */
+  tablesPerServer         Int      @default(8)
+  /**
+   * ผู้ช่วยพ่อครัว/พนักงานล้างจาน 1 คนต่อกี่โต๊ะ
+   */
+  tablesPerSupport        Int      @default(20)
+  /**
+   * หารแล้วเหลือเศษเกินกี่โต๊ะ ให้เพิ่มผู้ช่วยพ่อครัว/ล้างจานอีก 1 คน
+   */
+  staffRemainderThreshold Int      @default(10)
+  /**
+   * เวลาของแต่ละช่วงจอง (เช่น "08:00 - 12:00") — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า"
+   */
+  slotMorningHours        String   @default("08:00 - 12:00")
+  slotNoonHours           String   @default("12:00 - 16:00")
+  slotEveningHours        String   @default("17:00 - 21:00")
+  /**
+   * ใบเสนอราคายืนราคากี่วันนับจากวันที่ออก
+   */
+  quotationValidDays      Int      @default(7)
+  /**
+   * เงื่อนไขเพิ่มเติมท้ายใบเสนอราคา/ใบจอง (นอกเหนือจากที่ระบบคำนวณอัตโนมัติ) — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า"
+   */
+  quotationTerms          String[] @default(["ราคานี้รวมอุปกรณ์จัดเลี้ยง โต๊ะ เก้าอี้ และพนักงานเสิร์ฟแล้ว ไม่มีค่าบริการเพิ่ม"])
+  bookingTerms            String[] @default(["ทีมงานจะเข้าพื้นที่ก่อนเวลาเริ่มงานอย่างน้อย 2 ชั่วโมง", "แจ้งเปลี่ยนแปลงเมนูหรือจำนวนโต๊ะล่วงหน้าอย่างน้อย 7 วัน", "ยกเลิกก่อนวันงานน้อยกว่า 7 วัน ขอสงวนสิทธิ์ไม่คืนเงินมัดจำ"])
+  /**
+   * ลำดับการแสดงประเภทอาหาร (category id) ที่เจ้าของร้านจัดเรียงเอง
+   */
+  categoryOrder           String[] @default(["snack", "appetizer", "soup", "salad", "main", "fish", "rice-noodle", "hotpot", "dessert"])
+  /**
+   * วันที่ร้านปิด ไม่รับจอง (เช่น วันหยุดนักขัตฤกษ์) รูปแบบ "YYYY-MM-DD" — เจ้าของร้านแก้ไขได้จากหน้า "ตั้งค่า"
+   */
+  closedDates             String[] @default([])
+  /**
+   * พิกัดร้าน — จุดเริ่มต้นคำนวณระยะทางสำหรับงานนอกพื้นที่ (ค่าเริ่มต้น: องค์พระปฐมเจดีย์)
+   */
+  shopLocationLat         Float    @default(13.8196)
+  shopLocationLng         Float    @default(100.0603)
+  /**
+   * ค่าน้ำมัน (บาท/กิโลเมตร) — คูณระยะทางไป-กลับคำนวณค่าเดินทางงานนอกพื้นที่
+   */
+  fuelCostPerKm           Float    @default(8)
+  /**
+   * เนื้อหาหน้าแรก (Hero, การ์ดจุดเด่น, ขั้นตอนการจอง, แกลเลอรี, CTA) — โครงสร้างคือ HomeContent ฝั่ง frontend, null = ยังไม่เคย customize ใช้ค่า default ในโค้ด
+   */
+  homeContent             Json?
+  /**
+   * ประเภทอาหารทั้งหมดของร้าน (id/label/labelEn/icon/gradient) — โครงสร้างคือ Category[] ฝั่ง frontend, null = ยังไม่เคย customize ใช้ค่า default ในโค้ด
+   */
+  categories              Json?
+  updatedAt               DateTime @updatedAt
+  lastEditedBy            String?
+  /**
+   * กันสองแท็บ/สองคนแก้ settings ทับกันเงียบๆ — client ต้องส่ง expectedVersion กลับมาตอนบันทึก (ดู settings.service.ts)
+   * ใช้คู่กับ @@unique([id, version]) ด้านล่างเป็นเงื่อนไข update ครั้งเดียว ไม่ตรง = มีคนแก้ไปแล้วก่อนหน้านี้
+   */
+  version                 Int      @default(0)
 
   @@unique([id, version])
 }

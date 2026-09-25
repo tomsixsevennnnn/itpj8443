@@ -11,6 +11,7 @@ import { PackagesModule } from './packages/packages.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { RealtimeModule } from './realtime/realtime.module'
 import { SettingsModule } from './settings/settings.module'
+import { ShopsModule } from './shops/shops.module'
 import { UploadsModule } from './uploads/uploads.module'
 import { UsersModule } from './users/users.module'
 
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module'
     PackagesModule,
     MenusModule,
     SettingsModule,
+    ShopsModule,
     GeoModule,
     UploadsModule,
     RealtimeModule,

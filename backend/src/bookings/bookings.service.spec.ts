@@ -14,6 +14,7 @@ const SETTINGS = {
 
 const PACKAGE = {
   id: 'pkg1',
+  shopId: 'shop1',
   name: 'แพ็กเกจทดสอบ',
   pricePerTable: 1000,
   courses: [{ items: [{ name: 'ข้าวผัด' }, { name: 'ต้มยำ' }] }],
@@ -21,6 +22,7 @@ const PACKAGE = {
 
 const makeService = () => {
   const prisma = {
+    shop: { findUnique: jest.fn().mockResolvedValue({ id: 'shop1', status: 'ACTIVE' }) },
     package: { findUnique: jest.fn() },
     booking: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     bookingCounter: { upsert: jest.fn() },
@@ -41,6 +43,7 @@ const makeService = () => {
 }
 
 const baseDto = (overrides: Partial<any> = {}) => ({
+  shopId: 'shop1',
   date: '2026-12-01',
   timeSlot: 'evening',
   tables: 10,
@@ -195,23 +198,23 @@ describe('BookingsService.create', () => {
 describe('BookingsService.updateAsOwner', () => {
   it('บันทึก audit log พร้อม before/after', async () => {
     const { service, prisma, audit } = makeService()
-    const before = { id: 'b1', status: 'PENDING' }
+    const before = { id: 'b1', status: 'PENDING', shopId: 'shop1' }
     const after = { id: 'b1', status: 'CONFIRMED' }
     prisma.booking.findUnique.mockResolvedValue(before)
     prisma.booking.update.mockResolvedValue(after)
 
-    const result = await service.updateAsOwner('b1', { status: 'CONFIRMED' } as any, 'auth0|owner')
+    const result = await service.updateAsOwner('b1', { status: 'CONFIRMED' } as any, 'auth0|owner', 'shop1')
 
-    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'booking.update', 'Booking', 'b1', before, after)
+    expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'booking.update', 'Booking', 'b1', before, after, 'shop1')
     expect(result).toBe(after)
   })
 
   it('อัปเดตสำเร็จ — แจ้งเตือน realtime ให้ client ที่เปิดหน้าค้างไว้ refetch', async () => {
     const { service, prisma, realtime } = makeService()
-    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', status: 'PENDING' })
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', status: 'PENDING', shopId: 'shop1' })
     prisma.booking.update.mockResolvedValue({ id: 'b1', status: 'CONFIRMED' })
 
-    await service.updateAsOwner('b1', { status: 'CONFIRMED' } as any, 'auth0|owner')
+    await service.updateAsOwner('b1', { status: 'CONFIRMED' } as any, 'auth0|owner', 'shop1')
 
     expect(realtime.emitBookingsChanged).toHaveBeenCalledTimes(1)
   })
@@ -220,7 +223,7 @@ describe('BookingsService.updateAsOwner', () => {
     const { service, prisma } = makeService()
     prisma.booking.findUnique.mockResolvedValue(null)
 
-    await expect(service.updateAsOwner('missing', {} as any, 'auth0|owner')).rejects.toThrow(NotFoundException)
+    await expect(service.updateAsOwner('missing', {} as any, 'auth0|owner', 'shop1')).rejects.toThrow(NotFoundException)
   })
 })
 
@@ -260,14 +263,14 @@ describe('BookingsService.getPaymentSlipPath', () => {
     const { service, prisma } = makeService()
     prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'owner-of-booking', paymentSlipUrl: '/uploads/slips/a.jpg' })
 
-    await expect(service.getPaymentSlipPath('b1', 'someone-else', false)).rejects.toThrow(ForbiddenException)
+    await expect(service.getPaymentSlipPath('b1', 'someone-else', false, null)).rejects.toThrow(ForbiddenException)
   })
 
   it('ยังไม่มีสลิปแนบมา — throw NotFoundException', async () => {
     const { service, prisma } = makeService()
     prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', paymentSlipUrl: null })
 
-    await expect(service.getPaymentSlipPath('b1', 'c1', false)).rejects.toThrow(NotFoundException)
+    await expect(service.getPaymentSlipPath('b1', 'c1', false, null)).rejects.toThrow(NotFoundException)
   })
 
   it('เจ้าของใบจองเข้าถึงสลิปของตัวเองได้ — คืน absolute path จาก UploadsService', async () => {
@@ -275,14 +278,21 @@ describe('BookingsService.getPaymentSlipPath', () => {
     prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', paymentSlipUrl: '/uploads/slips/a.jpg' })
     uploads.resolveManagedFilePath = jest.fn().mockReturnValue('/abs/uploads/slips/a.jpg')
 
-    await expect(service.getPaymentSlipPath('b1', 'c1', false)).resolves.toBe('/abs/uploads/slips/a.jpg')
+    await expect(service.getPaymentSlipPath('b1', 'c1', false, null)).resolves.toBe('/abs/uploads/slips/a.jpg')
   })
 
-  it('owner ร้านเข้าถึงสลิปของใบจองใครก็ได้', async () => {
+  it('owner ร้านเข้าถึงสลิปของใบจองร้านตัวเองได้ ไม่ว่าจะเป็นของลูกค้าคนไหน', async () => {
     const { service, prisma, uploads } = makeService()
-    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'someone-else', paymentSlipUrl: '/uploads/slips/a.jpg' })
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'someone-else', shopId: 'shop1', paymentSlipUrl: '/uploads/slips/a.jpg' })
     uploads.resolveManagedFilePath = jest.fn().mockReturnValue('/abs/uploads/slips/a.jpg')
 
-    await expect(service.getPaymentSlipPath('b1', '', true)).resolves.toBe('/abs/uploads/slips/a.jpg')
+    await expect(service.getPaymentSlipPath('b1', '', true, 'shop1')).resolves.toBe('/abs/uploads/slips/a.jpg')
+  })
+
+  it('owner ร้านอื่นเข้าถึงสลิปของใบจองร้านนี้ไม่ได้ — throw ForbiddenException', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'someone-else', shopId: 'shop1', paymentSlipUrl: '/uploads/slips/a.jpg' })
+
+    await expect(service.getPaymentSlipPath('b1', '', true, 'other-shop')).rejects.toThrow(ForbiddenException)
   })
 })

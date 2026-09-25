@@ -8,6 +8,9 @@ import { LocationDetailDto } from './location-detail.dto'
  * ตอนนี้ backend คำนวณเองทั้งหมดจาก packageId ที่ส่งมา (ดู BookingsService.create)
  */
 export class CreateBookingDto {
+  /** ร้านที่ลูกค้าเลือกจองด้วย — เลือกจากหน้ารายชื่อร้าน/URL เฉพาะร้านมาก่อนแล้วเสมอ (multi-tenant) */
+  @IsString() shopId!: string
+
   /** รูปแบบ YYYY-MM-DD เท่านั้น — bookings.service.ts เทียบ string นี้ตรงๆ ตอนเช็ควันชนกัน ต้องเป็น format เดียวกันเสมอ */
   @IsString() @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date ต้องเป็นรูปแบบ YYYY-MM-DD' }) date!: string
   @IsString() timeSlot!: string

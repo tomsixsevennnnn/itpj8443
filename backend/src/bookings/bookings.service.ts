@@ -29,17 +29,19 @@ export class BookingsService {
     private realtime: RealtimeService,
   ) {}
 
-  /** เจ้าของร้านต้องเห็นข้อมูลบัญชีลูกค้าปัจจุบัน (ชื่อ/นามสกุล/อีเมล/LINE ID) ไม่ใช่แค่ snapshot ตอนจอง — join จาก User ที่ผูกไว้ */
-  async findAllForOwner(page?: number, limit?: number) {
+  /** เจ้าของร้านต้องเห็นข้อมูลบัญชีลูกค้าปัจจุบัน (ชื่อ/นามสกุล/อีเมล/LINE ID) ไม่ใช่แค่ snapshot ตอนจอง — join จาก User ที่ผูกไว้
+   *  เห็นเฉพาะใบจองของร้านตัวเองเท่านั้น (multi-tenant) */
+  async findAllForOwner(shopId: string, page?: number, limit?: number) {
     const args = pageArgsFor(page, limit)
     const baseArgs = {
+      where: { shopId },
       orderBy: { createdAt: 'desc' as const },
       include: { customer: { select: { name: true, surname: true, email: true, lineId: true } } },
     }
     if (!args) return this.prisma.booking.findMany(baseArgs)
     const [data, total] = await Promise.all([
       this.prisma.booking.findMany({ ...baseArgs, skip: args.skip, take: args.take }),
-      this.prisma.booking.count(),
+      this.prisma.booking.count({ where: { shopId } }),
     ])
     return { data, total, page: args.page, limit: args.limit } satisfies Paginated<unknown>
   }
@@ -55,9 +57,11 @@ export class BookingsService {
     return { data, total, page: args.page, limit: args.limit } satisfies Paginated<unknown>
   }
 
-  /** คิวรับงานแบบไม่มีข้อมูลส่วนตัว — ให้ลูกค้าทุกคนเช็คว่าวัน/ช่วงเวลาไหนเต็มแล้วบ้าง ไม่ใช่แค่ใบจองของตัวเอง */
-  findAvailability() {
+  /** คิวรับงานแบบไม่มีข้อมูลส่วนตัว — ให้ลูกค้าทุกคนเช็คว่าวัน/ช่วงเวลาไหนของร้านนี้เต็มแล้วบ้าง ไม่ใช่แค่ใบจองของตัวเอง
+   *  scope ตาม shopId เสมอ (ร้าน A เต็มวันไหน ไม่กระทบปฏิทินของร้าน B เลย) */
+  findAvailability(shopId: string) {
     return this.prisma.booking.findMany({
+      where: { shopId },
       select: { date: true, timeSlot: true, tables: true, status: true },
     })
   }
@@ -124,11 +128,15 @@ export class BookingsService {
    * เจอ error P2034 (serialization conflict) แปลว่าโดนยกเลิกแบบนี้ — ลองใหม่ได้ไม่กี่ครั้งก็มักผ่าน เพราะฝ่ายที่ชนะไป commit แล้ว
    */
   async create(customerId: string, customerName: string, phone: string, dto: CreateBookingDto) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: dto.shopId } })
+    if (!shop || shop.status !== 'ACTIVE') throw new NotFoundException('ไม่พบร้านนี้ หรือร้านปิดให้บริการชั่วคราว')
+
+    // เมนู/แพ็กเกจต้องเป็นของร้านเดียวกับ shopId ที่จอง — กันเลือกแพ็กเกจ/เมนูข้ามร้านผ่าน id ตรงๆ
     const pkg = await this.prisma.package.findUnique({
       where: { id: dto.packageId },
       include: { courses: { include: { items: true } } },
     })
-    if (!pkg || pkg.deletedAt) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
+    if (!pkg || pkg.deletedAt || pkg.shopId !== dto.shopId) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
 
     const validMenuNames = new Set(pkg.courses.flatMap((c) => c.items.map((i) => i.name)))
     const invalidMenus = dto.menus.filter((name) => !validMenuNames.has(name))
@@ -136,7 +144,7 @@ export class BookingsService {
       throw new BadRequestException(`เมนูต่อไปนี้ไม่ได้อยู่ในแพ็กเกจที่เลือก: ${invalidMenus.join(', ')}`)
     }
 
-    const settings = await this.settingsService.get(true)
+    const settings = await this.settingsService.get(dto.shopId, true)
     if (settings.closedDates.includes(dto.date)) {
       throw new BadRequestException('วันที่เลือกร้านปิด ไม่รับจอง กรุณาเลือกวันอื่น')
     }
@@ -150,18 +158,20 @@ export class BookingsService {
       try {
         const created = await this.prisma.$transaction(
           async (tx) => {
+            // เช็คชนกันเฉพาะภายในร้านเดียวกัน — ร้าน A กับร้าน B จัดงานวันเดียวกันได้ตามปกติ ทีมงาน/รถแยกกันคนละร้าน
             const conflict = await tx.booking.findFirst({
-              where: { date: dto.date, status: { in: OCCUPIES_QUEUE } },
+              where: { shopId: dto.shopId, date: dto.date, status: { in: OCCUPIES_QUEUE } },
             })
             if (conflict) throw new ConflictException('วันที่นี้มีงานจองอยู่แล้ว ไม่สามารถจองซ้อนได้')
 
             const counter = await tx.bookingCounter.upsert({
-              where: { year: bookingYear },
-              create: { year: bookingYear, lastNo: 1 },
+              where: { shopId_year: { shopId: dto.shopId, year: bookingYear } },
+              create: { shopId: dto.shopId, year: bookingYear, lastNo: 1 },
               update: { lastNo: { increment: 1 } },
             })
             return tx.booking.create({
               data: {
+                shopId: dto.shopId,
                 customerId,
                 customerName,
                 phone,
@@ -198,8 +208,8 @@ export class BookingsService {
     throw new ConflictException('ระบบมีผู้ใช้งานพร้อมกันจำนวนมาก กรุณาลองจองใหม่อีกครั้ง')
   }
 
-  async updateAsOwner(id: string, dto: UpdateBookingDto, editorAuth0Sub: string) {
-    const before = await this.assertExists(id)
+  async updateAsOwner(id: string, dto: UpdateBookingDto, editorAuth0Sub: string, shopId: string) {
+    const before = await this.assertOwnedByShop(id, shopId)
     const after = await this.prisma.booking.update({
       where: { id },
       data: {
@@ -211,7 +221,7 @@ export class BookingsService {
         ...(dto.staffActual ? { staffSavedAt: new Date() } : {}),
       },
     })
-    await this.audit.log(editorAuth0Sub, 'booking.update', 'Booking', id, before, after)
+    await this.audit.log(editorAuth0Sub, 'booking.update', 'Booking', id, before, after, shopId)
     this.realtime.emitBookingsChanged()
     return after
   }
@@ -235,9 +245,13 @@ export class BookingsService {
    * สลิปโอนเงินเป็นข้อมูลอ่อนไหว (บัญชี/ยอดโอนของลูกค้า) — ต้องไม่ใช่ static asset สาธารณะ
    * ให้เห็นเฉพาะเจ้าของใบจองนั้นกับ owner ร้านเท่านั้น ดู bookings.controller.ts GET :id/payment-slip
    */
-  async getPaymentSlipPath(id: string, requesterId: string, isOwner: boolean): Promise<string> {
+  async getPaymentSlipPath(id: string, requesterId: string, isOwner: boolean, ownerShopId: string | null): Promise<string> {
     const booking = await this.assertExists(id)
-    if (!isOwner && booking.customerId !== requesterId) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงไฟล์นี้')
+    if (isOwner) {
+      if (booking.shopId !== ownerShopId) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงไฟล์นี้')
+    } else if (booking.customerId !== requesterId) {
+      throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงไฟล์นี้')
+    }
     if (!booking.paymentSlipUrl) throw new NotFoundException('ยังไม่มีสลิปโอนเงินสำหรับใบจองนี้')
 
     const path = this.uploads.resolveManagedFilePath(booking.paymentSlipUrl)
@@ -248,6 +262,13 @@ export class BookingsService {
   private async assertExists(id: string) {
     const booking = await this.prisma.booking.findUnique({ where: { id } })
     if (!booking) throw new NotFoundException('ไม่พบใบจองนี้')
+    return booking
+  }
+
+  /** ต้องเช็คว่าใบจองนี้เป็นของร้านที่ owner สังกัดอยู่จริงก่อนทุกครั้ง กัน owner ร้าน A แก้ใบจองร้าน B ผ่าน id ตรงๆ */
+  private async assertOwnedByShop(id: string, shopId: string) {
+    const booking = await this.assertExists(id)
+    if (booking.shopId !== shopId) throw new NotFoundException('ไม่พบใบจองนี้')
     return booking
   }
 }

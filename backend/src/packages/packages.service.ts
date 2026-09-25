@@ -99,9 +99,9 @@ export class PackagesService {
   /** isOwner = false → strip costPrice ออกจากเมนูที่ซ้อนอยู่ในแต่ละ course (ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม)
    *  ทั้งสองฝั่งกรอง deletedAt: null ทั้งตัวแพ็กเกจเองและเมนูที่ซ้อนอยู่ — แพ็กเกจ/เมนูที่ถูกลบ (soft delete) ยังอยู่ใน
    *  ตารางเพื่อให้ booking เก่าอ้างถึงได้ แต่ต้องไม่โผล่ในรายการที่ใช้เลือก/จัดการตามปกติ */
-  async findAll(isOwner: boolean, page?: number, limit?: number) {
+  async findAll(shopId: string, isOwner: boolean, page?: number, limit?: number) {
     const args = pageArgsFor(page, limit)
-    const where = { deletedAt: null }
+    const where = { shopId, deletedAt: null }
     const orderBy = { sortOrder: 'asc' as const }
     const coursesOrderBy = { no: 'asc' as const }
 
@@ -131,8 +131,8 @@ export class PackagesService {
     return { data, total, page: args.page, limit: args.limit }
   }
 
-  async create(dto: CreatePackageDto, editorAuth0Sub: string) {
-    const count = await this.prisma.package.count({ where: { deletedAt: null } })
+  async create(dto: CreatePackageDto, editorAuth0Sub: string, shopId: string) {
+    const count = await this.prisma.package.count({ where: { shopId, deletedAt: null } })
     const packageId = randomUUID()
     const courseIds = dto.courses.map(() => randomUUID())
     const itemIds = [...new Set(dto.courses.flatMap((c) => c.itemIds))]
@@ -149,6 +149,7 @@ export class PackagesService {
           const pkg = await tx.package.create({
             data: {
               id: packageId,
+              shopId,
               name: dto.name,
               pricePerTable: dto.pricePerTable,
               menuLimit: dto.menuLimit,
@@ -199,13 +200,13 @@ export class PackagesService {
         itemsById,
       ),
     }
-    await this.audit.log(editorAuth0Sub, 'package.create', 'Package', after.id, undefined, after)
+    await this.audit.log(editorAuth0Sub, 'package.create', 'Package', after.id, undefined, after, shopId)
     return after
   }
 
-  /** เจ้าของร้านลากจัดเรียงแพ็กเกจในหน้า "จัดการแพ็กเกจ" — ids ต้องครบและตรงกับแพ็กเกจที่ยังไม่ถูกลบทั้งหมดพอดี */
-  async reorder(dto: ReorderPackagesDto) {
-    const existing = await this.prisma.package.findMany({ where: { deletedAt: null }, select: { id: true } })
+  /** เจ้าของร้านลากจัดเรียงแพ็กเกจในหน้า "จัดการแพ็กเกจ" — ids ต้องครบและตรงกับแพ็กเกจของร้านตัวเองที่ยังไม่ถูกลบทั้งหมดพอดี */
+  async reorder(dto: ReorderPackagesDto, shopId: string) {
+    const existing = await this.prisma.package.findMany({ where: { shopId, deletedAt: null }, select: { id: true } })
     const existingIds = new Set(existing.map((p) => p.id))
     const uniqueIds = new Set(dto.ids)
     const isValid =
@@ -218,10 +219,18 @@ export class PackagesService {
     await this.prisma.$transaction(
       dto.ids.map((id, index) => this.prisma.package.update({ where: { id }, data: { sortOrder: index } })),
     )
-    return this.findAll(true)
+    return this.findAll(shopId, true)
   }
 
-  async update(id: string, dto: UpdatePackageDto, editorAuth0Sub: string) {
+  /** เช็คว่าแพ็กเกจนี้เป็นของร้านที่ editor สังกัดอยู่จริงก่อนทุกครั้ง กัน owner ร้าน A แก้/ลบแพ็กเกจร้าน B ผ่าน id ตรงๆ */
+  private async assertPackageOwnedByShop(id: string, shopId: string) {
+    const pkg = await this.prisma.package.findUnique({ where: { id } })
+    if (!pkg || pkg.shopId !== shopId) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
+    return pkg
+  }
+
+  async update(id: string, dto: UpdatePackageDto, editorAuth0Sub: string, shopId: string) {
+    await this.assertPackageOwnedByShop(id, shopId)
     if (!dto.courses) {
       const before = await this.prisma.package.findUnique({ where: { id } })
       const after = await this.prisma.package.update({
@@ -236,7 +245,7 @@ export class PackagesService {
           lastEditedBy: editorAuth0Sub,
         },
       })
-      await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after)
+      await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after, shopId)
       return after
     }
 
@@ -261,7 +270,7 @@ export class PackagesService {
         },
         include: { courses: { include: { items: true }, orderBy: { no: 'asc' } } },
       })
-      await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after)
+      await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after, shopId)
       return after
     }
 
@@ -329,22 +338,22 @@ export class PackagesService {
         itemsById,
       ),
     }
-    await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after)
+    await this.audit.log(editorAuth0Sub, 'package.update', 'Package', id, before, after, shopId)
     return after
   }
 
   /** soft delete — booking เก่าที่อ้าง packageId นี้ยังอ่านราคาพื้นฐานย้อนหลังได้ (แค่ซ่อนจากรายการแพ็กเกจปกติ) */
-  async remove(id: string, editorAuth0Sub: string) {
-    const before = await this.prisma.package.findUnique({ where: { id } })
-    if (!before) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
+  async remove(id: string, editorAuth0Sub: string, shopId: string) {
+    const before = await this.assertPackageOwnedByShop(id, shopId)
 
     const after = await this.prisma.package.update({ where: { id }, data: { deletedAt: new Date() } })
-    await this.audit.log(editorAuth0Sub, 'package.delete', 'Package', id, before, after)
+    await this.audit.log(editorAuth0Sub, 'package.delete', 'Package', id, before, after, shopId)
     return after
   }
 
-  /** เพิ่มข้อใหม่เข้าแพ็กเกจที่มีอยู่ โดยไม่ต้องส่งคอร์สทั้งชุด */
-  addCourse(packageId: string, dto: CourseInput) {
+  /** เพิ่มข้อใหม่เข้าแพ็กเกจที่มีอยู่ โดยไม่ต้องส่งคอร์สทั้งชุด — เช็คก่อนว่าแพ็กเกจเป็นของร้านตัวเองจริง */
+  async addCourse(packageId: string, dto: CourseInput, shopId: string) {
+    await this.assertPackageOwnedByShop(packageId, shopId)
     return this.prisma.packageCourse.create({
       data: {
         packageId,
@@ -360,7 +369,8 @@ export class PackagesService {
   }
 
   /** แก้ทีละข้อ — ส่ง itemIds มา = แทนที่รายการเมนูในข้อนี้ทั้งหมด ไม่ส่ง = ไม่แตะรายการเมนูเดิม */
-  async updateCourse(packageId: string, courseId: string, dto: UpdateCourseDto) {
+  async updateCourse(packageId: string, courseId: string, dto: UpdateCourseDto, shopId: string) {
+    await this.assertPackageOwnedByShop(packageId, shopId)
     await this.assertCourseInPackage(packageId, courseId)
     return this.prisma.packageCourse.update({
       where: { id: courseId },
@@ -376,7 +386,8 @@ export class PackagesService {
     })
   }
 
-  async removeCourse(packageId: string, courseId: string) {
+  async removeCourse(packageId: string, courseId: string, shopId: string) {
+    await this.assertPackageOwnedByShop(packageId, shopId)
     await this.assertCourseInPackage(packageId, courseId)
     return this.prisma.packageCourse.delete({ where: { id: courseId } })
   }

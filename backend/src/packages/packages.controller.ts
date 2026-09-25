@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Role } from '@prisma/client'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
@@ -19,52 +20,68 @@ export class PackagesController {
     private users: UsersService,
   ) {}
 
+  /** owner ดูแพ็กเกจร้านตัวเอง, ลูกค้าต้องระบุ shopId ของร้านที่กำลังดู (เลือกร้านมาก่อนแล้วจากหน้ารายชื่อร้าน) */
   @Get()
-  async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
-    return this.packages.findAll(await this.users.isOwner(jwtUser.sub), query.page, query.limit)
+  async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto, @Query('shopId') shopIdQ?: string) {
+    const ctx = await this.users.shopContextFor(jwtUser.sub)
+    const isOwner = ctx?.role === Role.OWNER
+    const shopId = isOwner ? ctx?.shopId : shopIdQ
+    if (!shopId) throw new ForbiddenException('ต้องระบุร้านที่ต้องการดูแพ็กเกจ')
+    return this.packages.findAll(shopId, isOwner, query.page, query.limit)
+  }
+
+  private async ownShopId(jwtUser: Record<string, any>): Promise<string> {
+    const ctx = await this.users.shopContextFor(jwtUser.sub)
+    if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
+    return ctx.shopId
   }
 
   @Post()
   @Roles('owner')
-  create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreatePackageDto) {
-    return this.packages.create(dto, jwtUser.sub)
+  async create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreatePackageDto) {
+    return this.packages.create(dto, jwtUser.sub, await this.ownShopId(jwtUser))
   }
 
   // ต้องอยู่ก่อน @Patch(':id') — ไม่งั้น 'reorder' จะโดนจับเป็นค่า :id แทน
   @Patch('reorder')
   @Roles('owner')
-  reorder(@Body() dto: ReorderPackagesDto) {
-    return this.packages.reorder(dto)
+  async reorder(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: ReorderPackagesDto) {
+    return this.packages.reorder(dto, await this.ownShopId(jwtUser))
   }
 
   @Patch(':id')
   @Roles('owner')
-  update(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdatePackageDto) {
-    return this.packages.update(id, dto, jwtUser.sub)
+  async update(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdatePackageDto) {
+    return this.packages.update(id, dto, jwtUser.sub, await this.ownShopId(jwtUser))
   }
 
   @Delete(':id')
   @Roles('owner')
-  remove(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string) {
-    return this.packages.remove(id, jwtUser.sub)
+  async remove(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string) {
+    return this.packages.remove(id, jwtUser.sub, await this.ownShopId(jwtUser))
   }
 
   /** เพิ่ม/แก้/ลบทีละข้อในแพ็กเกจ — ทางเลือกแทนการส่ง courses ทั้งชุดผ่าน PATCH /packages/:id */
   @Post(':id/courses')
   @Roles('owner')
-  addCourse(@Param('id') id: string, @Body() dto: CourseInput) {
-    return this.packages.addCourse(id, dto)
+  async addCourse(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: CourseInput) {
+    return this.packages.addCourse(id, dto, await this.ownShopId(jwtUser))
   }
 
   @Patch(':id/courses/:courseId')
   @Roles('owner')
-  updateCourse(@Param('id') id: string, @Param('courseId') courseId: string, @Body() dto: UpdateCourseDto) {
-    return this.packages.updateCourse(id, courseId, dto)
+  async updateCourse(
+    @CurrentUser() jwtUser: Record<string, any>,
+    @Param('id') id: string,
+    @Param('courseId') courseId: string,
+    @Body() dto: UpdateCourseDto,
+  ) {
+    return this.packages.updateCourse(id, courseId, dto, await this.ownShopId(jwtUser))
   }
 
   @Delete(':id/courses/:courseId')
   @Roles('owner')
-  removeCourse(@Param('id') id: string, @Param('courseId') courseId: string) {
-    return this.packages.removeCourse(id, courseId)
+  async removeCourse(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Param('courseId') courseId: string) {
+    return this.packages.removeCourse(id, courseId, await this.ownShopId(jwtUser))
   }
 }
