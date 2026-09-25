@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { LayoutDashboard } from 'lucide-react'
 import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package, QueueBooking, ShopPublic } from './types'
@@ -190,14 +190,23 @@ export default function App() {
   }
 
   // resolve ร้านจาก URL path ตอนเปิดแอปครั้งแรก (เช่นเปิดลิงก์ที่แชร์มา /pipat-catering) — ให้ข้ามหน้าเลือกร้านไปเลย
-  // รันครั้งเดียวตอน mount เท่านั้น ไม่ผูกกับ selectedShopId เพราะ URL คือ "ความตั้งใจ" ล่าสุดของผู้ใช้ตอนเปิดหน้านี้
-  // ควรชนะค่าที่จำไว้ใน localStorage เดิมเสมอถ้าไม่ตรงกัน
+  // เฉพาะตอน "ยังไม่ได้ login" เท่านั้น — รอ Auth0 เช็ค session ค้าง (isLoading) ให้เสร็จก่อนเสมอ ถ้า login อยู่แล้ว
+  // (owner ที่มี session ค้าง หรือลูกค้าที่ SSO ผ่านมา) ให้ยึดร้านตาม account เดิมเป็นหลัก ไม่ใช้ URL ทับ กัน race กับ
+  // bootstrap load effect ด้านล่างที่ sync URL ให้ตรงร้านของ owner เอง (ไม่งั้นสอง effect แย่งกันเขียน URL/
+  // selectedShopId พอ resolve จาก URL เสร็จทีหลังจะไปทับร้านที่ถูกต้องอยู่แล้วด้วยร้านอื่นตาม URL เดิมที่ค้างอยู่)
   const [resolvingShopFromUrl, setResolvingShopFromUrl] = useState(
     () => window.location.pathname.replace(/^\/+|\/+$/g, '').length > 0,
   )
+  const resolvedShopFromUrlRef = useRef(false)
   useEffect(() => {
+    if (isLoading || resolvedShopFromUrlRef.current) return
+    resolvedShopFromUrlRef.current = true
+
     const slug = window.location.pathname.replace(/^\/+|\/+$/g, '')
-    if (!slug) return
+    if (!slug || isAuthenticated) {
+      setResolvingShopFromUrl(false)
+      return
+    }
     api
       .shopBySlugPublic(slug)
       .then(shop => handleSelectShop(shop))
@@ -211,7 +220,7 @@ export default function App() {
       })
       .finally(() => setResolvingShopFromUrl(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isLoading, isAuthenticated])
 
   const [notifSeenAt, setNotifSeenAt] = useState<string>(() => {
     try {
