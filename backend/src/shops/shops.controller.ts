@@ -6,6 +6,7 @@ import { RolesGuard } from '../auth/roles.guard'
 import { AddOwnerDto } from './dto/add-owner.dto'
 import { CreateShopDto } from './dto/create-shop.dto'
 import { SetShopStatusDto } from './dto/set-shop-status.dto'
+import { UpdateShopDto } from './dto/update-shop.dto'
 import { ShopsService } from './shops.service'
 
 @Controller('shops')
@@ -36,6 +37,13 @@ export class ShopsController {
   @Post()
   create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreateShopDto) {
     return this.shops.createShop(dto, jwtUser.sub)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Patch(':id')
+  update(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdateShopDto) {
+    return this.shops.updateShop(id, dto, jwtUser.sub)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

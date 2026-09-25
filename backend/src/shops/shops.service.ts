@@ -4,6 +4,7 @@ import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { DEFAULT_SETTINGS } from '../settings/settings.service'
 import { CreateShopDto } from './dto/create-shop.dto'
+import { UpdateShopDto } from './dto/update-shop.dto'
 
 /** slug ต้องมีแค่ a-z 0-9 และ - เท่านั้น (ใช้ต่อ URL /shop/:slug ให้ลูกค้า) — แปลงจากชื่อร้านภาษาไทย/อังกฤษ
  *  ยังไงก็ได้ ตัดอักขระที่พิมพ์ไม่ได้ทิ้ง เหลือแค่ตัวเลข/อังกฤษ ถ้าไม่เหลือเลย fallback เป็น "shop" */
@@ -23,12 +24,23 @@ export class ShopsService {
     private audit: AuditService,
   ) {}
 
-  /** เฉพาะ super admin เรียกได้ — เห็นทุกร้านข้ามระบบ พร้อมจำนวน owner ของแต่ละร้าน */
-  listAll() {
-    return this.prisma.shop.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { owners: true } } },
-    })
+  /** เฉพาะ super admin เรียกได้ — เห็นทุกร้านข้ามระบบ พร้อมจำนวน owner/booking และยอดขายรวมของแต่ละร้าน (สรุป
+   *  ภาพรวมให้เทียบกันได้ในหน้าเดียว ไม่ต้องเข้าไปดูทีละร้าน) — ยอดขายรวมคิดจาก totalPrice ของทุกใบจองที่ไม่ถูก
+   *  ยกเลิก (ยกเลิกแล้วไม่ควรนับเป็นรายได้จริง) แยก query ต่างหากเพราะ Prisma ไม่รองรับ conditional sum ใน include */
+  async listAll() {
+    const [shops, revenueByShop] = await Promise.all([
+      this.prisma.shop.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { _count: { select: { owners: true, bookings: true } } },
+      }),
+      this.prisma.booking.groupBy({
+        by: ['shopId'],
+        where: { status: { not: 'CANCELLED' } },
+        _sum: { totalPrice: true },
+      }),
+    ])
+    const revenueMap = new Map(revenueByShop.map((r) => [r.shopId, r._sum.totalPrice ?? 0]))
+    return shops.map((s) => ({ ...s, totalRevenue: revenueMap.get(s.id) ?? 0 }))
   }
 
   /** ร้านที่เปิดให้บริการอยู่ — ใช้หน้ารายชื่อร้านฝั่งลูกค้า (ไม่ต้อง login) */
@@ -75,6 +87,16 @@ export class ShopsService {
 
     await this.audit.log(editorAuth0Sub, 'shop.create', 'Shop', shop.id, undefined, shop, shop.id)
     return shop
+  }
+
+  /** แก้ชื่อร้าน (ไม่แตะ slug — URL เฉพาะร้านที่แจกไปแล้วต้องยังใช้ได้เหมือนเดิม) */
+  async updateShop(id: string, dto: UpdateShopDto, editorAuth0Sub: string) {
+    const before = await this.prisma.shop.findUnique({ where: { id } })
+    if (!before) throw new NotFoundException('ไม่พบร้านนี้')
+
+    const after = await this.prisma.shop.update({ where: { id }, data: { name: dto.name } })
+    await this.audit.log(editorAuth0Sub, 'shop.update', 'Shop', id, before, after, id)
+    return after
   }
 
   async setStatus(id: string, status: ShopStatus, editorAuth0Sub: string) {

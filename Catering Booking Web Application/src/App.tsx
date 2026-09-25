@@ -785,6 +785,22 @@ export default function App() {
               setOwnersAdmin(owners)
             })
           }
+          onUpdateShop={(id, name) =>
+            runAction(async () => {
+              const token = await withToken()
+              const updated = await api.updateShop(token, id, name)
+              setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
+            })
+          }
+          onSearchUser={(email) => withToken().then(token => api.searchUsers(token, email))}
+          onSetSuperAdmin={(userId, isSuperAdmin) =>
+            runAction(async () => {
+              const token = await withToken()
+              await api.setUserRole(token, userId, isSuperAdmin ? 'SUPER_ADMIN' : 'CUSTOMER')
+            })
+          }
+          onFetchAuditPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))}
+          auditRefreshSignal={auditRefreshSignal}
         />
       </NavProvider>
     )

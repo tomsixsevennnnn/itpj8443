@@ -270,14 +270,16 @@ export interface BackendUser {
   shop?: ShopAdmin | null
 }
 
-/** ร้านที่ super admin มองเห็น — มีจำนวน owner กำกับด้วยให้รู้ว่าร้านนี้มีใครดูแลอยู่บ้าง */
+/** ร้านที่ super admin มองเห็น — มีจำนวน owner/booking และยอดขายรวม (ไม่รวมใบจองที่ยกเลิก) กำกับด้วย
+ *  ให้เทียบภาพรวมแต่ละร้านได้ในหน้าเดียว */
 export interface ShopAdmin {
   id: string
   name: string
   slug: string
   status: 'ACTIVE' | 'SUSPENDED'
   createdAt: string
-  _count?: { owners: number }
+  _count?: { owners: number; bookings: number }
+  totalRevenue?: number
 }
 
 export interface CourseInput {
@@ -337,7 +339,7 @@ export const api = {
 
   listOwners: (token: string) => request<BackendUser[]>(token, '/users/owners'),
 
-  setUserRole: (token: string, userId: string, role: 'OWNER' | 'CUSTOMER') =>
+  setUserRole: (token: string, userId: string, role: 'OWNER' | 'CUSTOMER' | 'SUPER_ADMIN') =>
     request<BackendUser>(token, `/users/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
   bookings: async (token: string): Promise<Booking[]> =>
@@ -502,6 +504,10 @@ export const api = {
   /** สร้างร้านใหม่ + ผูก owner คนแรกทันที — ownerEmail ต้องเป็นอีเมลของ user ที่เคย login เข้าระบบมาแล้วอย่างน้อย 1 ครั้ง */
   createShop: (token: string, input: { name: string; ownerEmail: string }) =>
     request<ShopAdmin>(token, '/shops', { method: 'POST', body: JSON.stringify(input) }),
+
+  /** แก้ชื่อร้าน — ไม่แตะ slug (URL เฉพาะร้านที่แจกไปแล้วยังใช้ได้เหมือนเดิม) */
+  updateShop: (token: string, id: string, name: string) =>
+    request<ShopAdmin>(token, `/shops/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
 
   setShopStatus: (token: string, id: string, status: 'ACTIVE' | 'SUSPENDED') =>
     request<ShopAdmin>(token, `/shops/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
