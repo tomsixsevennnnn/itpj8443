@@ -49,6 +49,7 @@ export class UsersController {
   /** owner ทั้งหมด — owner เห็นแค่ร้านตัวเอง, super admin เห็นข้ามทุกร้านพร้อมข้อมูลร้าน */
   @UseGuards(RolesGuard)
   @Roles('owner', 'super_admin')
+  @Get('owners')
   async owners(@CurrentUser() jwtUser: Record<string, any>) {
     const editor = await this.users.shopContextFor(jwtUser.sub)
     if (editor?.role === Role.SUPER_ADMIN) return this.users.listAllOwners()
@@ -59,6 +60,7 @@ export class UsersController {
   /** เลื่อน/ถอดสิทธิ์ผู้ใช้ — ขอบเขตแยกตาม role ของผู้แก้ไข (ดูรายละเอียดที่ UsersService.setRole) */
   @UseGuards(RolesGuard)
   @Roles('owner', 'super_admin')
+  @Patch(':id/role')
   async setRole(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: SetRoleDto) {
     const editor = await this.users.shopContextFor(jwtUser.sub)
     if (!editor) throw new ForbiddenException('ไม่พบบัญชีผู้เรียก')

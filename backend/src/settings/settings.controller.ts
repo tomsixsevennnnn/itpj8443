@@ -22,12 +22,16 @@ export class SettingsController {
     return this.settings.getPublicShopInfo(shopId)
   }
 
+  /** owner ดูค่าตั้งค่าร้านตัวเอง (ครบทุกฟิลด์รวมต้นทุน), ลูกค้าต้องระบุ shopId ของร้านที่กำลังจอง (เลือกร้านมาก่อน
+   *  แล้วจากหน้ารายชื่อร้าน) เห็นเฉพาะฟิลด์ที่ไม่ใช่ต้นทุนภายใน — ใช้คำนวณราคา/มัดจำระหว่าง flow การจอง */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
-  async get(@CurrentUser() jwtUser: Record<string, any>) {
+  async get(@CurrentUser() jwtUser: Record<string, any>, @Query('shopId') shopIdQ?: string) {
     const ctx = await this.users.shopContextFor(jwtUser.sub)
-    if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
-    return this.settings.get(ctx.shopId, ctx.role === Role.OWNER)
+    const isOwner = ctx?.role === Role.OWNER
+    const shopId = isOwner ? ctx?.shopId : shopIdQ
+    if (!shopId) throw new ForbiddenException('ต้องระบุร้านที่ต้องการดูค่าตั้งค่า')
+    return this.settings.get(shopId, isOwner)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

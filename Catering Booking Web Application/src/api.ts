@@ -1,4 +1,4 @@
-import type { AppSettings, Booking, Category, MenuItem, Package, QueueBooking } from './types'
+import type { AppSettings, Booking, Category, MenuItem, Package, QueueBooking, ShopPublic } from './types'
 import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_ORDER } from './data'
 import {
   DEFAULT_BOOKING_TERMS,
@@ -256,7 +256,7 @@ export interface AuditLogPage {
 export interface BackendUser {
   id: string
   auth0Sub: string
-  role: 'CUSTOMER' | 'OWNER'
+  role: 'CUSTOMER' | 'OWNER' | 'SUPER_ADMIN'
   name: string
   surname: string
   phone: string
@@ -264,6 +264,20 @@ export interface BackendUser {
   email: string
   avatar: string
   createdAt: string
+  /** ร้านที่ผูกอยู่ — มีค่าเฉพาะ role OWNER เท่านั้น (CUSTOMER/SUPER_ADMIN ไม่ผูกร้านไหนเลย) */
+  shopId: string | null
+  /** มีเฉพาะตอน super admin เรียก GET /users/owners (เห็นข้ามทุกร้าน) — owner ที่เห็นแค่ร้านตัวเองไม่มีฟิลด์นี้ */
+  shop?: ShopAdmin | null
+}
+
+/** ร้านที่ super admin มองเห็น — มีจำนวน owner กำกับด้วยให้รู้ว่าร้านนี้มีใครดูแลอยู่บ้าง */
+export interface ShopAdmin {
+  id: string
+  name: string
+  slug: string
+  status: 'ACTIVE' | 'SUSPENDED'
+  createdAt: string
+  _count?: { owners: number }
 }
 
 export interface CourseInput {
@@ -288,6 +302,8 @@ export interface CreatePackageInput {
 export type UpdatePackageInput = Partial<CreatePackageInput>
 
 export interface CreateBookingInput {
+  /** ร้านที่ลูกค้าเลือกจองด้วย — เลือกจากหน้ารายชื่อร้านมาก่อนแล้วเสมอ (multi-tenant) */
+  shopId: string
   date: string
   timeSlot: string
   tables: number
@@ -327,9 +343,15 @@ export const api = {
   bookings: async (token: string): Promise<Booking[]> =>
     (await request<BackendBooking[]>(token, '/bookings')).map(toFrontendBooking),
 
-  /** คิวรับงานของทุกลูกค้า (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควันที่เต็มแล้วตอนเลือกวันจัดงาน ต่างจาก bookings() ที่ลูกค้าเห็นแค่ของตัวเอง */
-  bookingsAvailability: async (token: string): Promise<QueueBooking[]> =>
-    (await request<BackendQueueBooking[]>(token, '/bookings/availability')).map(toFrontendQueueBooking),
+  /** คิวรับงานของทุกลูกค้า (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควันที่เต็มแล้วตอนเลือกวันจัดงาน ต่างจาก bookings() ที่ลูกค้าเห็นแค่ของตัวเอง
+   *  shopId บังคับเฉพาะฝั่งลูกค้า (เลือกร้านมาก่อนแล้ว) — owner ไม่ต้องส่ง backend resolve เองจาก JWT */
+  bookingsAvailability: async (token: string, shopId?: string): Promise<QueueBooking[]> =>
+    (
+      await request<BackendQueueBooking[]>(
+        token,
+        `/bookings/availability${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`,
+      )
+    ).map(toFrontendQueueBooking),
 
   createBooking: async (token: string, input: CreateBookingInput): Promise<Booking> =>
     toFrontendBooking(
@@ -356,7 +378,9 @@ export const api = {
       }),
     ),
 
-  packages: (token: string) => request<Package[]>(token, '/packages'),
+  /** shopId บังคับเฉพาะฝั่งลูกค้า — owner ไม่ต้องส่ง backend resolve เองจาก JWT */
+  packages: (token: string, shopId?: string) =>
+    request<Package[]>(token, `/packages${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`),
 
   createPackage: (token: string, input: CreatePackageInput) =>
     request<Package>(token, '/packages', { method: 'POST', body: JSON.stringify(input) }),
@@ -370,7 +394,9 @@ export const api = {
   reorderPackages: (token: string, ids: string[]) =>
     request<Package[]>(token, '/packages/reorder', { method: 'PATCH', body: JSON.stringify({ ids }) }),
 
-  menus: (token: string) => request<MenuItem[]>(token, '/menus'),
+  /** shopId บังคับเฉพาะฝั่งลูกค้า — owner ไม่ต้องส่ง backend resolve เองจาก JWT */
+  menus: (token: string, shopId?: string) =>
+    request<MenuItem[]>(token, `/menus${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`),
 
   createMenu: (token: string, input: Omit<MenuItem, 'id'>) =>
     request<MenuItem>(token, '/menus', { method: 'POST', body: JSON.stringify(input) }),
@@ -384,12 +410,16 @@ export const api = {
   resolveMapsLink: async (token: string, url: string): Promise<string> =>
     (await request<{ url: string }>(token, `/geo/resolve-maps-link?url=${encodeURIComponent(url)}`)).url,
 
-  settings: async (token: string): Promise<AppSettings> =>
-    toFrontendSettings(await request<BackendSettings>(token, '/settings')),
+  /** shopId บังคับเฉพาะฝั่งลูกค้า — owner ไม่ต้องส่ง backend resolve เองจาก JWT */
+  settings: async (token: string, shopId?: string): Promise<AppSettings> =>
+    toFrontendSettings(
+      await request<BackendSettings>(token, `/settings${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`),
+    ),
 
-  /** ก่อน login — ใช้โชว์ชื่อร้าน/โลโก้/สีแบรนด์บนหน้า Login เท่านั้น ไม่ต้องใช้ token */
-  publicShopInfo: async (): Promise<AppSettings['shopInfo'] & { brandColor: string }> => {
-    const res = await fetch(`${API_BASE}/settings/public`)
+  /** ก่อน login — ใช้โชว์ชื่อร้าน/โลโก้/สีแบรนด์บนหน้า Login เท่านั้น ไม่ต้องใช้ token — ต้องระบุ shopId ของร้านที่
+   *  ลูกค้าเลือกไว้แล้วจากหน้ารายชื่อร้าน (ดู ShopSelect.tsx) */
+  publicShopInfo: async (shopId: string): Promise<AppSettings['shopInfo'] & { brandColor: string }> => {
+    const res = await fetch(`${API_BASE}/settings/public?shopId=${encodeURIComponent(shopId)}`)
     if (!res.ok) throw new Error(`API GET /settings/public -> ${res.status}`)
     const s = (await res.json()) as Pick<
       BackendSettings,
@@ -456,4 +486,27 @@ export const api = {
     const blob = await res.blob()
     return URL.createObjectURL(blob)
   },
+
+  /* --- multi-tenant: ร้าน (Shop) ------------------------------------ */
+
+  /** ก่อน login — รายชื่อร้านที่เปิดใช้งาน ให้ลูกค้าเลือกก่อนเริ่มจอง (ดู ShopSelect.tsx) */
+  shopsPublic: async (): Promise<ShopPublic[]> => {
+    const res = await fetch(`${API_BASE}/shops/public`)
+    if (!res.ok) throw new Error(`API GET /shops/public -> ${res.status}`)
+    return (await res.json()) as ShopPublic[]
+  },
+
+  /** super admin เท่านั้น — รายชื่อร้านทั้งหมดในระบบพร้อมจำนวน owner ของแต่ละร้าน */
+  shopsList: (token: string) => request<ShopAdmin[]>(token, '/shops'),
+
+  /** สร้างร้านใหม่ + ผูก owner คนแรกทันที — ownerEmail ต้องเป็นอีเมลของ user ที่เคย login เข้าระบบมาแล้วอย่างน้อย 1 ครั้ง */
+  createShop: (token: string, input: { name: string; ownerEmail: string }) =>
+    request<ShopAdmin>(token, '/shops', { method: 'POST', body: JSON.stringify(input) }),
+
+  setShopStatus: (token: string, id: string, status: 'ACTIVE' | 'SUSPENDED') =>
+    request<ShopAdmin>(token, `/shops/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+
+  /** เพิ่ม owner คนใหม่เข้าร้านที่มีอยู่แล้ว — email ต้องเป็น user ที่เคย login เข้าระบบมาแล้วและยังไม่มีร้านอื่นผูกอยู่ */
+  addShopOwner: (token: string, id: string, email: string) =>
+    request<BackendUser>(token, `/shops/${id}/owners`, { method: 'POST', body: JSON.stringify({ email }) }),
 }

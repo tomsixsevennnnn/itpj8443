@@ -1,6 +1,7 @@
 import type { HomeContent } from './homeContent'
 
 export type Screen =
+  | 'shop-select'
   | 'login'
   | 'home'
   | 'booking-calendar'
@@ -22,6 +23,14 @@ export type Screen =
   | 'owner-page-content'
   | 'owner-users'
   | 'owner-audit-log'
+  | 'super-admin'
+
+/** ร้านที่เปิดให้บริการอยู่ — ใช้หน้าเลือกร้านของลูกค้าก่อนเข้าสู่ flow การจอง (multi-tenant) */
+export interface ShopPublic {
+  id: string
+  name: string
+  slug: string
+}
 
 export interface Category {
   id: string

@@ -9,7 +9,14 @@ import { applyBrandTheme } from '../theme'
 
 const SETTINGS_POLL_MS = 20_000
 
-export default function Login() {
+interface LoginProps {
+  /** ร้านที่ลูกค้าเลือกไว้จากหน้า ShopSelect — ใช้โชว์ชื่อร้าน/โลโก้ของร้านนั้นบนหน้านี้ */
+  shopId: string
+  /** กลับไปหน้าเลือกร้านใหม่ — เผื่อเลือกผิดร้าน */
+  onChangeShop: () => void
+}
+
+export default function Login({ shopId, onChangeShop }: LoginProps) {
   const { loginWithRedirect, isLoading } = useAuth0()
   // ค่าเริ่มต้นไว้โชว์ระหว่างโหลด/กันพัง ถ้าดึงจาก backend ไม่สำเร็จ — พอโหลดเสร็จจะได้ข้อมูลร้านล่าสุดจริง
   const [shopName, setShopName] = useState(DEFAULT_SHOP_INFO.name)
@@ -19,7 +26,7 @@ export default function Login() {
   // poll ทุก 20 วิ (หยุดพักตอนสลับแท็บ) กันชื่อร้าน/โลโก้/tab title ค้างของเก่าถ้าเจ้าของร้านแก้ไว้ตอนหน้านี้เปิดอยู่
   usePolling(() => {
     api
-      .publicShopInfo()
+      .publicShopInfo(shopId)
       .then(info => {
         if (!info.name) return
         setShopName(info.name)
@@ -114,6 +121,14 @@ export default function Login() {
             className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
           >
             เข้าระบบในฐานะเจ้าของร้าน
+          </button>
+
+          {/* เลือกร้านผิด — กลับไปหน้ารายชื่อร้านใหม่ */}
+          <button
+            onClick={onChangeShop}
+            className="w-full text-center text-xs text-orange-500 hover:text-orange-600 transition-colors mt-3"
+          >
+            ไม่ใช่ร้านนี้? เปลี่ยนร้าน
           </button>
         </div>
       </div>

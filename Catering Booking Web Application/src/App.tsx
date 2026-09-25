@@ -30,13 +30,21 @@ import { DEFAULT_SLOT_HOURS } from './availability'
 import { DEFAULT_HOME_CONTENT } from './homeContent'
 import { DEFAULT_NOTIF_SEEN_AT, unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
-import { api, type BackendUser, type CreatePackageInput, type UpdatePackageInput, type UploadImageKind } from './api'
+import {
+  api,
+  type BackendUser,
+  type CreatePackageInput,
+  type ShopAdmin,
+  type UpdatePackageInput,
+  type UploadImageKind,
+} from './api'
 import { usePolling } from './usePolling'
 import { useBookingsStream } from './useBookingsStream'
 import { useAppStream } from './useAppStream'
 import { isSessionExpiredError } from './sessionExpired'
 import ErrorBanner from './components/ErrorBanner'
 import Login from './screens/Login'
+import ShopSelect from './screens/ShopSelect'
 import CompleteProfile from './screens/CompleteProfile'
 import Home from './screens/Home'
 import BookingCalendar from './screens/BookingCalendar'
@@ -61,11 +69,15 @@ import Settings from './screens/owner/Settings'
 import PageContent from './screens/owner/PageContent'
 import UserRoles from './screens/owner/UserRoles'
 import AuditLog from './screens/owner/AuditLog'
+import SuperAdmin from './screens/SuperAdmin'
 
 const OWNER_SCREENS: Screen[] = [
   'owner-dashboard', 'owner-orders', 'owner-calendar', 'owner-packages', 'owner-menus', 'owner-documents',
   'owner-reports', 'owner-settings', 'owner-page-content', 'owner-users', 'owner-audit-log',
 ]
+
+/** เก็บ per-browser — ร้านที่ลูกค้าเลือกไว้ล่าสุด กันต้องเลือกร้านซ้ำทุกครั้งที่กลับมาเปิดแอป (multi-tenant) */
+const SELECTED_SHOP_KEY = 'selectedShopId'
 
 /** 6 ขั้นตอนการจอง — ออกจากช่วงนี้ไปหน้าอื่นผ่านแถบเมนูด้านบน (หน้าแรก/ประวัติการจอง) แล้วกลับมาต้องเริ่มเลือกใหม่ ไม่ resume ของเดิม */
 const BOOKING_FLOW_SCREENS: Screen[] = [
@@ -137,6 +149,34 @@ export default function App() {
   // ค่าตั้งค่าร้าน — แก้ได้จากหน้า "ตั้งค่า" ฝั่งเจ้าของร้าน มีผลกับค่าขนส่ง มัดจำ และข้อมูลบนเอกสารทันที
   const [settings, setSettings] = useState<AppSettings>(initialSettings)
 
+  // ร้านที่ลูกค้าเลือกไว้ (multi-tenant) — ต้องเลือกก่อนถึงจะ login/จองได้ owner/super admin ไม่ใช้ค่านี้เลย
+  // เพราะ backend resolve ร้านของ owner เองจาก JWT อยู่แล้ว จำไว้ใน localStorage กันต้องเลือกซ้ำทุกครั้งที่เปิดแอป
+  const [selectedShopId, setSelectedShopId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(SELECTED_SHOP_KEY)
+    } catch {
+      return null
+    }
+  })
+  const handleSelectShop = (shopId: string) => {
+    setSelectedShopId(shopId)
+    try {
+      localStorage.setItem(SELECTED_SHOP_KEY, shopId)
+    } catch {
+      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode) — แค่ต้องเลือกร้านใหม่ทุกครั้งที่เปิดแอป
+    }
+  }
+
+  /** กด "เปลี่ยนร้าน" ที่หน้า login — เคลียร์ทั้ง state และ localStorage กันเผลอค้างร้านเดิมไว้ */
+  const handleChangeShop = () => {
+    setSelectedShopId(null)
+    try {
+      localStorage.removeItem(SELECTED_SHOP_KEY)
+    } catch {
+      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้
+    }
+  }
+
   const [notifSeenAt, setNotifSeenAt] = useState<string>(() => {
     try {
       return localStorage.getItem(CUSTOMER_NOTIF_SEEN_KEY) ?? DEFAULT_NOTIF_SEEN_AT
@@ -169,7 +209,14 @@ export default function App() {
   // แจ้งเตือนลอยตอนทำรายการ (จอง/แก้แพ็กเกจ/แก้เมนู ฯลฯ) ไม่สำเร็จ — คนละเรื่องกับ loadError ที่บล็อกทั้งหน้า
   const [actionError, setActionError] = useState<string | null>(null)
 
-  /** โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — sync user + ดึง bookings/packages/menus/settings พร้อมกัน */
+  // รายชื่อร้านทั้งหมด (พร้อมจำนวน owner) — เฉพาะ super admin เท่านั้นที่เห็น/ใช้หน้า super-admin
+  const [shopsAdmin, setShopsAdmin] = useState<ShopAdmin[]>([])
+
+  /**
+   * โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — sync user ก่อนเสมอเพื่อรู้ role/shopId จริง แล้วค่อยแยก
+   * โหลดต่อตาม role: super admin ไม่ผูกร้านไหนเลย โหลดแค่รายชื่อร้าน, owner/customer โหลด bookings/packages/menus/
+   * settings ของร้านที่เกี่ยวข้อง (owner = ร้านตัวเอง จาก JWT, customer = ร้านที่เลือกไว้ผ่าน selectedShopId)
+   */
   useEffect(() => {
     if (!isAuthenticated) return
     let cancelled = false
@@ -179,21 +226,39 @@ export default function App() {
       try {
         const token = await getAccessTokenSilently()
         // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
-        const [me, bks, avail, pkgs, mns, sttgs] = await Promise.all([
-          api.syncProfile(token, {
-            name: auth0User?.given_name || auth0User?.name?.split(' ')[0] || 'ผู้ใช้',
-            surname: auth0User?.family_name || auth0User?.name?.split(' ').slice(1).join(' ') || '',
-            email: auth0User?.email ?? '',
-            avatar: auth0User?.picture ?? '',
-          }),
-          api.bookings(token),
-          api.bookingsAvailability(token),
-          api.packages(token),
-          api.menus(token),
-          api.settings(token),
-        ])
+        const me = await api.syncProfile(token, {
+          name: auth0User?.given_name || auth0User?.name?.split(' ')[0] || 'ผู้ใช้',
+          surname: auth0User?.family_name || auth0User?.name?.split(' ').slice(1).join(' ') || '',
+          email: auth0User?.email ?? '',
+          avatar: auth0User?.picture ?? '',
+        })
         if (cancelled) return
         setBackendUser(me)
+
+        if (me.role === 'SUPER_ADMIN') {
+          const shops = await api.shopsList(token)
+          if (cancelled) return
+          setShopsAdmin(shops)
+          setDataLoaded(true)
+          return
+        }
+
+        const shopId = me.role === 'OWNER' ? me.shopId : selectedShopId
+        if (!shopId) {
+          // ลูกค้าที่มี session ค้างอยู่ (Auth0 SSO) แต่ยังไม่ได้เลือกร้านในเครื่อง/เบราว์เซอร์นี้ (เช่นล้าง
+          // localStorage ไปแล้ว) — ปล่อยให้ effectiveScreen ด้านล่างเด้งไปหน้าเลือกร้านแทน ไม่ fetch อะไรต่อ
+          setDataLoaded(true)
+          return
+        }
+
+        const [bks, avail, pkgs, mns, sttgs] = await Promise.all([
+          api.bookings(token),
+          api.bookingsAvailability(token, shopId),
+          api.packages(token, shopId),
+          api.menus(token, shopId),
+          api.settings(token, shopId),
+        ])
+        if (cancelled) return
         setBookings(bks)
         setAvailability(avail)
         setPackages(pkgs)
@@ -214,7 +279,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, getAccessTokenSilently, auth0User, retryKey])
+  }, [isAuthenticated, getAccessTokenSilently, auth0User, retryKey, selectedShopId])
 
   const withToken = () => getAccessTokenSilently()
 
@@ -254,16 +319,27 @@ export default function App() {
         throw err
       })
 
+  // ร้านที่เกี่ยวข้องกับผู้ใช้ปัจจุบัน — owner = ร้านตัวเอง, customer = ร้านที่เลือกไว้, super admin ไม่มี (null)
+  const activeShopId = backendUser?.role === 'OWNER' ? backendUser.shopId : backendUser?.role === 'CUSTOMER' ? selectedShopId : null
+
   const refetchSettings = () => {
+    if (!activeShopId) return
     withToken()
-      .then(token => api.settings(token))
+      .then(token => api.settings(token, activeShopId))
       .then(setSettings)
       .catch(() => {})
   }
 
   const refetchCatalog = () => {
+    if (!activeShopId) return
     withToken()
-      .then(token => Promise.all([api.bookingsAvailability(token), api.packages(token), api.menus(token)]))
+      .then(token =>
+        Promise.all([
+          api.bookingsAvailability(token, activeShopId),
+          api.packages(token, activeShopId),
+          api.menus(token, activeShopId),
+        ]),
+      )
       .then(([avail, pkgs, mns]) => {
         setAvailability(avail)
         setPackages(pkgs)
@@ -273,6 +349,7 @@ export default function App() {
   }
 
   const refetchBookings = () => {
+    if (backendUser?.role === 'SUPER_ADMIN') return
     withToken()
       .then(token => api.bookings(token))
       .then(setBookings)
@@ -418,7 +495,13 @@ export default function App() {
   /** role ที่แท้จริงมาจาก DB (backendUser) เสมอ — ไม่ใช้ claim ใน Auth0 token ตรงๆ เพราะ promote/demote ผ่านหน้า
    *  "สิทธิ์การเข้าถึง" แก้แค่ DB ไม่ได้แก้ token/Auth0 profile จึง claim เดิมค้างอยู่จนกว่าจะขอ token ใหม่
    *  ก่อน backendUser โหลดเสร็จ (ตอนแรกสุดหลัง login) ใช้ claim ไปพลางๆ ได้ เพราะหน้าจอที่พึ่ง role ยังไม่ render จนกว่า dataLoaded */
-  const role = backendUser ? (backendUser.role === 'OWNER' ? 'owner' : 'customer') : roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
+  const role = backendUser
+    ? backendUser.role === 'OWNER'
+      ? 'owner'
+      : backendUser.role === 'SUPER_ADMIN'
+        ? 'super_admin'
+        : 'customer'
+    : roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
   /** เบอร์โทร/ชื่อ/นามสกุล เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ขาดตัวไหนก็ถือว่ายังกรอกไม่ครบ ต้องเด้งไปกรอกใหม่ทุกครั้งที่ login จนกว่าจะครบ */
   const needsProfile =
     isAuthenticated &&
@@ -490,7 +573,9 @@ export default function App() {
     screen === 'login' && isAuthenticated && !needsProfile
       ? role === 'owner'
         ? 'owner-dashboard'
-        : 'home'
+        : role === 'super_admin'
+          ? 'super-admin'
+          : 'home'
       : screen
 
   const handleSelectDateTime = (date: string, timeSlot: string) => {
@@ -538,7 +623,7 @@ export default function App() {
         // แทนที่จะทิ้งข้อความ error ดิบให้ผู้ใช้เห็น (มี version เดิมค้างอยู่ ไม่มีทาง save ซ้ำผ่านได้จนกว่าจะ refresh)
         const message = err instanceof Error ? err.message : ''
         if (/-> 409/.test(message)) {
-          const fresh = await api.settings(token)
+          const fresh = await api.settings(token, activeShopId ?? undefined)
           setSettings(fresh)
           throw new Error('มีการแก้ไขค่าตั้งค่าจากที่อื่นไปแล้ว ระบบโหลดค่าล่าสุดมาให้แล้ว กรุณาตรวจสอบและบันทึกใหม่อีกครั้ง')
         }
@@ -549,10 +634,12 @@ export default function App() {
   const handleConfirm = () =>
     runAction(async () => {
       if (!booking.packageId) throw new Error('ยังไม่ได้เลือกแพ็กเกจ')
+      if (!selectedShopId) throw new Error('ยังไม่ได้เลือกร้านที่จะจอง')
       // ราคา/ชื่อแพ็กเกจไม่ส่งจาก client แล้ว — backend คำนวณเองจาก packageId (กันแก้ request body ปลอมราคาจอง)
       // ยอดที่ตะกร้าโชว์ก่อนกดยืนยัน (Cart.tsx) เป็นแค่ตัวเลข preview ด้วยสูตรเดียวกัน ไม่ใช่ค่าที่ backend เชื่อ
       const token = await withToken()
       const created = await api.createBooking(token, {
+        shopId: selectedShopId,
         date: booking.date || new Date().toISOString().split('T')[0],
         timeSlot: booking.timeSlot || 'ทั้งวัน',
         tables: booking.tables,
@@ -587,7 +674,8 @@ export default function App() {
             })
       setBookings(prev => prev.map(b => (b.id === id ? updated : b)))
       // เปลี่ยนสถานะ (เช่นยกเลิกงาน) กระทบคิวรับงานที่ลูกค้าเห็น — ดึงใหม่ให้ตรงกัน กันวันนั้นค้างว่า "เต็ม" อยู่
-      if (patch.status !== undefined) setAvailability(await api.bookingsAvailability(token))
+      // (owner-only action — activeShopId คือร้านตัวเองเสมอที่จุดนี้)
+      if (patch.status !== undefined && activeShopId) setAvailability(await api.bookingsAvailability(token, activeShopId))
     })
 
   // กำลังตรวจสอบ session ของ Auth0 (โหลดครั้งแรก / กลับจาก redirect)
@@ -597,9 +685,10 @@ export default function App() {
     )
   }
 
-  // ยังไม่ login
+  // ยังไม่ login — ต้องเลือกร้านก่อนเสมอ (multi-tenant) ถึงจะเห็นหน้า login ที่ตรงกับร้านนั้น
   if (!isAuthenticated) {
-    return <Login />
+    if (!selectedShopId) return <ShopSelect onSelect={handleSelectShop} />
+    return <Login shopId={selectedShopId} onChangeShop={handleChangeShop} />
   }
 
   // โหลดข้อมูลจาก backend ไม่สำเร็จ (เช่น server ไม่ทำงาน, token audience ไม่ตรง)
@@ -644,6 +733,46 @@ export default function App() {
           }
         />
       </>
+    )
+  }
+
+  // ลูกค้าที่มี session Auth0 ค้างอยู่แต่ยังไม่ได้เลือกร้านในเครื่องนี้ (เช่นล้าง localStorage ไปแล้ว) — ให้เลือกร้าน
+  // ก่อน bootstrap effect ด้านบนถึงจะ fetch bookings/packages/menus/settings ของร้านนั้นต่อได้
+  if (role === 'customer' && !selectedShopId) {
+    return <ShopSelect onSelect={handleSelectShop} />
+  }
+
+  // Super admin — จัดการร้านทั้งระบบ ไม่ผูกกับร้านไหนเลย ไม่ใช้ OwnerLayout/หน้าจอฝั่งร้าน
+  if (role === 'super_admin') {
+    return (
+      <NavProvider value={navContext}>
+        {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
+        <SuperAdmin
+          shops={shopsAdmin}
+          onCreateShop={(input) =>
+            runAction(async () => {
+              const token = await withToken()
+              const created = await api.createShop(token, input)
+              setShopsAdmin(prev => [created, ...prev])
+            })
+          }
+          onSetShopStatus={(id, status) =>
+            runAction(async () => {
+              const token = await withToken()
+              const updated = await api.setShopStatus(token, id, status)
+              setShopsAdmin(prev => prev.map(s => (s.id === id ? updated : s)))
+            })
+          }
+          onAddOwner={(id, email) =>
+            runAction(async () => {
+              const token = await withToken()
+              await api.addShopOwner(token, id, email)
+              const refreshed = await api.shopsList(token)
+              setShopsAdmin(refreshed)
+            })
+          }
+        />
+      </NavProvider>
     )
   }
 

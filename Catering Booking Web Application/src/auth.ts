@@ -1,7 +1,7 @@
 /** namespace ต้องตรงกับ custom claim ที่ Auth0 Action ฝังลง token (ดู docs/auth0-action.md) */
 export const AUTH0_ROLE_CLAIM = 'https://pipatphochana-catering.app/role'
 
-export type AppRole = 'customer' | 'owner'
+export type AppRole = 'customer' | 'owner' | 'super_admin'
 
 /** connection ที่ Auth0 Application เปิดไว้ — ใช้บังคับ loginWithRedirect ให้ตรงบทบาท */
 export const AUTH0_CONNECTION = {
