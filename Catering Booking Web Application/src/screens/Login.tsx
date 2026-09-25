@@ -39,11 +39,18 @@ export default function Login({ shopId, onChangeShop }: LoginProps) {
   }, SETTINGS_POLL_MS)
 
   // prompt: 'login' บังคับให้ Auth0 โชว์หน้า login ใหม่เสมอ กัน SSO session เดิมของบัญชีอื่น (เช่น owner) พาลอดผ่านเข้ามาเงียบๆ
+  // appState.returnTo เก็บ path ปัจจุบัน (เช่น /pipat-catering) ไว้คืนกลับหลัง redirect เสร็จ (ดู main.tsx onRedirectCallback)
   const loginAsCustomer = () =>
-    loginWithRedirect({ authorizationParams: { connection: AUTH0_CONNECTION.customer, prompt: 'login' } })
+    loginWithRedirect({
+      authorizationParams: { connection: AUTH0_CONNECTION.customer, prompt: 'login' },
+      appState: { returnTo: window.location.pathname },
+    })
 
   const loginAsOwner = () =>
-    loginWithRedirect({ authorizationParams: { connection: AUTH0_CONNECTION.owner, prompt: 'login' } })
+    loginWithRedirect({
+      authorizationParams: { connection: AUTH0_CONNECTION.owner, prompt: 'login' },
+      appState: { returnTo: window.location.pathname },
+    })
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex flex-col items-center justify-center p-4">

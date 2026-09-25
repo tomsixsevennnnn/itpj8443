@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth0 } from '@auth0/auth0-react'
 import { LayoutDashboard } from 'lucide-react'
-import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package, QueueBooking } from './types'
+import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package, QueueBooking, ShopPublic } from './types'
 import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_ORDER, categoryMapOf, includedItems, orderedCategories } from './data'
 import {
   DEFAULT_BOOKING_TERMS,
@@ -158,16 +158,23 @@ export default function App() {
       return null
     }
   })
-  const handleSelectShop = (shopId: string) => {
-    setSelectedShopId(shopId)
+  /** เลือกร้าน (จาก ShopSelect หรือ resolve จาก URL slug ตอน mount) — เก็บ id ไว้ทำงานจริง แล้วอัปเดต URL เป็น
+   *  /{slug} ด้วย ให้ก็อปปี้ลิงก์ตรงร้านนั้นไปแชร์ต่อได้เลย (ดู resolveShopFromUrl effect ด้านล่าง) */
+  const handleSelectShop = (shop: ShopPublic) => {
+    setSelectedShopId(shop.id)
     try {
-      localStorage.setItem(SELECTED_SHOP_KEY, shopId)
+      localStorage.setItem(SELECTED_SHOP_KEY, shop.id)
     } catch {
       // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode) — แค่ต้องเลือกร้านใหม่ทุกครั้งที่เปิดแอป
     }
+    try {
+      window.history.pushState(null, '', `/${shop.slug}`)
+    } catch {
+      // เพิกเฉยได้ถ้า History API ใช้ไม่ได้ (ไม่น่าเกิดในเบราว์เซอร์จริง) — แค่ URL ไม่อัปเดตตาม ใช้งานต่อได้ปกติ
+    }
   }
 
-  /** กด "เปลี่ยนร้าน" ที่หน้า login — เคลียร์ทั้ง state และ localStorage กันเผลอค้างร้านเดิมไว้ */
+  /** กด "เปลี่ยนร้าน" ที่หน้า login — เคลียร์ทั้ง state, localStorage และ URL กันเผลอค้างร้านเดิมไว้ */
   const handleChangeShop = () => {
     setSelectedShopId(null)
     try {
@@ -175,7 +182,36 @@ export default function App() {
     } catch {
       // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้
     }
+    try {
+      window.history.pushState(null, '', '/')
+    } catch {
+      // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+    }
   }
+
+  // resolve ร้านจาก URL path ตอนเปิดแอปครั้งแรก (เช่นเปิดลิงก์ที่แชร์มา /pipat-catering) — ให้ข้ามหน้าเลือกร้านไปเลย
+  // รันครั้งเดียวตอน mount เท่านั้น ไม่ผูกกับ selectedShopId เพราะ URL คือ "ความตั้งใจ" ล่าสุดของผู้ใช้ตอนเปิดหน้านี้
+  // ควรชนะค่าที่จำไว้ใน localStorage เดิมเสมอถ้าไม่ตรงกัน
+  const [resolvingShopFromUrl, setResolvingShopFromUrl] = useState(
+    () => window.location.pathname.replace(/^\/+|\/+$/g, '').length > 0,
+  )
+  useEffect(() => {
+    const slug = window.location.pathname.replace(/^\/+|\/+$/g, '')
+    if (!slug) return
+    api
+      .shopBySlugPublic(slug)
+      .then(shop => handleSelectShop(shop))
+      .catch(() => {
+        // ไม่พบร้านนี้ หรือร้านปิดให้บริการ — เคลียร์ path ทิ้ง กลับไปหน้าเลือกร้านปกติแทนที่จะค้าง URL ที่ใช้ไม่ได้
+        try {
+          window.history.replaceState(null, '', '/')
+        } catch {
+          // เพิกเฉยได้
+        }
+      })
+      .finally(() => setResolvingShopFromUrl(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [notifSeenAt, setNotifSeenAt] = useState<string>(() => {
     try {
@@ -246,6 +282,15 @@ export default function App() {
         }
 
         const shopId = me.role === 'OWNER' ? me.shopId : selectedShopId
+        // owner login ตรงๆ ไม่ผ่านหน้าเลือกร้าน (ไม่มี selectedShopId ของตัวเอง) — sync URL ให้ตรงร้านของตัวเอง
+        // แทน (replaceState กันปนกับ URL ร้านลูกค้าที่อาจค้างอยู่ก่อนกด "เข้าระบบในฐานะเจ้าของร้าน")
+        if (me.role === 'OWNER' && me.shop?.slug) {
+          try {
+            window.history.replaceState(null, '', `/${me.shop.slug}`)
+          } catch {
+            // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+          }
+        }
         if (!shopId) {
           // ลูกค้าที่มี session ค้างอยู่ (Auth0 SSO) แต่ยังไม่ได้เลือกร้านในเครื่อง/เบราว์เซอร์นี้ (เช่นล้าง
           // localStorage ไปแล้ว) — ปล่อยให้ effectiveScreen ด้านล่างเด้งไปหน้าเลือกร้านแทน ไม่ fetch อะไรต่อ
@@ -680,6 +725,13 @@ export default function App() {
       if (patch.status !== undefined && activeShopId) setAvailability(await api.bookingsAvailability(token, activeShopId))
     })
 
+  // กำลัง resolve ร้านจาก URL slug ที่แชร์มา (เช่น /pipat-catering) — เช็คก่อน isLoading เพราะไม่เกี่ยวกับ Auth0
+  if (resolvingShopFromUrl) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">กำลังโหลด...</div>
+    )
+  }
+
   // กำลังตรวจสอบ session ของ Auth0 (โหลดครั้งแรก / กลับจาก redirect)
   if (isLoading) {
     return (
@@ -785,10 +837,10 @@ export default function App() {
               setOwnersAdmin(owners)
             })
           }
-          onUpdateShop={(id, name) =>
+          onUpdateShop={(id, input) =>
             runAction(async () => {
               const token = await withToken()
-              const updated = await api.updateShop(token, id, name)
+              const updated = await api.updateShop(token, id, input)
               setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
             })
           }

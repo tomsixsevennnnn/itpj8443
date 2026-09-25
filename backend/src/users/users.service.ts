@@ -65,6 +65,8 @@ export class UsersService {
    * หลักกว่าค่าจาก Google เดิม syncProfile เขียนทับ name/surname ทุกครั้งที่ login ทำให้ชื่อที่แก้ไว้หายกลับไปเป็น
    * ของ Google ทุกครั้ง — email/avatar ยังคง sync ทับได้ทุกครั้งเพราะไม่มีจุดให้ผู้ใช้แก้เอง (มาจาก Google อย่างเดียว)
    */
+  /** include shop เสมอ (แม้ role อื่นจะได้ null) — frontend ใช้ shop.slug ของ owner ปรับ URL ให้ตรงร้านหลัง login
+   *  (ดู App.tsx) ไม่ต้องยิง request แยกอีกรอบแค่เพื่อเอา slug */
   async syncProfile(auth0Sub: string, role: Role, dto: SyncProfileDto) {
     const existing = await this.prisma.user.findUnique({ where: { auth0Sub } })
     if (!existing) {
@@ -81,6 +83,7 @@ export class UsersService {
           email: dto.email,
           avatar: dto.avatar ?? '',
         },
+        include: { shop: true },
       })
     }
     return this.prisma.user.update({
@@ -91,6 +94,7 @@ export class UsersService {
         ...(existing.name ? {} : { name: dto.name }),
         ...(existing.surname ? {} : { surname: dto.surname ?? '' }),
       },
+      include: { shop: true },
     })
   }
 

@@ -498,6 +498,14 @@ export const api = {
     return (await res.json()) as ShopPublic[]
   },
 
+  /** ก่อน login — เปิดจาก URL เฉพาะร้าน (เช่น /pipat-catering) แล้ว resolve slug -> ข้อมูลร้านทันที ข้ามหน้า
+   *  เลือกร้านไปเลย ให้แชร์ลิงก์ตรงร้านนั้นได้ (ดู App.tsx) — 404/ร้านปิดให้บริการโยน error กลับไปให้ผู้เรียกจัดการเอง */
+  shopBySlugPublic: async (slug: string): Promise<ShopPublic> => {
+    const res = await fetch(`${API_BASE}/shops/${encodeURIComponent(slug)}/public`)
+    if (!res.ok) throw new Error(`API GET /shops/${slug}/public -> ${res.status}`)
+    return (await res.json()) as ShopPublic
+  },
+
   /** super admin เท่านั้น — รายชื่อร้านทั้งหมดในระบบพร้อมจำนวน owner ของแต่ละร้าน */
   shopsList: (token: string) => request<ShopAdmin[]>(token, '/shops'),
 
@@ -505,9 +513,9 @@ export const api = {
   createShop: (token: string, input: { name: string; ownerEmail: string }) =>
     request<ShopAdmin>(token, '/shops', { method: 'POST', body: JSON.stringify(input) }),
 
-  /** แก้ชื่อร้าน — ไม่แตะ slug (URL เฉพาะร้านที่แจกไปแล้วยังใช้ได้เหมือนเดิม) */
-  updateShop: (token: string, id: string, name: string) =>
-    request<ShopAdmin>(token, `/shops/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  /** แก้ชื่อร้าน และ/หรือ path เฉพาะร้าน (slug) — ไม่ส่ง slug มา = ไม่แตะ slug เดิม (เปลี่ยนแล้วลิงก์เก่าที่แจกไปแล้วใช้ไม่ได้อีก) */
+  updateShop: (token: string, id: string, input: { name: string; slug?: string }) =>
+    request<ShopAdmin>(token, `/shops/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
 
   setShopStatus: (token: string, id: string, status: 'ACTIVE' | 'SUSPENDED') =>
     request<ShopAdmin>(token, `/shops/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),

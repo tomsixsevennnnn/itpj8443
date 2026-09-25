@@ -30,7 +30,7 @@ interface SuperAdminProps {
   onSetShopStatus: (id: string, status: 'ACTIVE' | 'SUSPENDED') => Promise<void>
   onAddOwner: (id: string, email: string) => Promise<void>
   onRemoveOwner: (shopId: string, userId: string) => Promise<void>
-  onUpdateShop: (id: string, name: string) => Promise<void>
+  onUpdateShop: (id: string, input: { name: string; slug?: string }) => Promise<void>
   onSearchUser: (email: string) => Promise<BackendUser[]>
   onSetSuperAdmin: (userId: string, isSuperAdmin: boolean) => Promise<void>
   onFetchAuditPage: (page: number, pageSize: number) => Promise<AuditLogPage>
@@ -70,6 +70,7 @@ export default function SuperAdmin({
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [renameSlugValue, setRenameSlugValue] = useState('')
   const [renaming, setRenaming] = useState(false)
 
   const handleCreate = async () => {
@@ -117,13 +118,21 @@ export default function SuperAdmin({
   const startRename = (shop: ShopAdmin) => {
     setRenamingId(shop.id)
     setRenameValue(shop.name)
+    setRenameSlugValue(shop.slug)
   }
 
-  const handleRename = async (id: string) => {
-    if (!renameValue.trim() || renaming) return
+  /** onUpdateShop ห่อด้วย runAction ที่ App.tsx เสมอ (error ไปขึ้น ErrorBanner ด้านบน ไม่ throw กลับมาที่นี่) —
+   *  ปิดฟอร์มทันทีหลังเรียกจบเหมือน handleCreate/handleAddOwner ด้านบน ถ้า backend ปฏิเสธ (เช่น slug ซ้ำ) จะเห็น
+   *  ข้อความ error ที่ ErrorBanner แทน ต้องกดแก้ไขใหม่เอง */
+  const handleRename = async (shop: ShopAdmin) => {
+    if (!renameValue.trim() || !renameSlugValue.trim() || renaming) return
     setRenaming(true)
     try {
-      await onUpdateShop(id, renameValue.trim())
+      // ส่ง slug ไปด้วยเฉพาะตอนเปลี่ยนจริงๆ — ลด request ที่ไม่จำเป็น และไม่ไปชนเช็คความซ้ำของ slug ตัวเองที่ backend
+      await onUpdateShop(shop.id, {
+        name: renameValue.trim(),
+        slug: renameSlugValue.trim() !== shop.slug ? renameSlugValue.trim() : undefined,
+      })
       setRenamingId(null)
     } finally {
       setRenaming(false)
@@ -227,42 +236,56 @@ export default function SuperAdmin({
                         </div>
                         <div className="flex-1 min-w-0">
                           {renamingId === shop.id ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="space-y-1.5">
                               <input
                                 autoFocus
                                 type="text"
+                                placeholder="ชื่อร้าน"
                                 value={renameValue}
                                 onChange={e => setRenameValue(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleRename(shop.id)}
-                                className="flex-1 min-w-0 px-2 py-1 border border-orange-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                onKeyDown={e => e.key === 'Enter' && handleRename(shop)}
+                                className="w-full px-2 py-1 border border-orange-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-orange-400"
                               />
-                              <button
-                                onClick={() => handleRename(shop.id)}
-                                disabled={!renameValue.trim() || renaming}
-                                className="text-green-600 hover:text-green-700 disabled:opacity-50 flex-shrink-0"
-                              >
-                                {renaming ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                              </button>
-                              <button
-                                onClick={() => setRenamingId(null)}
-                                className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                              >
-                                <X size={16} />
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-gray-400 flex-shrink-0">/</span>
+                                <input
+                                  type="text"
+                                  placeholder="path เฉพาะร้าน เช่น pipat-catering"
+                                  value={renameSlugValue}
+                                  onChange={e => setRenameSlugValue(e.target.value)}
+                                  onKeyDown={e => e.key === 'Enter' && handleRename(shop)}
+                                  className="flex-1 min-w-0 px-2 py-1 border border-orange-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                />
+                                <button
+                                  onClick={() => handleRename(shop)}
+                                  disabled={!renameValue.trim() || !renameSlugValue.trim() || renaming}
+                                  className="text-green-600 hover:text-green-700 disabled:opacity-50 flex-shrink-0"
+                                >
+                                  {renaming ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                </button>
+                                <button
+                                  onClick={() => setRenamingId(null)}
+                                  className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-gray-800 truncate">{shop.name}</p>
-                              <button
-                                onClick={() => startRename(shop)}
-                                className="text-gray-300 hover:text-orange-500 flex-shrink-0"
-                                title="แก้ชื่อร้าน"
-                              >
-                                <Pencil size={12} />
-                              </button>
-                            </div>
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-semibold text-gray-800 truncate">{shop.name}</p>
+                                <button
+                                  onClick={() => startRename(shop)}
+                                  className="text-gray-300 hover:text-orange-500 flex-shrink-0"
+                                  title="แก้ชื่อ/path ร้าน"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-400">/{shop.slug}</p>
+                            </>
                           )}
-                          <p className="text-xs text-gray-400">/{shop.slug}</p>
                         </div>
                         <span
                           className={`text-[10px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${

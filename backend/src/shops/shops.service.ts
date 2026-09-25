@@ -6,13 +6,18 @@ import { DEFAULT_SETTINGS } from '../settings/settings.service'
 import { CreateShopDto } from './dto/create-shop.dto'
 import { UpdateShopDto } from './dto/update-shop.dto'
 
-/** slug ต้องมีแค่ a-z 0-9 และ - เท่านั้น (ใช้ต่อ URL /shop/:slug ให้ลูกค้า) — แปลงจากชื่อร้านภาษาไทย/อังกฤษ
- *  ยังไงก็ได้ ตัดอักขระที่พิมพ์ไม่ได้ทิ้ง เหลือแค่ตัวเลข/อังกฤษ ถ้าไม่เหลือเลย fallback เป็น "shop" */
+/**
+ * แปลงเป็น slug สำหรับต่อ URL (/pipat-catering หรือ /โต๊ะจีนพิพัฒน์โภชนา ก็ได้) — เก็บตัวอักษรทุกภาษา (รวมไทย)
+ * และตัวเลขไว้ ตัดเฉพาะช่องว่าง/สัญลักษณ์ที่ใช้ใน URL ตรงๆ ไม่ได้ (/ ? # & = ฯลฯ) แทนด้วย "-" แทน เพราะ browser
+ * สมัยใหม่แสดง Unicode ใน URL ได้ปกติ (IRI) ไม่จำเป็นต้องบังคับ ASCII-only เหมือนเดิม ถ้าพิมพ์มาแล้วไม่เหลือ
+ * อักขระที่ใช้ได้เลย fallback เป็น "shop" กันได้ slug ว่างเปล่า
+ */
 const slugify = (name: string): string => {
   const base = name
-    .toLowerCase()
     .trim()
-    .replace(/[^a-z0-9]+/g, '-')
+    .toLowerCase()
+    .replace(/[\s/?#&=%+]+/gu, '-')
+    .replace(/[^\p{L}\p{N}-]+/gu, '')
     .replace(/^-+|-+$/g, '')
   return base || 'shop'
 }
@@ -89,12 +94,21 @@ export class ShopsService {
     return shop
   }
 
-  /** แก้ชื่อร้าน (ไม่แตะ slug — URL เฉพาะร้านที่แจกไปแล้วต้องยังใช้ได้เหมือนเดิม) */
+  /** แก้ชื่อร้าน และ/หรือ slug (path เฉพาะร้าน เช่น /pipat-catering) — slug เปลี่ยนแล้วลิงก์เก่าที่แจกไปแล้วใช้ไม่ได้
+   *  อีกต่อไป (ตั้งใจให้ super admin เป็นคนตัดสินใจเอง ไม่ auto-แก้ตามชื่อให้ กันลิงก์ที่แชร์ไปแล้วพังโดยไม่ตั้งใจ)
+   *  ไม่ส่ง slug มา = ไม่แตะ slug เดิม */
   async updateShop(id: string, dto: UpdateShopDto, editorAuth0Sub: string) {
     const before = await this.prisma.shop.findUnique({ where: { id } })
     if (!before) throw new NotFoundException('ไม่พบร้านนี้')
 
-    const after = await this.prisma.shop.update({ where: { id }, data: { name: dto.name } })
+    let slug: string | undefined
+    if (dto.slug !== undefined) {
+      slug = slugify(dto.slug)
+      const taken = await this.prisma.shop.findUnique({ where: { slug } })
+      if (taken && taken.id !== id) throw new ConflictException(`path "/${slug}" มีร้านอื่นใช้อยู่แล้ว ลองตั้งชื่ออื่น`)
+    }
+
+    const after = await this.prisma.shop.update({ where: { id }, data: { name: dto.name, slug } })
     await this.audit.log(editorAuth0Sub, 'shop.update', 'Shop', id, before, after, id)
     return after
   }

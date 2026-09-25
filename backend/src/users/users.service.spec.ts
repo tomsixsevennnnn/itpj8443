@@ -138,6 +138,7 @@ describe('UsersService', () => {
 
     expect(prisma.user.create).toHaveBeenCalledWith({
       data: { auth0Sub: 'auth0|1', role: Role.CUSTOMER, name: 'Google', surname: 'Name', email: 'a@a.com', avatar: '' },
+      include: { shop: true },
     })
   })
 
@@ -153,6 +154,7 @@ describe('UsersService', () => {
 
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: { auth0Sub: 'auth0|1', role: Role.SUPER_ADMIN, name: 'Boss', surname: '', email: 'boss@example.com', avatar: '' },
+        include: { shop: true },
       })
     } finally {
       process.env.SUPER_ADMIN_EMAILS = prevEnv
@@ -169,6 +171,7 @@ describe('UsersService', () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { auth0Sub: 'auth0|1' },
       data: { email: 'a@a.com', avatar: 'pic.jpg' },
+      include: { shop: true },
     })
   })
 
@@ -182,6 +185,7 @@ describe('UsersService', () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { auth0Sub: 'auth0|1' },
       data: { email: 'a@a.com', avatar: '', name: 'Google', surname: 'Name' },
+      include: { shop: true },
     })
   })
 })

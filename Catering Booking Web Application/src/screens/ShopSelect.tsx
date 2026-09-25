@@ -4,7 +4,7 @@ import { api } from '../api'
 import type { ShopPublic } from '../types'
 
 interface ShopSelectProps {
-  onSelect: (shopId: string) => void
+  onSelect: (shop: ShopPublic) => void
 }
 
 /** หน้าแรกสุดของแอป (multi-tenant) — ลูกค้าต้องเลือกร้านก่อนเสมอ ถึงจะเห็นหน้า login/เริ่มจองของร้านนั้นได้
@@ -67,7 +67,7 @@ export default function ShopSelect({ onSelect }: ShopSelectProps) {
               {shops.map(shop => (
                 <button
                   key={shop.id}
-                  onClick={() => onSelect(shop.id)}
+                  onClick={() => onSelect(shop)}
                   className="w-full flex items-center gap-3 border-2 border-gray-100 hover:border-orange-300 hover:bg-orange-50 rounded-2xl py-3.5 px-4 transition-all text-left group"
                 >
                   <div className="w-10 h-10 flex-shrink-0 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">
