@@ -138,52 +138,56 @@ interface CourseLike {
   items?: { id: string; name?: string }[]
 }
 
+/** เทียบเนื้อหาข้อเดียว (ตำแหน่ง no เดียวกัน) ระหว่างก่อน/หลัง — คืน field ที่เปลี่ยนเป็นข้อความ (แยกจาก
+ *  diffCourseList กันฟังก์ชันหลักซับซ้อนเกิน) */
+function diffCourseFields(cb: CourseLike, ca: CourseLike): string[] {
+  const changes: string[] = []
+  if (cb.title !== ca.title) changes.push(`ชื่อข้อ: "${cb.title}" → "${ca.title}"`)
+  if (cb.category !== ca.category) changes.push(`ประเภทอาหาร: ${cb.category} → ${ca.category}`)
+  if (cb.choose !== ca.choose) changes.push(`จำนวนที่ลูกค้าเลือกได้: ${cb.choose} → ${ca.choose}`)
+
+  const itemsB = cb.items ?? []
+  const itemsA = ca.items ?? []
+  const idsB = new Set(itemsB.map(i => i.id))
+  const idsA = new Set(itemsA.map(i => i.id))
+  const nameOf = (id: string) => itemsA.find(i => i.id === id)?.name ?? itemsB.find(i => i.id === id)?.name ?? id
+  const added = [...idsA].filter(id => !idsB.has(id)).map(nameOf)
+  const removed = [...idsB].filter(id => !idsA.has(id)).map(nameOf)
+  if (added.length > 0) changes.push(`เพิ่มเมนู: ${added.join(', ')}`)
+  if (removed.length > 0) changes.push(`ลบเมนู: ${removed.join(', ')}`)
+  return changes
+}
+
+/** เทียบข้อเดียว (ตำแหน่ง no เดียวกัน) ก่อน/หลัง — คืนบรรทัดข้อความอธิบายการเปลี่ยนแปลง หรือ null ถ้าไม่มีอะไรเปลี่ยน
+ *  (แยกออกจาก diffCourseList กันฟังก์ชันหลักซับซ้อนเกิน) */
+function diffCourseLine(cb: CourseLike | undefined, ca: CourseLike | undefined, no: number): string | null {
+  if (cb && !ca) return `ลบข้อ ${no} "${cb.title}" ออกจากแพ็กเกจ`
+  if (!cb && ca) {
+    const itemNames = (ca.items ?? []).map(i => i.name ?? i.id)
+    return itemNames.length > 0
+      ? `เพิ่มข้อใหม่ ${no} "${ca.title}" (${itemNames.length} อย่าง): ${itemNames.join(', ')}`
+      : `เพิ่มข้อใหม่ ${no} "${ca.title}" (ยังไม่มีเมนู)`
+  }
+  if (!cb || !ca) return null
+
+  const changes = diffCourseFields(cb, ca)
+  return changes.length > 0 ? `ข้อ ${no} "${ca.title}" — ${changes.join(' · ')}` : null
+}
+
 /** เทียบ courses ก่อน/หลังทีละข้อ (จับคู่ด้วย "no" = ลำดับข้อ) — คืนเฉพาะข้อที่เปลี่ยนจริง
  *  ไม่เอาข้อที่เหมือนเดิมมาแสดง กันต้องไล่เทียบทั้งรายการเอง */
-function diffCourseList(before: unknown, after: unknown): string[] {
+export function diffCourseList(before: unknown, after: unknown): string[] {
   const b = Array.isArray(before) ? (before as CourseLike[]) : []
   const a = Array.isArray(after) ? (after as CourseLike[]) : []
   const byNoB = new Map(b.map(c => [c.no, c]))
   const byNoA = new Map(a.map(c => [c.no, c]))
   const nos = [...new Set([...byNoB.keys(), ...byNoA.keys()])].sort((x, y) => x - y)
+
   const lines: string[] = []
-
   for (const no of nos) {
-    const cb = byNoB.get(no)
-    const ca = byNoA.get(no)
-    if (cb && !ca) {
-      lines.push(`ลบข้อ ${no} "${cb.title}" ออกจากแพ็กเกจ`)
-      continue
-    }
-    if (!cb && ca) {
-      const itemNames = (ca.items ?? []).map(i => i.name ?? i.id)
-      lines.push(
-        itemNames.length > 0
-          ? `เพิ่มข้อใหม่ ${no} "${ca.title}" (${itemNames.length} อย่าง): ${itemNames.join(', ')}`
-          : `เพิ่มข้อใหม่ ${no} "${ca.title}" (ยังไม่มีเมนู)`
-      )
-      continue
-    }
-    if (!cb || !ca) continue
-
-    const changes: string[] = []
-    if (cb.title !== ca.title) changes.push(`ชื่อข้อ: "${cb.title}" → "${ca.title}"`)
-    if (cb.category !== ca.category) changes.push(`ประเภทอาหาร: ${cb.category} → ${ca.category}`)
-    if (cb.choose !== ca.choose) changes.push(`จำนวนที่ลูกค้าเลือกได้: ${cb.choose} → ${ca.choose}`)
-
-    const itemsB = cb.items ?? []
-    const itemsA = ca.items ?? []
-    const idsB = new Set(itemsB.map(i => i.id))
-    const idsA = new Set(itemsA.map(i => i.id))
-    const nameOf = (id: string) => itemsA.find(i => i.id === id)?.name ?? itemsB.find(i => i.id === id)?.name ?? id
-    const added = [...idsA].filter(id => !idsB.has(id)).map(nameOf)
-    const removed = [...idsB].filter(id => !idsA.has(id)).map(nameOf)
-    if (added.length > 0) changes.push(`เพิ่มเมนู: ${added.join(', ')}`)
-    if (removed.length > 0) changes.push(`ลบเมนู: ${removed.join(', ')}`)
-
-    if (changes.length > 0) lines.push(`ข้อ ${no} "${ca.title}" — ${changes.join(' · ')}`)
+    const line = diffCourseLine(byNoB.get(no), byNoA.get(no), no)
+    if (line) lines.push(line)
   }
-
   return lines
 }
 
@@ -259,17 +263,35 @@ const formatDateValue = (value: unknown) => {
     : d.toLocaleString('th-TH', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-/** แปลงค่า raw ให้อ่านง่ายตามชนิด/ความหมายของฟิลด์ */
-function formatFieldValue(key: string, value: unknown): string {
-  if (COMPLEX_FIELD_SUMMARY[key]) return value == null ? '— (ว่าง)' : COMPLEX_FIELD_SUMMARY[key](value)
-  if (value == null || value === '') return '— (ว่าง)'
+/** ฟิลด์ที่มีค่าคงที่/ป้ายกำกับตรงๆ ตาม key (ไม่ขึ้นกับ type ของ value) — คืน null ถ้า key นี้ไม่เข้าเงื่อนไขพิเศษใดๆ
+ *  (แยกออกจาก formatFieldValue กันฟังก์ชันหลักซับซ้อนเกิน) */
+function formatFieldValueByKey(key: string, value: unknown): string | null {
   if (key === 'deletedAt') return `ถูกลบเมื่อ ${formatDateValue(value)}`
   if (key === 'role') return value === 'OWNER' ? 'เจ้าของร้าน' : 'ลูกค้า'
   if (key === 'status') return BOOKING_STATUS_LABEL[value as string] ?? String(value)
-  if (typeof value === 'boolean' && key === 'active') return value ? 'เปิดขาย' : 'ปิดขาย'
-  if (typeof value === 'boolean') return value ? 'ใช่' : 'ไม่ใช่'
-  if (key === 'depositRate' && typeof value === 'number') return `${Math.round(value * 100)}%`
-  if (typeof value === 'number') return PRICE_FIELDS.has(key) ? `${value.toLocaleString('th-TH')} บาท` : value.toLocaleString('th-TH')
+  return null
+}
+
+/** ฟิลด์ตัวเลข (รวม boolean/depositRate/ราคา) — คืน null ถ้า value ไม่ใช่ number/boolean
+ *  (แยกออกจาก formatFieldValue กันฟังก์ชันหลักซับซ้อนเกิน) */
+function formatNumericFieldValue(key: string, value: unknown): string | null {
+  if (typeof value === 'boolean') return key === 'active' ? (value ? 'เปิดขาย' : 'ปิดขาย') : (value ? 'ใช่' : 'ไม่ใช่')
+  if (typeof value !== 'number') return null
+  if (key === 'depositRate') return `${Math.round(value * 100)}%`
+  return PRICE_FIELDS.has(key) ? `${value.toLocaleString('th-TH')} บาท` : value.toLocaleString('th-TH')
+}
+
+/** แปลงค่า raw ให้อ่านง่ายตามชนิด/ความหมายของฟิลด์ */
+export function formatFieldValue(key: string, value: unknown): string {
+  if (COMPLEX_FIELD_SUMMARY[key]) return value == null ? '— (ว่าง)' : COMPLEX_FIELD_SUMMARY[key](value)
+  if (value == null || value === '') return '— (ว่าง)'
+
+  const byKey = formatFieldValueByKey(key, value)
+  if (byKey !== null) return byKey
+
+  const numeric = formatNumericFieldValue(key, value)
+  if (numeric !== null) return numeric
+
   if (isPlainStringArray(value)) return value.length > 0 ? value.join(', ') : '— (ว่าง)'
   if (typeof value === 'object') return 'มีการเปลี่ยนแปลง (รายละเอียดซับซ้อน)'
   return String(value)
