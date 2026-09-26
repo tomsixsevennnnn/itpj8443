@@ -78,6 +78,7 @@ const OWNER_SCREENS: Screen[] = [
 
 /** เก็บ per-browser — ร้านที่ลูกค้าเลือกไว้ล่าสุด กันต้องเลือกร้านซ้ำทุกครั้งที่กลับมาเปิดแอป (multi-tenant) */
 const SELECTED_SHOP_KEY = 'selectedShopId'
+const SELECTED_SHOP_SLUG_KEY = 'selectedShopSlug'
 
 /** 6 ขั้นตอนการจอง — ออกจากช่วงนี้ไปหน้าอื่นผ่านแถบเมนูด้านบน (หน้าแรก/ประวัติการจอง) แล้วกลับมาต้องเริ่มเลือกใหม่ ไม่ resume ของเดิม */
 const BOOKING_FLOW_SCREENS: Screen[] = [
@@ -151,9 +152,18 @@ export default function App() {
 
   // ร้านที่ลูกค้าเลือกไว้ (multi-tenant) — ต้องเลือกก่อนถึงจะ login/จองได้ owner/super admin ไม่ใช้ค่านี้เลย
   // เพราะ backend resolve ร้านของ owner เองจาก JWT อยู่แล้ว จำไว้ใน localStorage กันต้องเลือกซ้ำทุกครั้งที่เปิดแอป
+  // เก็บ slug คู่กับ id ไว้ด้วย (ไม่ได้ใช้ยิง API ไหนเลย แค่เอาไว้ sync URL กลับให้ตรงร้านที่เลือกไว้จริง เผื่อ URL
+  // เพี้ยนไป เช่น ลูกค้าพิมพ์ path ร้านอื่นเข้ามาเองขณะที่ยัง login ค้างอยู่ — ดู bootstrap load effect ด้านล่าง)
   const [selectedShopId, setSelectedShopId] = useState<string | null>(() => {
     try {
       return localStorage.getItem(SELECTED_SHOP_KEY)
+    } catch {
+      return null
+    }
+  })
+  const [selectedShopSlug, setSelectedShopSlug] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(SELECTED_SHOP_SLUG_KEY)
     } catch {
       return null
     }
@@ -162,8 +172,10 @@ export default function App() {
    *  /{slug} ด้วย ให้ก็อปปี้ลิงก์ตรงร้านนั้นไปแชร์ต่อได้เลย (ดู resolveShopFromUrl effect ด้านล่าง) */
   const handleSelectShop = (shop: ShopPublic) => {
     setSelectedShopId(shop.id)
+    setSelectedShopSlug(shop.slug)
     try {
       localStorage.setItem(SELECTED_SHOP_KEY, shop.id)
+      localStorage.setItem(SELECTED_SHOP_SLUG_KEY, shop.slug)
     } catch {
       // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode) — แค่ต้องเลือกร้านใหม่ทุกครั้งที่เปิดแอป
     }
@@ -177,8 +189,10 @@ export default function App() {
   /** กด "เปลี่ยนร้าน" ที่หน้า login — เคลียร์ทั้ง state, localStorage และ URL กันเผลอค้างร้านเดิมไว้ */
   const handleChangeShop = () => {
     setSelectedShopId(null)
+    setSelectedShopSlug(null)
     try {
       localStorage.removeItem(SELECTED_SHOP_KEY)
+      localStorage.removeItem(SELECTED_SHOP_SLUG_KEY)
     } catch {
       // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้
     }
@@ -291,11 +305,13 @@ export default function App() {
         }
 
         const shopId = me.role === 'OWNER' ? me.shopId : selectedShopId
-        // owner login ตรงๆ ไม่ผ่านหน้าเลือกร้าน (ไม่มี selectedShopId ของตัวเอง) — sync URL ให้ตรงร้านของตัวเอง
-        // แทน (replaceState กันปนกับ URL ร้านลูกค้าที่อาจค้างอยู่ก่อนกด "เข้าระบบในฐานะเจ้าของร้าน")
-        if (me.role === 'OWNER' && me.shop?.slug) {
+        // sync URL ให้ตรงกับร้านของ session ปัจจุบันเสมอ (owner = ร้านตัวเองจาก JWT, customer = ร้านที่เลือกไว้
+        // จาก selectedShopSlug) — กันเคส login ค้างอยู่แล้วมีใครพิมพ์ path ร้านอื่นเข้ามาเอง (เช่น URL ค้างจากตอน
+        // ยังไม่ login, หรือแก้ URL มือ) ให้ดีดกลับมาร้านของ session นี้เสมอ ไม่ใช่ปล่อยให้ URL ค้างผิดร้านไว้
+        const slugToSync = me.role === 'OWNER' ? me.shop?.slug : selectedShopSlug
+        if (slugToSync) {
           try {
-            window.history.replaceState(null, '', `/${me.shop.slug}`)
+            window.history.replaceState(null, '', `/${slugToSync}`)
           } catch {
             // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
           }
@@ -335,7 +351,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, getAccessTokenSilently, auth0User, retryKey, selectedShopId])
+  }, [isAuthenticated, getAccessTokenSilently, auth0User, retryKey, selectedShopId, selectedShopSlug])
 
   const withToken = () => getAccessTokenSilently()
 
