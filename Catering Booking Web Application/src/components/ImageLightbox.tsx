@@ -16,6 +16,12 @@ export default function ImageLightbox({ src, alt, fileName = 'image.jpg', onClos
     <div
       className={`fixed inset-0 bg-black/80 ${zIndexClass} flex items-center justify-center p-4`}
       onClick={onClose}
+      // ปุ่มปิด/ดาวน์โหลดข้างในเป็นปุ่มจริงอยู่แล้ว (tab ไปกดได้ปกติ) — ช่องทางคีย์บอร์ดของ div นี้เองคือ Escape
+      // ปิดจาก event bubble ขึ้นมาจากลูกที่ focus อยู่ (ไม่ใส่ role/tabIndex ตรงนี้เพราะข้างในมี <a>/<button>
+      // ซ้อนอยู่แล้ว การทำ div นี้เป็น interactive element เองจะผิด a11y ซ้อน control ในปุ่มเดียวกัน)
+      onKeyDown={e => {
+        if (e.key === 'Escape') onClose()
+      }}
     >
       <div className="absolute top-4 right-4 flex items-center gap-2">
         <a
@@ -35,7 +41,13 @@ export default function ImageLightbox({ src, alt, fileName = 'image.jpg', onClos
           <X size={18} />
         </button>
       </div>
-      <img src={src} alt={alt} className="max-w-full max-h-full object-contain rounded-xl" onClick={e => e.stopPropagation()} />
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-full max-h-full object-contain rounded-xl"
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
+      />
     </div>
   )
 }

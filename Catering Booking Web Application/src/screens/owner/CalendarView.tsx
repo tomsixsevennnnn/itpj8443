@@ -163,10 +163,24 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
             const isToday = day && year === today.getFullYear() && month === today.getMonth() && day === today.getDate()
             const dow = idx % 7
 
+            const clickable = !!day && events.length > 0
             return (
               <div
                 key={idx}
                 onClick={() => openDay(dateKey, events)}
+                // tab ไปได้เฉพาะวันที่กดแล้วมีผลจริง (มีงาน) — วันว่าง/ช่องเปล่าไม่ต้องแทรกใน tab order ให้รก
+                role={clickable ? 'button' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                onKeyDown={
+                  clickable
+                    ? e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          openDay(dateKey, events)
+                        }
+                      }
+                    : undefined
+                }
                 className={`min-h-[118px] p-2 border-b border-r border-gray-50 ${
                   !day ? 'bg-gray-50/50' : events.length > 0
                     ? 'hover:bg-orange-50/40 transition-colors cursor-pointer'
@@ -232,8 +246,15 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setDayPopupDate(null)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') setDayPopupDate(null)
+          }}
         >
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+          >
             <div className="p-5 flex items-start justify-between bg-gray-50">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -280,8 +301,15 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
         <div
           className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={closeDetail}
+          onKeyDown={e => {
+            if (e.key === 'Escape') closeDetail()
+          }}
         >
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-sm sm:max-w-md overflow-hidden"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+          >
             <div className={`p-5 flex items-start justify-between ${BOOKING_STATUS_INFO[popup.status].chip}`}>
               <div className="flex items-center gap-2 min-w-0">
                 {dayPopupDate && (

@@ -345,7 +345,13 @@ export default function SelectLocation({
         </div>
 
         {/* Map + details */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden" onClick={() => setShowResults(false)}>
+        <div
+          className="flex-1 flex flex-col lg:flex-row overflow-hidden"
+          onClick={() => setShowResults(false)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') setShowResults(false)
+          }}
+        >
           <LocationMap
             ref={mapRef}
             position={pos}

@@ -89,7 +89,12 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
   return (
     <div className="flex h-screen bg-gray-50">
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <button
+          type="button"
+          aria-label="ปิดเมนู"
+          className="fixed inset-0 bg-black/40 z-40 lg:hidden cursor-default"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
       {/* Sidebar */}
@@ -199,7 +204,12 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Owner
               {notifOpen && (
                 <>
                   {/* คลิกนอกกล่องเพื่อปิด */}
-                  <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                  <button
+                    type="button"
+                    aria-label="ปิดการแจ้งเตือน"
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setNotifOpen(false)}
+                  />
                   <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-2xl border border-gray-100 shadow-xl z-50 overflow-hidden">
                     <div className="px-4 py-3 border-b border-gray-100">
                       <p className="text-sm font-bold text-gray-900">การแจ้งเตือน</p>

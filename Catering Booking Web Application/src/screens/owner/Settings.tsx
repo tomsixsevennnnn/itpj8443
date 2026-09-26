@@ -199,7 +199,9 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
       setNewClosedDate('')
       return
     }
-    setForm(f => ({ ...f, closedDates: [...f.closedDates, newClosedDate].sort() }))
+    // รูปแบบ "YYYY-MM-DD" เรียง lexicographic ตรงกับเรียงตามเวลาจริงพอดีอยู่แล้ว แต่ระบุ compare function ตรงๆ
+    // กันเข้าใจผิดว่าเรียงตาม locale ของเครื่องผู้ใช้ (sort() เปล่าๆ ใช้ default string compare ไม่ใช่ locale-aware)
+    setForm(f => ({ ...f, closedDates: [...f.closedDates, newClosedDate].sort((a, b) => a.localeCompare(b)) }))
     setNewClosedDate('')
     setSavedAt(null)
   }

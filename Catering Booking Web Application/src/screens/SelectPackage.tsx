@@ -42,6 +42,14 @@ export default function SelectPackage({ packages, tables, selectedPackageId, onS
               <div
                 key={pkg.id}
                 onClick={() => onSelectPackage(pkg)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelectPackage(pkg)
+                  }
+                }}
                 className={`relative bg-white rounded-3xl border-2 shadow-sm cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 ${
                   isSelected ? `border-orange-500 shadow-xl shadow-orange-100 -translate-y-1` : 'border-gray-100'
                 }`}

@@ -63,6 +63,14 @@ export default function Documents({ bookings, menus, settings }: DocumentsProps)
                   key={b.id}
                   className={`p-4 hover:bg-orange-50/30 transition-colors cursor-pointer ${previewBooking?.id === b.id ? 'bg-orange-50' : ''}`}
                   onClick={() => setPreviewBooking(b)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setPreviewBooking(b)
+                    }
+                  }}
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
