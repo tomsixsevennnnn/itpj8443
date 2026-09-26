@@ -314,7 +314,7 @@ export default function Packages({
                   ].map(({ key, label, placeholder }) => (
                     <div key={key}>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            {label}
+            <span>{label}</span>
             <input
                         type="text"
                         placeholder={placeholder}
@@ -327,7 +327,7 @@ export default function Packages({
                   ))}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ราคา/โต๊ะ (฿)
+            <span>ราคา/โต๊ะ (฿)</span>
             <input
                       type="number"
                       value={form.pricePerTable}
@@ -428,7 +428,7 @@ export default function Packages({
                               {/* ตั้งค่าข้อ */}
                               <div>
                                 <label className="block text-[10px] text-gray-400 mb-1">
-                                  ประเภทอาหาร
+                                  <span>ประเภทอาหาร</span>
                                   <select
                                     value={course.category}
                                     onChange={e => {
@@ -450,7 +450,7 @@ export default function Packages({
                               <div className="grid grid-cols-[3.5rem_1fr] gap-2">
                                 <div>
                                   <label className="block text-[10px] text-gray-400 mb-1">
-            ไอคอน
+            <span>ไอคอน</span>
             <input
                                     type="text"
                                     value={course.icon ?? ''}
@@ -462,7 +462,7 @@ export default function Packages({
                                 </div>
                                 <div>
                                   <label className="block text-[10px] text-gray-400 mb-1">
-            ชื่อข้อที่แสดง
+            <span>ชื่อข้อที่แสดง</span>
             <input
                                     type="text"
                                     value={course.title}

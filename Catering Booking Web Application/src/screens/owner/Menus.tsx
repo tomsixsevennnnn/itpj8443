@@ -351,7 +351,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  ประเภทอาหาร
+                  <span>ประเภทอาหาร</span>
                   <select
                     value={form.category}
                     onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
@@ -366,7 +366,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  คำอธิบาย
+                  <span>คำอธิบาย</span>
                   <textarea
                     rows={2}
                     value={form.description}
@@ -379,7 +379,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ราคาทุนต่อจาน (฿)
+            <span>ราคาทุนต่อจาน (฿)</span>
             <input
                   type="number"
                   min="0"
@@ -393,7 +393,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
               {/* รูปภาพเมนู — เลือกไฟล์จากเครื่อง */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            รูปภาพเมนู
+            <span>รูปภาพเมนู</span>
             <input
                   ref={fileInputRef}
                   type="file"

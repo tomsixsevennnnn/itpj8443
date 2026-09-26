@@ -414,7 +414,7 @@ export default function Orders({
                     {/* หมายเหตุ */}
                     <div className="mt-3">
                       <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                        หมายเหตุ
+                        <span>หมายเหตุ</span>
                         <textarea
                           value={noteDraft}
                           onChange={e => setNoteDraft(e.target.value)}

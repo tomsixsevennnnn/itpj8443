@@ -188,7 +188,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
 
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ป้ายข้อความเล็ก (เหนือหัวข้อ)
+            <span>ป้ายข้อความเล็ก (เหนือหัวข้อ)</span>
             <input
             type="text"
             value={form.homeContent.heroBadge}
@@ -201,7 +201,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
         <div className="grid sm:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            หัวข้อหลัก
+            <span>หัวข้อหลัก</span>
             <input
               type="text"
               value={form.homeContent.heroTitle}
@@ -212,7 +212,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            หัวข้อ (สีส้ม บรรทัดที่ 2)
+            <span>หัวข้อ (สีส้ม บรรทัดที่ 2)</span>
             <input
               type="text"
               value={form.homeContent.heroTitleHighlight}
@@ -225,7 +225,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            คำโปรย
+            <span>คำโปรย</span>
             <textarea
               value={form.homeContent.heroDescription}
               rows={2}
@@ -370,7 +370,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
         <p className="text-xs text-gray-400 mb-4">แถบชวนจองสีส้มท้ายหน้าแรก ก่อนถึง footer</p>
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            หัวข้อ
+            <span>หัวข้อ</span>
             <input
             type="text"
             value={form.homeContent.ctaTitle}
@@ -381,7 +381,7 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            คำโปรย
+            <span>คำโปรย</span>
             <textarea
               value={form.homeContent.ctaDescription}
               rows={2}

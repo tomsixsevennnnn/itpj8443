@@ -382,7 +382,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
 
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            โลโก้ร้าน
+            <span>โลโก้ร้าน</span>
             <input
               ref={logoInputRef}
               type="file"
@@ -432,7 +432,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           {SHOP_FIELDS.map(({ key, label, placeholder }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            {label}
+            <span>{label}</span>
             <input
                 type="text"
                 value={form.shopInfo[key]}
@@ -447,7 +447,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
 
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ที่อยู่ร้าน
+            <span>ที่อยู่ร้าน</span>
             <textarea
               value={form.shopInfo.address}
               placeholder="เช่น อ.เมืองนครปฐม จ.นครปฐม 73000"
@@ -460,7 +460,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
 
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            คำโปรยหน้า Login
+            <span>คำโปรยหน้า Login</span>
             <input
             type="text"
             value={form.shopInfo.loginTagline}
@@ -545,7 +545,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           {BANK_FIELDS.map(({ key, label, placeholder }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            {label}
+            <span>{label}</span>
             <input
                 type="text"
                 value={form.shopInfo[key]}
@@ -575,7 +575,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           <div className="grid sm:grid-cols-2 gap-4 mt-3 max-w-md">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-            ชื่อ
+            <span>ชื่อ</span>
             <input
                 type="text"
                 value={form.shopInfo.promptPayFirstName}
@@ -587,7 +587,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-            นามสกุล
+            <span>นามสกุล</span>
             <input
                 type="text"
                 value={form.shopInfo.promptPayLastName}
@@ -618,7 +618,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           <div className="grid sm:grid-cols-2 gap-4 mb-3 max-w-md">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-            ชื่อ
+            <span>ชื่อ</span>
             <input
                 type="text"
                 value={form.shopInfo.promptPayQrFirstName}
@@ -630,7 +630,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
-            นามสกุล
+            <span>นามสกุล</span>
             <input
                 type="text"
                 value={form.shopInfo.promptPayQrLastName}
@@ -752,7 +752,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            SlipOK Branch ID
+            <span>SlipOK Branch ID</span>
             <input
               type="text"
               value={form.slipOkBranchId}
@@ -809,7 +809,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
 
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)
+            <span>จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)</span>
             <input
             type="text"
             value={form.homeProvince}
@@ -826,7 +826,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ค่าขนส่ง (บาท)
+            <span>ค่าขนส่ง (บาท)</span>
             <input
               type="number"
               min={0}
@@ -838,7 +838,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            จำนวนโต๊ะขั้นต่ำนอกพื้นที่ร้าน
+            <span>จำนวนโต๊ะขั้นต่ำนอกพื้นที่ร้าน</span>
             <input
               type="number"
               min={1}
@@ -961,7 +961,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
 
         <div className="max-w-[220px]">
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            ค่าน้ำมัน (บาท/กิโลเมตร)
+            <span>ค่าน้ำมัน (บาท/กิโลเมตร)</span>
             <input
             type="number"
             min={0}
@@ -1057,7 +1057,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           ).map(({ key, label }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            {label}
+            <span>{label}</span>
             <input
                 type="text"
                 value={form.timeSlotHours[key]}
