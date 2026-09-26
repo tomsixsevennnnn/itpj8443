@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  AlertTriangle,
   Check,
   History,
   Loader2,
@@ -13,6 +14,7 @@ import {
   ShieldCheck,
   ShieldOff,
   Store,
+  Trash2,
   UserMinus,
   UserPlus,
   Users,
@@ -31,6 +33,7 @@ interface SuperAdminProps {
   onAddOwner: (id: string, email: string) => Promise<void>
   onRemoveOwner: (shopId: string, userId: string) => Promise<void>
   onUpdateShop: (id: string, input: { name: string; slug?: string }) => Promise<void>
+  onDeleteShop: (id: string, confirmName: string) => Promise<void>
   onSearchUser: (email: string) => Promise<BackendUser[]>
   onSetSuperAdmin: (userId: string, isSuperAdmin: boolean) => Promise<void>
   onFetchAuditPage: (page: number, pageSize: number) => Promise<AuditLogPage>
@@ -49,6 +52,7 @@ export default function SuperAdmin({
   onAddOwner,
   onRemoveOwner,
   onUpdateShop,
+  onDeleteShop,
   onSearchUser,
   onSetSuperAdmin,
   onFetchAuditPage,
@@ -72,6 +76,11 @@ export default function SuperAdmin({
   const [renameValue, setRenameValue] = useState('')
   const [renameSlugValue, setRenameSlugValue] = useState('')
   const [renaming, setRenaming] = useState(false)
+
+  // ลบร้านถาวร — เหมือนหน้า delete repo ของ GitHub ต้องพิมพ์ "Delete {ชื่อร้าน}" ให้ตรงเป๊ะก่อนปุ่มยืนยันถึงจะกดได้
+  const [deleteTarget, setDeleteTarget] = useState<ShopAdmin | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const handleCreate = async () => {
     if (!newName.trim() || !newOwnerEmail.trim() || creating) return
@@ -136,6 +145,19 @@ export default function SuperAdmin({
       setRenamingId(null)
     } finally {
       setRenaming(false)
+    }
+  }
+
+  const deleteExpectedText = deleteTarget ? `Delete ${deleteTarget.name}` : ''
+  const handleDelete = async () => {
+    if (!deleteTarget || deleteConfirmText !== deleteExpectedText || deleting) return
+    setDeleting(true)
+    try {
+      await onDeleteShop(deleteTarget.id, deleteTarget.name)
+      setDeleteTarget(null)
+      setDeleteConfirmText('')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -367,6 +389,16 @@ export default function SuperAdmin({
                           <UserPlus size={12} />
                           เพิ่ม owner
                         </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTarget(shop)
+                            setDeleteConfirmText('')
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-colors ml-auto"
+                        >
+                          <Trash2 size={12} />
+                          ลบร้านถาวร
+                        </button>
                       </div>
 
                       {addOwnerFor === shop.id && (
@@ -400,6 +432,58 @@ export default function SuperAdmin({
 
         {tab === 'audit' && <AuditLog onFetchPage={onFetchAuditPage} refreshSignal={auditRefreshSignal} />}
       </div>
+
+      {/* ยืนยันลบร้านถาวร — เหมือนหน้า delete repo ของ GitHub ต้องพิมพ์ "Delete {ชื่อร้าน}" ให้ตรงเป๊ะก่อนถึงจะกดลบได้ */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-3 text-red-600">
+                <AlertTriangle size={20} />
+                <h3 className="text-lg font-bold text-gray-900">ลบร้าน "{deleteTarget.name}" ถาวร?</h3>
+              </div>
+              <div className="bg-red-50 border border-red-100 rounded-xl p-3 mb-4">
+                <p className="text-sm text-red-700 font-medium mb-1.5">การกระทำนี้ย้อนกลับไม่ได้</p>
+                <ul className="text-xs text-red-600 space-y-0.5 list-disc list-inside">
+                  <li>ใบจองทั้งหมด {(deleteTarget._count?.bookings ?? 0).toLocaleString()} รายการของร้านนี้จะถูกลบถาวร</li>
+                  <li>เมนู แพ็กเกจ และค่าตั้งค่าของร้านนี้จะถูกลบถาวร</li>
+                  <li>เจ้าของร้าน {deleteTarget._count?.owners ?? 0} คนจะถูกถอดสิทธิ์กลับเป็นลูกค้าธรรมดา</li>
+                  <li>ลิงก์ร้าน /{deleteTarget.slug} จะใช้งานไม่ได้อีกต่อไป</li>
+                </ul>
+              </div>
+              <p className="text-sm text-gray-600 mb-2">
+                พิมพ์ <span className="font-mono font-semibold text-gray-900">Delete {deleteTarget.name}</span> เพื่อยืนยัน
+              </p>
+              <input
+                autoFocus
+                type="text"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleDelete()}
+                placeholder={deleteExpectedText}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400 mb-4"
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleting}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 rounded-2xl py-3 font-semibold text-sm transition-colors"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteConfirmText !== deleteExpectedText || deleting}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-red-200 text-white rounded-2xl py-3 font-semibold text-sm transition-colors"
+                >
+                  {deleting && <Loader2 size={14} className="animate-spin" />}
+                  {deleting ? 'กำลังลบ...' : 'ลบร้านถาวร'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
 import { AddOwnerDto } from './dto/add-owner.dto'
 import { CreateShopDto } from './dto/create-shop.dto'
+import { DeleteShopDto } from './dto/delete-shop.dto'
 import { SetShopStatusDto } from './dto/set-shop-status.dto'
 import { UpdateShopDto } from './dto/update-shop.dto'
 import { ShopsService } from './shops.service'
@@ -65,5 +66,13 @@ export class ShopsController {
   @Delete(':id/owners/:userId')
   removeOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Param('userId') userId: string) {
     return this.shops.removeOwner(id, userId, jwtUser.sub)
+  }
+
+  /** ลบร้านถาวร — ต้องพิมพ์ชื่อร้านมายืนยันตรงตัวเป๊ะใน body เท่านั้นถึงจะลบได้ (ดู ShopsService.deleteShop) */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Delete(':id')
+  delete(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: DeleteShopDto) {
+    return this.shops.deleteShop(id, dto.confirmName, jwtUser.sub)
   }
 }

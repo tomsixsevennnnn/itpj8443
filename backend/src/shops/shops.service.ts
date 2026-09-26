@@ -154,4 +154,29 @@ export class ShopsService {
     await this.audit.log(editorAuth0Sub, 'shop.removeOwner', 'Shop', shopId, { userId, email: user.email }, undefined, shopId)
     return after
   }
+
+  /**
+   * ลบร้านถาวร — ทำลายข้อมูลจริงของร้านนี้ทั้งหมด (booking/เมนู/แพ็กเกจ/settings/audit log ผูก onDelete: Cascade
+   * ไว้ที่ Shop อยู่แล้วในระดับ DB) กู้คืนไม่ได้ จึงบังคับให้พิมพ์ชื่อร้านมายืนยันตรงตัวเป๊ะก่อนเสมอ (เช็คซ้ำฝั่ง
+   * backend ด้วย ไม่ไว้ใจแค่ฝั่ง frontend เพราะเรียก API ตรงๆ ข้าม UI ได้อยู่ดี) — owner ของร้านนี้ถูกถอดสิทธิ์กลับ
+   * เป็น CUSTOMER ธรรมดาก่อนลบเสมอ (ไม่งั้นจะเหลือ user ที่ role=OWNER แต่ shopId เป็น null ค้างอยู่ ซึ่งเป็นสถานะ
+   * ที่ระบบไม่ควรมี — ทุกจุดอื่นถือว่า OWNER ต้องมี shopId เสมอ)
+   */
+  async deleteShop(id: string, confirmName: string, editorAuth0Sub: string) {
+    const shop = await this.prisma.shop.findUnique({ where: { id } })
+    if (!shop) throw new NotFoundException('ไม่พบร้านนี้')
+    if (confirmName !== shop.name) {
+      throw new BadRequestException('ข้อความยืนยันไม่ตรงกับชื่อร้าน กรุณาพิมพ์ให้ตรงตัวเป๊ะ')
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.updateMany({ where: { shopId: id }, data: { role: Role.CUSTOMER, shopId: null } }),
+      this.prisma.shop.delete({ where: { id } }),
+    ])
+
+    // shopId ต้องเป็น null เท่านั้น (ไม่ใช่ id ร้านที่เพิ่งลบไป) — AuditLog.shopId ผูก onDelete: Cascade กับ Shop
+    // ไว้ด้วย ถ้าใส่ id ร้านที่ลบไปแล้ว ประวัติการลบนี้เองจะถูก cascade ลบตามไปทันที ไม่เหลือหลักฐานอะไรเลย
+    await this.audit.log(editorAuth0Sub, 'shop.delete', 'Shop', id, shop, undefined, null)
+    return { id }
+  }
 }

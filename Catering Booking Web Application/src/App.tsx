@@ -1036,6 +1036,14 @@ export default function App() {
               setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
             })
           }
+          onDeleteShop={(id, confirmName) =>
+            runAction(async () => {
+              const token = await withToken()
+              await api.deleteShop(token, id, confirmName)
+              setShopsAdmin(prev => prev.filter(s => s.id !== id))
+              setOwnersAdmin(await api.listOwners(token))
+            })
+          }
           onSearchUser={(email) => withToken().then(token => api.searchUsers(token, email))}
           onSetSuperAdmin={(userId, isSuperAdmin) =>
             runAction(async () => {

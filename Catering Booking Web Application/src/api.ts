@@ -527,4 +527,8 @@ export const api = {
   /** ถอด owner ออกจากร้าน (กลับไปเป็นลูกค้าธรรมดา) */
   removeShopOwner: (token: string, id: string, userId: string) =>
     request<BackendUser>(token, `/shops/${id}/owners/${userId}`, { method: 'DELETE' }),
+
+  /** ลบร้านถาวร — confirmName ต้องตรงกับชื่อร้านเป๊ะ (เหมือน GitHub delete repo) backend เช็คซ้ำอีกชั้นด้วย */
+  deleteShop: (token: string, id: string, confirmName: string) =>
+    request<{ id: string }>(token, `/shops/${id}`, { method: 'DELETE', body: JSON.stringify({ confirmName }) }),
 }
