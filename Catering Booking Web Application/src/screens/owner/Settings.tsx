@@ -6,6 +6,8 @@ import {
   CalendarOff,
   Check,
   Clock,
+  Eye,
+  EyeOff,
   FileText,
   Fuel,
   ListOrdered,
@@ -100,6 +102,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [testingSlipOk, setTestingSlipOk] = useState(false)
   const [slipOkTestResult, setSlipOkTestResult] = useState<{ ok: boolean; quota?: number; message?: string } | null>(null)
+  const [showSlipOkKey, setShowSlipOkKey] = useState(false)
 
   // settings prop เปลี่ยนได้เองจาก polling (คนอื่นแก้ที่เครื่องอื่น) — sync form ตามให้ถ้ายังไม่ได้แก้อะไรค้างไว้
   // (เทียบกับค่า settings "ก่อนหน้า" ไม่ใช่ค่าล่าสุด กัน false positive ตอนกำลังจะเปลี่ยนพอดี)
@@ -695,13 +698,23 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK API key</label>
-            <input
-              type="password"
-              value={form.slipOkApiKey}
-              placeholder="เช่น SLIPOKXXXXXXXXXXXX"
-              onChange={e => setForm(f => ({ ...f, slipOkApiKey: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-            />
+            <div className="relative">
+              <input
+                type={showSlipOkKey ? 'text' : 'password'}
+                value={form.slipOkApiKey}
+                placeholder="เช่น SLIPOKXXXXXXXXXXXX"
+                onChange={e => setForm(f => ({ ...f, slipOkApiKey: e.target.value }))}
+                className="w-full border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSlipOkKey(v => !v)}
+                aria-label={showSlipOkKey ? 'ซ่อน API key' : 'แสดง API key'}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                {showSlipOkKey ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK Branch ID</label>
