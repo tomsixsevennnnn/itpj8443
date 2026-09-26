@@ -605,6 +605,23 @@ export default function App() {
     else if (topic === 'catalog') refetchCatalog()
     else if (topic === 'audit') setAuditRefreshSignal(v => v + 1)
     else if (topic === 'users') setUsersRefreshSignal(v => v + 1)
+    else if (topic === 'shop') {
+      // ร้าน (ชื่อ/slug/สถานะ/owner) ถูกแก้ไข/ลบที่ไหนก็ตามในระบบ — ใครก็ตามที่เปิดหน้าอยู่ตอนนั้นต้องเห็นผล
+      // ทันที ไม่ใช่แค่คนที่กดเอง: super admin เห็นทุกร้านอยู่แล้ว refetch รายชื่อร้าน/owner ตรงๆ พอ ส่วน
+      // owner/customer ต้อง sync role/shopId ใหม่ทั้งชุด (เผื่อร้านตัวเองถูกลบ/ระงับ/เปลี่ยนชื่อ/เปลี่ยน owner)
+      // ใช้ retryKey บังคับให้ bootstrap load effect ด้านบนรันใหม่ทั้งหมดเหมือนกดปุ่ม "ลองใหม่" เอง
+      if (backendUser?.role === 'SUPER_ADMIN') {
+        withToken()
+          .then(token => Promise.all([api.shopsList(token), api.listOwners(token)]))
+          .then(([shops, owners]) => {
+            setShopsAdmin(shops)
+            setOwnersAdmin(owners)
+          })
+          .catch(() => {})
+      } else {
+        setRetryKey(v => v + 1)
+      }
+    }
   })
 
   // fallback poll ห่างๆ เผื่อ SSE เชื่อมต่อไม่ได้ — เช็ค dataLoaded กันยิง request ซ้อนกับตอนโหลดครั้งแรกที่ยังไม่เสร็จ

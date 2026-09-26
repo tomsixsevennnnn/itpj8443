@@ -4,7 +4,7 @@ import { appStreamUrl } from './api'
 /** ต่อ connection ใหม่ทุกช่วงนี้ด้วย token สดจาก getToken() — เหตุผลเดียวกับ useBookingsStream.ts */
 const REOPEN_MS = 10 * 60_000
 
-export type AppChangeTopic = 'settings' | 'catalog' | 'users' | 'audit'
+export type AppChangeTopic = 'settings' | 'catalog' | 'users' | 'audit' | 'shop'
 
 /**
  * เปิด SSE ฟังสัญญาณ "มีการเปลี่ยนแปลง" ของหัวข้ออื่นนอกจาก bookings (settings/เมนู-แพ็กเกจ/สิทธิ์ผู้ใช้/ประวัติ
@@ -27,7 +27,13 @@ export function useAppStream(enabled: boolean, getToken: () => Promise<string>, 
           if (cancelled) return
           source = new EventSource(appStreamUrl(token))
           source.onmessage = event => {
-            if (event.data === 'settings' || event.data === 'catalog' || event.data === 'users' || event.data === 'audit') {
+            if (
+              event.data === 'settings' ||
+              event.data === 'catalog' ||
+              event.data === 'users' ||
+              event.data === 'audit' ||
+              event.data === 'shop'
+            ) {
               onChangedRef.current(event.data)
             }
           }

@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common'
 import { Subject } from 'rxjs'
 
 /** หัวข้อที่ไม่ใช่ bookings (มี stream แยกของตัวเองอยู่แล้ว) — รวมกันช่องเดียวเพราะฝั่ง frontend ฟังจากจุดเดียว
- *  ใน App.tsx เป็นหลัก (settings/catalog) ส่วน audit/users ใช้ตอนเปิดหน้านั้นๆ ค้างไว้เท่านั้น */
-export type AppChangeTopic = 'settings' | 'catalog' | 'users' | 'audit'
+ *  ใน App.tsx เป็นหลัก (settings/catalog/shop) ส่วน audit/users ใช้ตอนเปิดหน้านั้นๆ ค้างไว้เท่านั้น —
+ *  'shop' คือร้าน (ชื่อ/slug/สถานะ/owner) เปลี่ยน ต่างจาก 'settings' ที่เป็นค่าตั้งค่าภายในร้านเดียว */
+export type AppChangeTopic = 'settings' | 'catalog' | 'users' | 'audit' | 'shop'
 
 /**
  * ส่งสัญญาณ "มีการเปลี่ยนแปลงข้อมูล" ผ่าน SSE (ดู realtime.controller.ts) ให้ client ที่เปิดหน้าค้างไว้รู้ทันที

@@ -10,6 +10,7 @@ const ENTITY_TOPIC: Record<string, AppChangeTopic> = {
   Package: 'catalog',
   MenuItem: 'catalog',
   User: 'users',
+  Shop: 'shop',
 }
 
 /** บันทึกประวัติการลบ/แก้ไขข้อมูลสำคัญโดย owner — ทุก call site ตอนนี้อยู่หลัง @Roles('owner') อยู่แล้ว จึงไม่ต้องรับ role จาก caller เอง แค่ auth0Sub พอ */
