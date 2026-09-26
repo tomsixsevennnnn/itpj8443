@@ -12,7 +12,7 @@ type AppRole = 'owner' | 'customer' | 'super_admin'
  *  JWT claim ใดๆ) ตามพฤติกรรมเดิมที่ roles.guard.spec.ts ยืนยันไว้ */
 @Injectable()
 export class RolesGuard implements CanActivate {
-  private cache = new Map<string, { role: AppRole; at: number }>()
+  private readonly cache = new Map<string, { role: AppRole; at: number }>()
   private readonly CACHE_TTL_MS = 5000
 
   constructor(

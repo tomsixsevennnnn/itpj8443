@@ -370,7 +370,7 @@ export default function Packages({
                         onChange={e => setShowAllCats(e.target.checked)}
                         className="accent-orange-500"
                       />
-                      แสดงเมนูทุกประเภท
+                      <span>แสดงเมนูทุกประเภท</span>
                     </label>
                   </div>
 

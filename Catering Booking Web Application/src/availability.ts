@@ -42,7 +42,7 @@ export const BOOKABLE_SLOTS: TimeSlotDef[] = bookableSlots()
 export const SLOT_CAPACITY = 500
 
 /** ใบจองที่ยังกินคิวอยู่ (ยกเลิกแล้วไม่นับ) */
-const OCCUPIES_QUEUE: Booking['status'][] = ['pending', 'confirmed', 'completed']
+const OCCUPIES_QUEUE = new Set<Booking['status']>(['pending', 'confirmed', 'completed'])
 
 /** แปลงข้อความช่วงเวลาในใบจองกลับเป็นรหัสช่วง */
 export const slotIdOf = (timeSlot: string): SlotId => {
@@ -59,7 +59,7 @@ export type SlotUsage = Record<BaseSlotId, number>
 export const slotUsage = (bookings: QueueBooking[], date: string): SlotUsage => {
   const usage: SlotUsage = { morning: 0, noon: 0, evening: 0 }
   for (const b of bookings) {
-    if (b.date !== date || !OCCUPIES_QUEUE.includes(b.status)) continue
+    if (b.date !== date || !OCCUPIES_QUEUE.has(b.status)) continue
     const slot = slotIdOf(b.timeSlot)
     if (slot === 'allday') {
       usage.morning += b.tables
@@ -80,7 +80,7 @@ export type DayStatus = 'available' | 'full' | 'closed'
  */
 export const dayStatus = (bookings: QueueBooking[], date: string, closedDates: string[] = []): DayStatus => {
   if (closedDates.includes(date)) return 'closed'
-  return bookings.some(b => b.date === date && OCCUPIES_QUEUE.includes(b.status)) ? 'full' : 'available'
+  return bookings.some(b => b.date === date && OCCUPIES_QUEUE.has(b.status)) ? 'full' : 'available'
 }
 
 export const DAY_STATUS_INFO: Record<DayStatus, { label: string; dot: string; chip: string }> = {

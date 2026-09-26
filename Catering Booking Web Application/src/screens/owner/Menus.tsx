@@ -91,7 +91,8 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
 
   const handleCropPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
-    if (!drag || drag.pointerId !== e.pointerId || !cropBoxRef.current) return
+    if (!drag) return
+    if (drag.pointerId !== e.pointerId || !cropBoxRef.current) return
     const rect = cropBoxRef.current.getBoundingClientRect()
     const dxPct = ((e.clientX - drag.startX) / rect.width) * 100 / form.imageScale
     const dyPct = ((e.clientY - drag.startY) / rect.height) * 100 / form.imageScale

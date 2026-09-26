@@ -70,7 +70,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
 
   const firstDay = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+  const cells: (number | null)[] = [...new Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
   while (cells.length % 7 !== 0) cells.push(null)
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11) } else setMonth(m => m - 1) }

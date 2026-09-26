@@ -71,19 +71,19 @@ import UserRoles from './screens/owner/UserRoles'
 import AuditLog from './screens/owner/AuditLog'
 import SuperAdmin from './screens/SuperAdmin'
 
-const OWNER_SCREENS: Screen[] = [
+const OWNER_SCREENS: Set<Screen> = new Set([
   'owner-dashboard', 'owner-orders', 'owner-calendar', 'owner-packages', 'owner-menus', 'owner-documents',
   'owner-reports', 'owner-settings', 'owner-page-content', 'owner-users', 'owner-audit-log',
-]
+])
 
 /** เก็บ per-browser — ร้านที่ลูกค้าเลือกไว้ล่าสุด กันต้องเลือกร้านซ้ำทุกครั้งที่กลับมาเปิดแอป (multi-tenant) */
 const SELECTED_SHOP_KEY = 'selectedShopId'
 const SELECTED_SHOP_SLUG_KEY = 'selectedShopSlug'
 
 /** 6 ขั้นตอนการจอง — ออกจากช่วงนี้ไปหน้าอื่นผ่านแถบเมนูด้านบน (หน้าแรก/ประวัติการจอง) แล้วกลับมาต้องเริ่มเลือกใหม่ ไม่ resume ของเดิม */
-const BOOKING_FLOW_SCREENS: Screen[] = [
+const BOOKING_FLOW_SCREENS: Set<Screen> = new Set([
   'booking-calendar', 'select-table', 'select-location', 'select-package', 'select-menu', 'cart',
-]
+])
 
 type AppRoleForPath = 'owner' | 'customer' | 'super_admin'
 
@@ -143,6 +143,24 @@ const roleForPathFrom = (role: 'OWNER' | 'CUSTOMER' | 'SUPER_ADMIN' | undefined)
   if (role === 'SUPER_ADMIN') return 'super_admin'
   return 'customer'
 }
+
+/** เมนู 1 รายการถูกแก้ไข (บันทึกทับของเดิม) — คลังแพ็กเกจทุกแพ็กเกจที่มีเมนูนี้อยู่ต้องอัปเดตสำเนาให้ตรงกันด้วย
+ *  แยกเป็นฟังก์ชันแยกต่างหาก (ไม่ inline ใน setPackages) กันฟังก์ชันซ้อนกันลึกเกินไปใน handleSaveMenu */
+const withMenuReplacedInPackages = (packages: Package[], saved: MenuItem): Package[] =>
+  packages.map(p => ({
+    ...p,
+    courses: p.courses.map(c => ({
+      ...c,
+      items: c.items.map(i => (i.id === saved.id ? saved : i)),
+    })),
+  }))
+
+/** เมนู 1 รายการถูกลบ — ถอดออกจากทุกแพ็กเกจที่ใช้อยู่ */
+const withMenuRemovedFromPackages = (packages: Package[], menuId: string): Package[] =>
+  packages.map(p => ({
+    ...p,
+    courses: p.courses.map(c => ({ ...c, items: c.items.filter(i => i.id !== menuId) })),
+  }))
 
 /**
  * screen + ร้านปัจจุบัน -> URL ที่ "ควรจะเป็น" ใช้ตอน navigate() (pushState) และตอน sync URL ทุกจุด — ตัดสินจาก
@@ -388,7 +406,7 @@ export default function App() {
 
         const resolved = screenFromPath(window.location.pathname, roleForPath)
         if (resolved) {
-          if (BOOKING_FLOW_SCREENS.includes(screen) && !BOOKING_FLOW_SCREENS.includes(resolved)) {
+          if (BOOKING_FLOW_SCREENS.has(screen) && !BOOKING_FLOW_SCREENS.has(resolved)) {
             setBooking(initialBooking)
           }
           setScreen(resolved)
@@ -701,15 +719,7 @@ export default function App() {
       const saved = isExisting ? await api.updateMenu(token, item.id, input) : await api.createMenu(token, input)
 
       setMenus(prev => (isExisting ? prev.map(m => (m.id === saved.id ? saved : m)) : [...prev, saved]))
-      setPackages(prev =>
-        prev.map(p => ({
-          ...p,
-          courses: p.courses.map(c => ({
-            ...c,
-            items: c.items.map(i => (i.id === saved.id ? saved : i)),
-          })),
-        }))
-      )
+      setPackages(prev => withMenuReplacedInPackages(prev, saved))
     })
 
   /** ลบเมนูออกจากคลัง พร้อมถอดออกจากทุกแพ็กเกจที่ใช้อยู่ */
@@ -718,12 +728,7 @@ export default function App() {
       const token = await withToken()
       await api.deleteMenu(token, id)
       setMenus(prev => prev.filter(m => m.id !== id))
-      setPackages(prev =>
-        prev.map(p => ({
-          ...p,
-          courses: p.courses.map(c => ({ ...c, items: c.items.filter(i => i.id !== id) })),
-        }))
-      )
+      setPackages(prev => withMenuRemovedFromPackages(prev, id))
     })
 
   const handleCreatePackage = (input: CreatePackageInput) =>
@@ -800,7 +805,7 @@ export default function App() {
       return
     }
     // ออกจากขั้นตอนการจอง (กดแถบเมนูด้านบนไปหน้าอื่น) ไปหน้าที่ไม่ใช่ส่วนหนึ่งของ flow — ล้างข้อมูลจองที่เลือกไว้ กลับมาต้องเริ่มใหม่
-    if (BOOKING_FLOW_SCREENS.includes(screen) && !BOOKING_FLOW_SCREENS.includes(s)) {
+    if (BOOKING_FLOW_SCREENS.has(screen) && !BOOKING_FLOW_SCREENS.has(s)) {
       setBooking(initialBooking)
     }
     // เข้าหน้าแจ้งเตือน — freeze ค่าเดิมไว้ให้หน้านั้นใช้ตัดสิน "ยังไม่อ่าน" รายรายการ แล้วค่อยอัปเดต/บันทึกค่าใหม่
@@ -854,7 +859,7 @@ export default function App() {
    *  (ปกติไม่ควรเกิดจากโค้ดปกติอยู่แล้ว เพราะ navigate()/popstate เช็ค role ก่อนเซ็ต screen ทุกจุด แต่กันไว้ก่อน) */
   useEffect(() => {
     if (!dataLoaded || needsProfile) return
-    const belongsToOwner = OWNER_SCREENS.includes(screen)
+    const belongsToOwner = OWNER_SCREENS.has(screen)
     const belongsToSuperAdmin = screen === 'super-admin'
     if ((belongsToOwner && role !== 'owner') || (belongsToSuperAdmin && role !== 'super_admin')) {
       navigate(defaultScreenFor(role))
@@ -1109,7 +1114,7 @@ export default function App() {
   }
 
   // Owner screens
-  if (role === 'owner' && OWNER_SCREENS.includes(effectiveScreen)) {
+  if (role === 'owner' && OWNER_SCREENS.has(effectiveScreen)) {
     return (
       <NavProvider value={navContext}>
         <OwnerLayout currentScreen={effectiveScreen} bookings={bookings}>

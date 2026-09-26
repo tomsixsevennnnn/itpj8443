@@ -39,7 +39,7 @@ export default function BookingCalendar({ bookings, onSelectDateTime, slotHours,
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
 
-  const cells: (number | null)[] = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
+  const cells: (number | null)[] = [...new Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)]
   while (cells.length % 7 !== 0) cells.push(null)
 
   const prevMonth = () => {

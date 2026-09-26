@@ -2,7 +2,8 @@ import { AlertTriangle, CheckCircle2, HelpCircle, XCircle } from 'lucide-react'
 import type { Booking } from '../types'
 
 interface SlipVerifyBadgeProps {
-  status?: Booking['paymentSlipVerifyStatus']
+  // Booking['paymentSlipVerifyStatus'] เป็น optional field อยู่แล้ว (มี | undefined ในตัว) ไม่ต้องใส่ ? ซ้ำ
+  status: Booking['paymentSlipVerifyStatus']
   message?: string
 }
 

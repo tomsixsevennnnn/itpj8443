@@ -53,6 +53,13 @@ async function request<T>(token: string, path: string, init: RequestInit = {}): 
   return (await res.json()) as T
 }
 
+/** ต่อ query string ?shopId=... ให้ path (เฉพาะตอนที่ระบุ shopId มา — ฝั่ง owner ไม่ต้องส่ง backend resolve
+ *  เองจาก JWT) แยกออกมาจากจุดเรียกใช้กันเทมเพลตลิเทอรัลซ้อนกัน (path หลักซ้อน query string อีกชั้น) */
+const withShopIdQuery = (path: string, shopId?: string): string => {
+  if (!shopId) return path
+  return `${path}?shopId=${encodeURIComponent(shopId)}`
+}
+
 /* ------------------------------------------------------------------ *
  * backend ใช้ status ตัวพิมพ์ใหญ่ (enum Prisma) และแยกฟิลด์ shopInfo
  * เป็น flat fields — แปลงกลับไปมาให้ตรงกับ types.ts ฝั่ง frontend ตรงนี้ที่เดียว
@@ -63,7 +70,8 @@ type BackendStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
 interface BackendBooking extends Omit<Booking, 'status' | 'paymentSlip' | 'paymentSlipVerifyStatus' | 'paymentSlipVerifyMessage'> {
   status: BackendStatus
   paymentSlipUrl?: string | null
-  paymentSlipVerifyStatus?: Booking['paymentSlipVerifyStatus'] | null
+  // Booking['paymentSlipVerifyStatus'] เป็น optional field อยู่แล้ว (มี | undefined ในตัว) ไม่ต้องใส่ ? ซ้ำ
+  paymentSlipVerifyStatus: Booking['paymentSlipVerifyStatus'] | null
   paymentSlipVerifyMessage?: string | null
 }
 
@@ -362,7 +370,7 @@ export const api = {
     (
       await request<BackendQueueBooking[]>(
         token,
-        `/bookings/availability${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`,
+        withShopIdQuery('/bookings/availability', shopId),
       )
     ).map(toFrontendQueueBooking),
 
@@ -393,7 +401,7 @@ export const api = {
 
   /** shopId บังคับเฉพาะฝั่งลูกค้า — owner ไม่ต้องส่ง backend resolve เองจาก JWT */
   packages: (token: string, shopId?: string) =>
-    request<Package[]>(token, `/packages${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`),
+    request<Package[]>(token, withShopIdQuery('/packages', shopId)),
 
   createPackage: (token: string, input: CreatePackageInput) =>
     request<Package>(token, '/packages', { method: 'POST', body: JSON.stringify(input) }),
@@ -409,7 +417,7 @@ export const api = {
 
   /** shopId บังคับเฉพาะฝั่งลูกค้า — owner ไม่ต้องส่ง backend resolve เองจาก JWT */
   menus: (token: string, shopId?: string) =>
-    request<MenuItem[]>(token, `/menus${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`),
+    request<MenuItem[]>(token, withShopIdQuery('/menus', shopId)),
 
   createMenu: (token: string, input: Omit<MenuItem, 'id'>) =>
     request<MenuItem>(token, '/menus', { method: 'POST', body: JSON.stringify(input) }),
@@ -426,7 +434,7 @@ export const api = {
   /** shopId บังคับเฉพาะฝั่งลูกค้า — owner ไม่ต้องส่ง backend resolve เองจาก JWT */
   settings: async (token: string, shopId?: string): Promise<AppSettings> =>
     toFrontendSettings(
-      await request<BackendSettings>(token, `/settings${shopId ? `?shopId=${encodeURIComponent(shopId)}` : ''}`),
+      await request<BackendSettings>(token, withShopIdQuery('/settings', shopId)),
     ),
 
   /** ก่อน login — ใช้โชว์ชื่อร้าน/โลโก้/สีแบรนด์บนหน้า Login เท่านั้น ไม่ต้องใช้ token — ต้องระบุ shopId ของร้านที่

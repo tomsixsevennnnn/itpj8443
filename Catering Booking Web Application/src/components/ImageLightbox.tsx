@@ -41,12 +41,13 @@ export default function ImageLightbox({ src, alt, fileName = 'image.jpg', onClos
           <X size={18} />
         </button>
       </div>
+      {/* img ไม่มีทาง focus/รับ keyboard event ได้เลย (ไม่มี tabIndex) — onClick กันคลิกทะลุไปโดน backdrop
+          ปิดหน้าต่างพอ ไม่ต้องมี onKeyDown คู่กัน (จะเป็น dead code เพราะ event นี้ไม่มีวันเกิดขึ้นจริง) */}
       <img
         src={src}
         alt={alt}
         className="max-w-full max-h-full object-contain rounded-xl"
         onClick={e => e.stopPropagation()}
-        onKeyDown={e => e.stopPropagation()}
       />
     </div>
   )

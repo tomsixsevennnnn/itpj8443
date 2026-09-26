@@ -39,18 +39,11 @@ export default function SelectPackage({ packages, tables, selectedPackageId, onS
             const totalPrice = pkg.pricePerTable * tables
 
             return (
-              <div
+              <button
+                type="button"
                 key={pkg.id}
                 onClick={() => onSelectPackage(pkg)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    onSelectPackage(pkg)
-                  }
-                }}
-                className={`relative bg-white rounded-3xl border-2 shadow-sm cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 ${
+                className={`relative bg-white rounded-3xl border-2 shadow-sm cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1 text-left w-full ${
                   isSelected ? `border-orange-500 shadow-xl shadow-orange-100 -translate-y-1` : 'border-gray-100'
                 }`}
               >
@@ -129,17 +122,19 @@ export default function SelectPackage({ packages, tables, selectedPackageId, onS
                     </div>
                   </div>
 
-                  <button
-                    className={`mt-4 w-full py-3 rounded-2xl font-semibold text-sm text-white transition-all ${
+                  {/* ตัวการ์ดทั้งใบเป็น <button> คลิกได้อยู่แล้ว (เลือกแพ็กเกจ) — แถบนี้เป็นแค่ป้ายบอกสถานะ
+                      ไม่ใช่ปุ่มจริงแยกต่างหาก (เดิมเป็น <button> ซ้อนใน <button> ซึ่งไม่ถูกต้องตาม HTML) */}
+                  <div
+                    className={`mt-4 w-full py-3 rounded-2xl font-semibold text-sm text-white text-center transition-all ${
                       isSelected
                         ? 'bg-orange-500 shadow-lg shadow-orange-200'
                         : colors.btn + ' opacity-80'
                     }`}
                   >
                     {isSelected ? '✓ เลือกแล้ว' : 'เลือกแพ็กเกจนี้'}
-                  </button>
+                  </div>
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>

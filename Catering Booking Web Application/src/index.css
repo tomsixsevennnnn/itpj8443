@@ -46,9 +46,12 @@ body {
   body * {
     visibility: hidden;
   }
+  /* กันไม่ให้กรอบเลื่อนของโมดัลตัดเนื้อหาตอนพิมพ์ */
   .print-area,
   .print-area * {
     visibility: visible;
+    max-height: none !important;
+    overflow: visible !important;
   }
   .print-area {
     position: absolute;
@@ -57,12 +60,6 @@ body {
     width: 100%;
     box-shadow: none !important;
     border-radius: 0 !important;
-  }
-  /* กันไม่ให้กรอบเลื่อนของโมดัลตัดเนื้อหาตอนพิมพ์ */
-  .print-area,
-  .print-area * {
-    max-height: none !important;
-    overflow: visible !important;
   }
   .no-print {
     display: none !important;

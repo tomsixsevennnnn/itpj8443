@@ -85,8 +85,10 @@ export class ShopsService {
 
     const baseSlug = slugify(dto.name)
     let slug = baseSlug
-    for (let i = 2; await this.prisma.shop.findUnique({ where: { slug } }); i++) {
-      slug = `${baseSlug}-${i}`
+    let suffix = 2
+    while (await this.prisma.shop.findUnique({ where: { slug } })) {
+      slug = `${baseSlug}-${suffix}`
+      suffix++
     }
 
     const shop = await this.prisma.$transaction(async (tx) => {

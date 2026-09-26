@@ -163,7 +163,7 @@ export default function Cart({
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <h2 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span>🍽️</span>
-                รายการอาหาร
+                <span>รายการอาหาร</span>
                 <span className="text-sm font-normal text-gray-400">({booking.selectedMenus.length} อย่าง/โต๊ะ)</span>
               </h2>
 

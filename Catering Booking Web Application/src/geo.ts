@@ -343,7 +343,7 @@ export const searchPresets = (query: string): GeoResult[] => {
  * ลิงก์เต็ม (คัดลอกจาก address bar) แกะพิกัดจาก URL ได้ตรงๆ ฝั่งนี้ ไม่ต้องเรียก API ใดๆ
  * ลิงก์สั้นจากปุ่ม "แชร์" (maps.app.goo.gl) ต้องให้ backend ตาม redirect ก่อน — Google ไม่เปิด CORS ให้ยิงตรงจาก browser
  * ------------------------------------------------------------------ */
-const GOOGLE_MAPS_SHORT_HOSTS = ['maps.app.goo.gl', 'goo.gl']
+const GOOGLE_MAPS_SHORT_HOSTS = new Set(['maps.app.goo.gl', 'goo.gl'])
 
 const parseUrlSafe = (text: string): URL | null => {
   const trimmed = text.trim()
@@ -361,7 +361,7 @@ const parseUrlSafe = (text: string): URL | null => {
 
 export const isGoogleMapsShortLink = (text: string): boolean => {
   const url = parseUrlSafe(text)
-  return url !== null && GOOGLE_MAPS_SHORT_HOSTS.includes(url.hostname)
+  return url !== null && GOOGLE_MAPS_SHORT_HOSTS.has(url.hostname)
 }
 
 /**
@@ -371,7 +371,7 @@ export const isGoogleMapsShortLink = (text: string): boolean => {
 export const isGoogleMapsUrl = (text: string): boolean => {
   const url = parseUrlSafe(text)
   if (!url) return false
-  if (GOOGLE_MAPS_SHORT_HOSTS.includes(url.hostname)) return true
+  if (GOOGLE_MAPS_SHORT_HOSTS.has(url.hostname)) return true
   // ครอบคลุม www.google.com, maps.google.com, google.co.th, www.google.de ฯลฯ — ไม่ใช่แค่ *.google.com เฉยๆ
   if (!/(^|\.)google\.[a-z.]+$/.test(url.hostname)) return false
   return url.hostname.startsWith('maps.') || url.pathname.includes('/maps')
@@ -382,19 +382,19 @@ export const parseGoogleMapsUrl = (text: string): { lat: number; lng: number } |
   const url = text.trim()
 
   // !3d<lat>!4d<lng> — พิกัดหมุดจริงที่ปักไว้ในหน้าสถานที่ แม่นที่สุด
-  const pin = url.match(/!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/)
+  const pin = /!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(url)
   if (pin) return { lat: Number.parseFloat(pin[1]), lng: Number.parseFloat(pin[2]) }
 
   // ?q=<lat>,<lng> หรือ ?query=<lat>,<lng>
-  const query = url.match(/[?&](?:q|query)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
+  const query = /[?&](?:q|query)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/.exec(url)
   if (query) return { lat: Number.parseFloat(query[1]), lng: Number.parseFloat(query[2]) }
 
   // ?ll=<lat>,<lng>
-  const ll = url.match(/[?&]ll=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
+  const ll = /[?&]ll=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/.exec(url)
   if (ll) return { lat: Number.parseFloat(ll[1]), lng: Number.parseFloat(ll[2]) }
 
   // @<lat>,<lng>,<zoom> — จุดกึ่งกลางแผนที่ตอนคัดลอกลิงก์ มีอยู่เกือบทุกลิงก์แต่หยาบสุด
-  const center = url.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
+  const center = /@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/.exec(url)
   if (center) return { lat: Number.parseFloat(center[1]), lng: Number.parseFloat(center[2]) }
 
   return null

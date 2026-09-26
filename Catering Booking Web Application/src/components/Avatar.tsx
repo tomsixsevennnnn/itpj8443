@@ -8,7 +8,7 @@ interface AvatarProps {
 
 const COLORS = ['bg-orange-500', 'bg-blue-500', 'bg-emerald-500', 'bg-violet-500', 'bg-rose-500', 'bg-amber-500']
 
-const colorFor = (initial: string) => COLORS[initial.charCodeAt(0) % COLORS.length]
+const colorFor = (initial: string) => COLORS[(initial.codePointAt(0) ?? 0) % COLORS.length]
 
 /** โชว์รูปโปรไฟล์ ถ้าไม่มี src หรือโหลดไม่สำเร็จ (เช่น googleusercontent โดน rate limit) ใช้ตัวอักษรแรกของชื่อแทนแทนที่จะเป็นไอคอนรูปแตก */
 export default function Avatar({ src, name = '', className = '' }: Readonly<AvatarProps>) {
