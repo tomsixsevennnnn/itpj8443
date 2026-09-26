@@ -85,6 +85,85 @@ const BOOKING_FLOW_SCREENS: Screen[] = [
   'booking-calendar', 'select-table', 'select-location', 'select-package', 'select-menu', 'cart',
 ]
 
+type AppRoleForPath = 'owner' | 'customer' | 'super_admin'
+
+/**
+ * URL ต่อจากไฟล์นี้ทั้งหมด — แอปไม่มี router (แค่ useState<Screen> ตัวเดียว) เก็บ path mapping ไว้เป็นตารางเดียว
+ * ตรงนี้ที่เดียว ให้ navigate()/bootstrap load effect/popstate handler ใช้ร่วมกัน กันสามจุดนั้นคำนวณ path ไม่ตรงกัน
+ *  - ฝั่งลูกค้า (รวม 'login'/'home') อยู่ใต้ /{shopSlug} เสมอ เพราะร้านเลือกจาก URL ได้ (multi-tenant)
+ *  - ฝั่งเจ้าของร้านอยู่ใต้ /owner/ ตรงๆ ไม่มี slug นำหน้า เพราะร้านผูกกับ account ไม่ใช่ URL
+ *  - super admin มีแค่หน้าเดียว /super-admin
+ */
+const CUSTOMER_SCREEN_PATH: Partial<Record<Screen, string>> = {
+  home: '',
+  'booking-calendar': '/booking-calendar',
+  'select-table': '/select-table',
+  'select-location': '/select-location',
+  'select-package': '/select-package',
+  'select-menu': '/select-menu',
+  cart: '/cart',
+  history: '/history',
+  notifications: '/notifications',
+}
+const OWNER_SCREEN_PATH: Partial<Record<Screen, string>> = {
+  'owner-dashboard': '/owner/dashboard',
+  'owner-orders': '/owner/orders',
+  'owner-calendar': '/owner/calendar',
+  'owner-packages': '/owner/packages',
+  'owner-menus': '/owner/menus',
+  'owner-documents': '/owner/documents',
+  'owner-reports': '/owner/reports',
+  'owner-settings': '/owner/settings',
+  'owner-page-content': '/owner/page-content',
+  'owner-users': '/owner/users',
+  'owner-audit-log': '/owner/audit-log',
+}
+const OWNER_PATH_TO_SCREEN: Record<string, Screen> = Object.fromEntries(
+  Object.entries(OWNER_SCREEN_PATH).map(([s, p]) => [p, s as Screen]),
+)
+const CUSTOMER_PATH_TO_SCREEN: Record<string, Screen> = Object.fromEntries(
+  Object.entries(CUSTOMER_SCREEN_PATH).map(([s, p]) => [p, s as Screen]),
+)
+
+const defaultScreenFor = (r: AppRoleForPath): Screen =>
+  r === 'owner' ? 'owner-dashboard' : r === 'super_admin' ? 'super-admin' : 'home'
+
+/**
+ * screen + ร้านปัจจุบัน -> URL ที่ "ควรจะเป็น" ใช้ตอน navigate() (pushState) และตอน sync URL ทุกจุด — ตัดสินจาก
+ * "ตัว screen เอง" อยู่ในผังไหน ไม่ใช่จาก role ตรงๆ เพราะ owner กด "มุมมองลูกค้า" แล้ว screen เป็นหน้าลูกค้า
+ * (เช่น 'home'/'cart') ได้ทั้งที่ role ยังเป็น owner อยู่ — ถ้าตัดสินจาก role จะได้ path เจ้าของร้านผิดๆ ทับไป
+ */
+const pathForScreen = (s: Screen, shopSlug: string | null): string => {
+  if (s === 'super-admin') return '/super-admin'
+  if (OWNER_SCREEN_PATH[s] !== undefined) return OWNER_SCREEN_PATH[s]!
+  // ฝั่งลูกค้า (รวม 'login' และหน้าลูกค้าที่ owner กำลัง preview อยู่) — อยู่ใต้ /{slug} เสมอ ยังไม่มี slug
+  // (ยังไม่เลือกร้าน) ใช้ / ไปก่อน
+  const suffix = CUSTOMER_SCREEN_PATH[s] ?? ''
+  return shopSlug ? `/${shopSlug}${suffix}` : '/'
+}
+
+/**
+ * อ่าน path ปัจจุบันแล้วแปลงกลับเป็น Screen ตาม role — คืน null ถ้า path นี้ไม่มีหน้าไหนให้ role นี้เข้าได้เลย
+ * (เช่น customer เปิด /owner/orders เอง) ให้ผู้เรียกใช้ fallback ไปหน้า default ของ role เองแทนที่จะเชื่อ URL ตรงๆ
+ * — จุดนี้คือ guard ความปลอดภัยหลัก กัน URL ที่พิมพ์/ค้างมาเองพา role ผิดไปเห็นหน้าที่ไม่ใช่ของตัวเอง: เฉพาะ owner
+ * เท่านั้นที่ resolve เป็นหน้า /owner/* ได้ ส่วนหน้าฝั่งลูกค้า (/{slug}/...) ทั้ง owner (preview) และ customer
+ * resolve ได้ทั้งคู่ เพราะ owner มีสิทธิ์ดูหน้าลูกค้าอยู่แล้ว (ปุ่ม "มุมมองลูกค้า")
+ */
+const screenFromPath = (pathname: string, r: AppRoleForPath): Screen | null => {
+  const clean = '/' + pathname.replace(/^\/+|\/+$/g, '')
+  if (clean === '/super-admin') return r === 'super_admin' ? 'super-admin' : null
+  if (r === 'super_admin') return null // super admin ไม่มีหน้าอื่นให้ resolve นอกจาก /super-admin
+
+  const ownerScreen = OWNER_PATH_TO_SCREEN[clean]
+  if (ownerScreen) return r === 'owner' ? ownerScreen : null
+
+  // เหลือ path แบบฝั่งลูกค้า (/{slug}/...) — ตัด segment แรก (สมมติว่าเป็น shop slug) ออกก่อนเสมอ ไม่สนว่าตรงกับ
+  // ร้านปัจจุบันไหม (ผู้เรียกเป็นคนบังคับ slug ที่ถูกต้องกลับเข้าไปตอนสร้าง URL จริงผ่าน pathForScreen แยกต่างหาก)
+  const segments = clean.split('/').filter(Boolean)
+  const subPath = segments.length > 1 ? '/' + segments.slice(1).join('/') : ''
+  return CUSTOMER_PATH_TO_SCREEN[subPath] ?? null
+}
+
 const initialSettings: AppSettings = {
   // ค่าเริ่มต้นก่อนโหลดจริงจาก backend — ตัวจริงจะมาแทนที่หลัง GET /settings เสมอ ห้ามใช้ค่านี้บันทึกจริง
   version: 0,
@@ -276,17 +355,31 @@ export default function App() {
    * แอปนี้ไม่มี router — ทุก pushState/replaceState ในไฟล์นี้แค่ทำให้ URL "ดูตรง" กับสถานะปัจจุบัน ไม่เคยมีอะไรฟัง
    * popstate เลย กดปุ่ม back/forward ของเบราว์เซอร์เลยเห็น URL เปลี่ยนแต่หน้าจอไม่ขยับตาม (เพราะ React ไม่รู้ตัว)
    * เพิ่ม listener นี้ให้ตอบสนองปุ่ม back/forward เท่าที่แอประดับนี้ทำได้จริง:
-   *  - login อยู่แล้ว (owner/customer) → ร้านผูกกับ account/session ตายตัว ไม่ใช่ URL ไม่ยอมให้ back/forward
-   *    เปลี่ยนร้านได้ ดีดกลับไปที่ path ของร้านตัวเองเสมอ (เหมือน bootstrap load effect ที่ sync ไว้แล้ว)
+   *  - login อยู่แล้ว (owner/customer/super admin) → ร้านผูกกับ account/session ตายตัว ไม่ใช่ URL ไม่ยอมให้
+   *    back/forward เปลี่ยนร้านได้ แต่ "หน้าจอ" (screen) ภายในร้าน/ระบบของตัวเองสลับได้ตาม URL จริง — resolve ผ่าน
+   *    screenFromPath (role-aware) เจอ path ที่ไม่มีจริงสำหรับ role นี้ (พิมพ์เอง/ค้างจาก session อื่น) ก็แก้ URL
+   *    กลับไปที่ path ของหน้าปัจจุบันแทนที่จะปล่อยค้างผิด
    *  - ยังไม่ login → ให้ back/forward สลับ "หน้าเลือกร้าน" กับ "หน้า login ของร้านที่เคยเลือก" ได้จริง
    *    (อ่าน URL ใหม่แล้ว resolve ร้านใหม่ตามนั้น โดยไม่ push ซ้ำ เพราะเบราว์เซอร์เปลี่ยน URL ให้เองแล้ว)
    */
   useEffect(() => {
     const onPopState = () => {
       if (isAuthenticated) {
-        const slug = backendUser?.role === 'OWNER' ? backendUser.shop?.slug : selectedShopSlug
+        const roleForPath: AppRoleForPath =
+          backendUser?.role === 'OWNER' ? 'owner' : backendUser?.role === 'SUPER_ADMIN' ? 'super_admin' : 'customer'
+        const shopSlug = roleForPath === 'owner' ? (backendUser?.shop?.slug ?? null) : selectedShopSlug
+
+        const resolved = screenFromPath(window.location.pathname, roleForPath)
+        if (resolved) {
+          if (BOOKING_FLOW_SCREENS.includes(screen) && !BOOKING_FLOW_SCREENS.includes(resolved)) {
+            setBooking(initialBooking)
+          }
+          setScreen(resolved)
+          return
+        }
+        // path นี้ไม่มีจริงสำหรับ role นี้ — คงหน้าปัจจุบันไว้ แค่แก้ URL ให้ตรงกับหน้าที่ยังแสดงอยู่จริง
         try {
-          window.history.replaceState(null, '', slug ? `/${slug}` : '/')
+          window.history.replaceState(null, '', pathForScreen(screen, shopSlug))
         } catch {
           // เพิกเฉยได้
         }
@@ -309,11 +402,16 @@ export default function App() {
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [isAuthenticated, backendUser, selectedShopSlug])
+  }, [isAuthenticated, backendUser, selectedShopSlug, screen])
 
   // รายชื่อร้านทั้งหมด (พร้อมจำนวน owner) และ owner ทุกคนข้ามทุกร้าน — เฉพาะ super admin เท่านั้นที่เห็น/ใช้หน้า super-admin
   const [shopsAdmin, setShopsAdmin] = useState<ShopAdmin[]>([])
   const [ownersAdmin, setOwnersAdmin] = useState<BackendUser[]>([])
+
+  // resolve หน้าเริ่มต้นจาก URL ครั้งเดียวตอน login สำเร็จรอบแรก (เช่น reload หน้ากลางทางที่ /owner/orders ต้องกลับ
+  // มาหน้าเดิม ไม่ใช่เด้งไป dashboard) — ครั้งถัดๆ ไปที่ effect นี้ทำงานซ้ำ (retryKey/selectedShopId เปลี่ยน) ไม่ต้อง
+  // ทำอีก เพราะ `screen` ถูกคุมด้วย navigate()/popstate ไปแล้วจากตรงนี้เป็นต้นไป
+  const initialScreenResolvedRef = useRef(false)
 
   /**
    * โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — sync user ก่อนเสมอเพื่อรู้ role/shopId จริง แล้วค่อยแยก
@@ -338,6 +436,24 @@ export default function App() {
         if (cancelled) return
         setBackendUser(me)
 
+        const roleForPath: AppRoleForPath = me.role === 'OWNER' ? 'owner' : me.role === 'SUPER_ADMIN' ? 'super_admin' : 'customer'
+        // sync หน้าเริ่มต้น + URL ให้ตรงกับ role/ร้านของ session ปัจจุบันเสมอ (ครั้งแรกที่ login สำเร็จเท่านั้น
+        // ดู initialScreenResolvedRef) resolve จาก URL ปัจจุบันก่อน (รองรับ deep-link/reload กลางทาง) ถ้าไม่ตรง
+        // หน้าไหนของ role นี้เลย ค่อย fallback ไปหน้า default — กันเคส login ค้างอยู่แล้วมีใครพิมพ์ path ร้าน/
+        // หน้าอื่นเข้ามาเอง ให้ดีดกลับมาร้าน/หน้าที่ถูกต้องของ session นี้เสมอ ไม่ใช่ปล่อยให้ URL ค้างผิดไว้
+        if (!initialScreenResolvedRef.current) {
+          initialScreenResolvedRef.current = true
+          const shopSlugForPath = roleForPath === 'owner' ? (me.shop?.slug ?? null) : selectedShopSlug
+          const resolved = screenFromPath(window.location.pathname, roleForPath)
+          const targetScreen = resolved ?? defaultScreenFor(roleForPath)
+          setScreen(targetScreen)
+          try {
+            window.history.replaceState(null, '', pathForScreen(targetScreen, shopSlugForPath))
+          } catch {
+            // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+          }
+        }
+
         if (me.role === 'SUPER_ADMIN') {
           const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
           if (cancelled) return
@@ -348,17 +464,6 @@ export default function App() {
         }
 
         const shopId = me.role === 'OWNER' ? me.shopId : selectedShopId
-        // sync URL ให้ตรงกับร้านของ session ปัจจุบันเสมอ (owner = ร้านตัวเองจาก JWT, customer = ร้านที่เลือกไว้
-        // จาก selectedShopSlug) — กันเคส login ค้างอยู่แล้วมีใครพิมพ์ path ร้านอื่นเข้ามาเอง (เช่น URL ค้างจากตอน
-        // ยังไม่ login, หรือแก้ URL มือ) ให้ดีดกลับมาร้านของ session นี้เสมอ ไม่ใช่ปล่อยให้ URL ค้างผิดร้านไว้
-        const slugToSync = me.role === 'OWNER' ? me.shop?.slug : selectedShopSlug
-        if (slugToSync) {
-          try {
-            window.history.replaceState(null, '', `/${slugToSync}`)
-          } catch {
-            // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
-          }
-        }
         if (!shopId) {
           // ลูกค้าที่มี session ค้างอยู่ (Auth0 SSO) แต่ยังไม่ได้เลือกร้านในเครื่อง/เบราว์เซอร์นี้ (เช่นล้าง
           // localStorage ไปแล้ว) — ปล่อยให้ effectiveScreen ด้านล่างเด้งไปหน้าเลือกร้านแทน ไม่ fetch อะไรต่อ
@@ -660,6 +765,12 @@ export default function App() {
       }
     }
     setScreen(s)
+    // sync URL ให้ตรงกับหน้าที่กำลังไปเสมอ — ให้ back/forward และการแชร์ลิงก์ใช้ได้จริงทุกหน้า ไม่ใช่แค่หน้าแรก
+    try {
+      window.history.pushState(null, '', pathForScreen(s, role === 'owner' ? (backendUser?.shop?.slug ?? null) : selectedShopSlug))
+    } catch {
+      // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+    }
   }
 
   /** คลิกการ์ดแจ้งเตือน (dropdown ฝั่งเจ้าของร้าน หรือหน้าแจ้งเตือนเต็มฝั่งลูกค้า) — เก็บ bookingId ไว้แล้วพาไปหน้า
@@ -692,6 +803,19 @@ export default function App() {
           ? 'super-admin'
           : 'home'
       : screen
+
+  /** ตาข่ายสำรอง — เผื่อ role เปลี่ยนกลางเซสชัน (เช่นถูกถอดสิทธิ์ owner จากอีกแท็บ ระหว่างที่ค้างอยู่หน้า owner-*)
+   *  แล้ว screen ที่ค้างอยู่ไม่ตรงกับ role ใหม่แล้ว ดีดกลับไปหน้า default ของ role ปัจจุบันแทนที่จะโชว์จอว่างเปล่า
+   *  (ปกติไม่ควรเกิดจากโค้ดปกติอยู่แล้ว เพราะ navigate()/popstate เช็ค role ก่อนเซ็ต screen ทุกจุด แต่กันไว้ก่อน) */
+  useEffect(() => {
+    if (!dataLoaded || needsProfile) return
+    const belongsToOwner = OWNER_SCREENS.includes(screen)
+    const belongsToSuperAdmin = screen === 'super-admin'
+    if ((belongsToOwner && role !== 'owner') || (belongsToSuperAdmin && role !== 'super_admin')) {
+      navigate(defaultScreenFor(role))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, screen, dataLoaded, needsProfile])
 
   const handleSelectDateTime = (date: string, timeSlot: string) => {
     setBooking(b => ({ ...b, date, timeSlot }))
@@ -850,7 +974,7 @@ export default function App() {
               const token = await withToken()
               const updated = await api.updateProfile(token, profile)
               setBackendUser(updated)
-              setScreen('home')
+              navigate('home')
             })
           }
         />
@@ -927,7 +1051,7 @@ export default function App() {
   }
 
   // Owner screens
-  if (OWNER_SCREENS.includes(effectiveScreen)) {
+  if (role === 'owner' && OWNER_SCREENS.includes(effectiveScreen)) {
     return (
       <NavProvider value={navContext}>
         <OwnerLayout currentScreen={effectiveScreen} bookings={bookings}>
