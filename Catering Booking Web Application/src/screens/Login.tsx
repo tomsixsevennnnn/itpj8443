@@ -35,7 +35,11 @@ export default function Login({ shopId, onChangeShop }: LoginProps) {
         applyBrandTheme(info.brandColor)
         document.title = info.name
       })
-      .catch(() => {})
+      .catch(() => {
+        // ร้านนี้หายไปแล้วระหว่างที่ค้างอยู่หน้านี้ (เช่น super admin ลบร้านทิ้ง) — เด้งกลับไปหน้าเลือกร้านใหม่แทน
+        // ที่จะปล่อยให้ poll ซ้ำไปเรื่อยๆ แบบไม่มีวันสำเร็จ
+        onChangeShop()
+      })
   }, SETTINGS_POLL_MS)
 
   // prompt: 'login' บังคับให้ Auth0 โชว์หน้า login ใหม่เสมอ กัน SSO session เดิมของบัญชีอื่น (เช่น owner) พาลอดผ่านเข้ามาเงียบๆ

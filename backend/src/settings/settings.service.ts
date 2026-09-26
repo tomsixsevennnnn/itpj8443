@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common'
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma, type Settings } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
@@ -87,7 +87,15 @@ export class SettingsService {
   // สร้างอัตโนมัติตรงนี้ไว้กันแค่ข้อมูลเก่า/เคส edge case เท่านั้น
   private async getRaw(shopId: string): Promise<Settings> {
     const existing = await this.prisma.settings.findUnique({ where: { shopId } })
-    return existing ?? this.prisma.settings.create({ data: { ...DEFAULT_SETTINGS, shopId } })
+    if (existing) return existing
+
+    // เช็คก่อนเสมอว่าร้านนี้ยังมีอยู่จริงก่อนจะ auto-create Settings ให้ — กัน FK violation (P2003) ตอน shopId
+    // ไม่มีจริง (เช่นร้านถูกลบไปแล้วผ่านฟีเจอร์ลบร้านถาวร แต่ client ยังมี shopId เดิมค้างอยู่ใน localStorage/
+    // query จาก session ก่อนหน้า) เดิม error นี้หลุดออกไปเป็น 500 ดิบๆ ซ้ำๆ ทุกครั้งที่ client poll
+    const shopExists = await this.prisma.shop.findUnique({ where: { id: shopId }, select: { id: true } })
+    if (!shopExists) throw new NotFoundException('ไม่พบร้านนี้ — อาจถูกลบไปแล้ว')
+
+    return this.prisma.settings.create({ data: { ...DEFAULT_SETTINGS, shopId } })
   }
 
   /** ลูกค้าไม่ควรเห็นค่าแรงพนักงาน (ต้นทุนภายใน) — เดิม endpoint นี้คืนทุกฟิลด์ให้ทุก role ที่ล็อกอินอยู่ */

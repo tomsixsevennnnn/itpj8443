@@ -3,7 +3,11 @@ import { Prisma } from '@prisma/client'
 import { SettingsService } from './settings.service'
 
 const makeService = () => {
-  const prisma = { settings: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() } } as any
+  const prisma = {
+    settings: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    // ร้านมีอยู่จริงเป็นค่าเริ่มต้นในทุกเทส — เทสที่ต้องการเคส "ไม่พบร้าน" ค่อย mockResolvedValue(null) ทับเอง
+    shop: { findUnique: jest.fn().mockResolvedValue({ id: 'shop1' }) },
+  } as any
   const audit = { log: jest.fn() } as any
   const uploads = { deleteManagedFile: jest.fn(), makeThumbnailDataUrl: jest.fn().mockResolvedValue(null) } as any
   return { service: new SettingsService(prisma, audit, uploads), prisma, audit, uploads }
@@ -38,6 +42,15 @@ describe('SettingsService', () => {
     await service.get('shop1', true)
 
     expect(prisma.settings.create).toHaveBeenCalled()
+  })
+
+  it('get: shopId ไม่มีร้านจริงในระบบ (เช่นร้านถูกลบไปแล้ว) — โยน NotFoundException แทนที่จะพัง FK violation ตอน create', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue(null)
+    prisma.shop.findUnique.mockResolvedValue(null)
+
+    await expect(service.get('deleted-shop', true)).rejects.toThrow('ไม่พบร้านนี้')
+    expect(prisma.settings.create).not.toHaveBeenCalled()
   })
 
   it('update: บันทึก audit log ด้วย before/after', async () => {
