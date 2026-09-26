@@ -19,6 +19,23 @@ docker compose -f docker-compose.sonarqube.yml up -d
 
 ## 2. สร้าง token สำหรับสแกน
 
+### แบบอัตโนมัติ (แนะนำ)
+
+```bash
+eval "$(./scripts/sonar-get-token.sh)"
+```
+
+สคริปต์จะรอให้ SonarQube พร้อม, เปลี่ยนรหัสผ่าน `admin` เริ่มต้นให้อัตโนมัติ (โชว์รหัสใหม่ออกมาให้เก็บไว้
+ใช้ login หน้าเว็บครั้งต่อไป), สร้าง token แล้ว `export SONAR_TOKEN` ให้ในเทอร์มินัลปัจจุบันเลย (ใช้ `eval`
+ครอบเพราะสคริปต์พิมพ์คำสั่ง `export SONAR_TOKEN=...` ออกมาทาง stdout — ข้อความอธิบายอื่นๆ ไปทาง stderr ไม่ปน)
+
+รันซ้ำครั้งต่อไป (รหัสผ่าน admin ไม่ใช่ `admin` แล้ว) ต้องส่งรหัสผ่านที่ตั้งไว้เข้าไปด้วย:
+```bash
+eval "$(SONAR_ADMIN_PASSWORD='รหัสที่ตั้งไว้ตอนรันครั้งแรก' ./scripts/sonar-get-token.sh)"
+```
+
+### แบบมือ (ถ้าไม่อยากใช้สคริปต์)
+
 ใน SonarQube UI: มุมขวาบน (ไอคอนบัญชี) → **My Account** → **Security** → ใส่ชื่อ token (เช่น `local-scan`) → **Generate**
 เก็บ token ไว้ (โชว์ครั้งเดียว) — export ไว้ในเทอร์มินัลที่จะรันสแกน:
 
@@ -57,6 +74,7 @@ docker run --rm \
   ชี้ไปที่ lcov report ของแต่ละฝั่ง)
 - `backend/jest.config.js` / `Catering Booking Web Application/vitest.config.ts` — ตั้ง coverage reporter เป็น
   `lcov` ให้ SonarQube อ่านได้ (สั่งด้วย `pnpm test:cov` ที่แต่ละโฟลเดอร์)
+- `scripts/sonar-get-token.sh` — สร้าง token ผ่าน SonarQube REST API อัตโนมัติ แทนการกดผ่านหน้าเว็บเอง
 
 ## หยุด/ลบ
 
