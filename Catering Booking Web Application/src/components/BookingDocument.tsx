@@ -227,7 +227,7 @@ export default function BookingDocument({
               </div>
             )}
             {/* ฝังยอดมัดจำใน QR เหมือนกันทั้งใบเสนอราคาและใบจอง — ยอดที่ต้องโอนคือมัดจำเสมอ (ส่วนที่เหลือจ่ายวันงานจริง) */}
-            {shopInfo.promptPayId ? (
+            {shopInfo.promptPayId && (
               <div className="flex-shrink-0 text-center">
                 <PromptPayQr
                   promptPayId={shopInfo.promptPayId}
@@ -240,7 +240,8 @@ export default function BookingDocument({
                   </p>
                 )}
               </div>
-            ) : shopInfo.promptPayQr ? (
+            )}
+            {!shopInfo.promptPayId && shopInfo.promptPayQr && (
               <div className="flex-shrink-0 text-center">
                 <img
                   src={resolveImageUrl(shopInfo.promptPayQr)}
@@ -253,7 +254,7 @@ export default function BookingDocument({
                   </p>
                 )}
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       )}

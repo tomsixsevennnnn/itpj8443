@@ -26,12 +26,11 @@ const ACTION_LABEL: Record<string, string> = {
 
 const actionLabel = (action: string) => ACTION_LABEL[action] ?? action
 
-const actionTone = (action: string) =>
-  action.endsWith('.delete')
-    ? 'bg-red-50 text-red-600'
-    : action.endsWith('.create')
-      ? 'bg-green-50 text-green-600'
-      : 'bg-orange-50 text-orange-600'
+const actionTone = (action: string) => {
+  if (action.endsWith('.delete')) return 'bg-red-50 text-red-600'
+  if (action.endsWith('.create')) return 'bg-green-50 text-green-600'
+  return 'bg-orange-50 text-orange-600'
+}
 
 /** ============ มุมมองเจ้าของร้าน — แปล before/after ดิบให้อ่านง่าย ============ */
 
@@ -266,7 +265,8 @@ function formatFieldValue(key: string, value: unknown): string {
   if (key === 'deletedAt') return `ถูกลบเมื่อ ${formatDateValue(value)}`
   if (key === 'role') return value === 'OWNER' ? 'เจ้าของร้าน' : 'ลูกค้า'
   if (key === 'status') return BOOKING_STATUS_LABEL[value as string] ?? String(value)
-  if (typeof value === 'boolean') return key === 'active' ? (value ? 'เปิดขาย' : 'ปิดขาย') : value ? 'ใช่' : 'ไม่ใช่'
+  if (typeof value === 'boolean' && key === 'active') return value ? 'เปิดขาย' : 'ปิดขาย'
+  if (typeof value === 'boolean') return value ? 'ใช่' : 'ไม่ใช่'
   if (key === 'depositRate' && typeof value === 'number') return `${Math.round(value * 100)}%`
   if (typeof value === 'number') return PRICE_FIELDS.has(key) ? `${value.toLocaleString('th-TH')} บาท` : value.toLocaleString('th-TH')
   if (isPlainStringArray(value)) return value.length > 0 ? value.join(', ') : '— (ว่าง)'
@@ -318,9 +318,12 @@ function EntryRow({ entry, viewMode }: Readonly<{ entry: AuditLogEntry; viewMode
   // "courses" (รายการอาหารในแพ็กเกจ) แยกไปแสดงเป็นรายข้อที่เปลี่ยนจริงต่างหาก ไม่ปนกับฟิลด์อื่นแบบ before/after บรรทัดเดียว
   const coursesDiff = diff.find(d => d.key === 'courses')
   const fieldDiff = diff.filter(d => d.key !== 'courses')
-  const courseLines = coursesDiff
-    ? diffCourseList(coursesDiff.mode === 'changed' ? coursesDiff.before : [], coursesDiff.mode === 'changed' ? coursesDiff.after : coursesDiff.value)
-    : []
+  let courseLines: ReturnType<typeof diffCourseList> = []
+  if (coursesDiff) {
+    const before = coursesDiff.mode === 'changed' ? coursesDiff.before : []
+    const after = coursesDiff.mode === 'changed' ? coursesDiff.after : coursesDiff.value
+    courseLines = diffCourseList(before, after)
+  }
 
   return (
     <div className="bg-gray-50 rounded-xl px-4 py-3">

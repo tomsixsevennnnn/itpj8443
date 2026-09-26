@@ -179,6 +179,10 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
       : {}),
   }
 
+  let saveButtonLabel = 'เพิ่มเมนู'
+  if (saving) saveButtonLabel = 'กำลังบันทึก...'
+  else if (editing) saveButtonLabel = 'บันทึกการแก้ไข'
+
   return (
     <div className="flex gap-5 h-full">
       {/* Category sidebar */}
@@ -522,7 +526,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                 className="flex-1 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-xl py-3 font-semibold text-sm transition-colors shadow-lg shadow-orange-200 disabled:shadow-none"
               >
                 {saving && <Loader2 size={14} className="animate-spin" />}
-                {saving ? 'กำลังบันทึก...' : editing ? 'บันทึกการแก้ไข' : 'เพิ่มเมนู'}
+                {saveButtonLabel}
               </button>
             </div>
           </div>

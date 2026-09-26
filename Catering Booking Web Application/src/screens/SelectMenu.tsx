@@ -126,6 +126,12 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
             const cat = categoryMap[course.category]
             const chosen = chosenIn(course)
             const isActive = course.no === activeCourse.no
+            let badgeClass = 'bg-gray-100 text-gray-500'
+            if (chosen) badgeClass = 'bg-green-500 text-white'
+            else if (isActive) badgeClass = 'bg-orange-500 text-white'
+            let sidebarSubtext = `${selectableItems(course).length} ตัวเลือก`
+            if (course.choose === 0) sidebarSubtext = 'รวมในแพ็กเกจ'
+            else if (chosen) sidebarSubtext = chosen.name
             return (
               <button
                 key={course.no}
@@ -136,9 +142,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
               >
                 {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500 rounded-r-full" />}
                 <span
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 ${
-                    chosen ? 'bg-green-500 text-white' : isActive ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500'
-                  }`}
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 ${badgeClass}`}
                 >
                   {chosen ? <Check size={11} /> : course.no}
                 </span>
@@ -148,7 +152,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
                     <span className="truncate">{course.title}</span>
                   </span>
                   <span className="block text-[10px] leading-tight mt-0.5 truncate text-gray-400">
-                    {course.choose === 0 ? 'รวมในแพ็กเกจ' : chosen ? chosen.name : `${selectableItems(course).length} ตัวเลือก`}
+                    {sidebarSubtext}
                   </span>
                 </span>
               </button>
