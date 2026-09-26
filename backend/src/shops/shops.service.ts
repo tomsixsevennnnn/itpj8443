@@ -57,8 +57,13 @@ export class ShopsService {
     })
   }
 
+  /** เทียบ slug แบบไม่สนตัวพิมพ์ใหญ่-เล็ก — กันเคสมีคนพิมพ์ URL เองด้วยตัวพิมพ์ใหญ่ (สำหรับ slug ภาษาอังกฤษ,
+   *  ภาษาไทยไม่มีเคสนี้อยู่แล้ว) findUnique ทำแบบนี้ไม่ได้ตรงๆ ต้องใช้ findFirst + mode: insensitive แทน */
   async findBySlugPublic(slug: string) {
-    const shop = await this.prisma.shop.findUnique({ where: { slug }, select: { id: true, name: true, slug: true, status: true } })
+    const shop = await this.prisma.shop.findFirst({
+      where: { slug: { equals: slug, mode: 'insensitive' } },
+      select: { id: true, name: true, slug: true, status: true },
+    })
     if (!shop || shop.status !== ShopStatus.ACTIVE) throw new NotFoundException('ไม่พบร้านนี้ หรือร้านปิดให้บริการชั่วคราว')
     return shop
   }
