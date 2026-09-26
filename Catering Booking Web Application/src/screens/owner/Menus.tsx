@@ -337,10 +337,11 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label htmlFor="menu-name" className="block text-sm font-medium text-gray-700 mb-1.5">
                   ชื่อเมนู <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="menu-name"
                   type="text"
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}

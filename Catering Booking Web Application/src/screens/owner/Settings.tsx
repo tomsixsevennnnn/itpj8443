@@ -612,7 +612,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         </div>
 
         <div className="mt-4 pt-4 border-t border-gray-100">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="promptpay-qr-input" className="block text-sm font-medium text-gray-700 mb-1.5">
             QR พร้อมเพย์ (สำรอง — ใช้ถ้ายังไม่ได้กรอกเลขพร้อมเพย์ด้านบน)
           </label>
           <div className="grid sm:grid-cols-2 gap-4 mb-3 max-w-md">
@@ -643,6 +643,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </div>
           <input
             ref={qrInputRef}
+            id="promptpay-qr-input"
             type="file"
             accept="image/*"
             onChange={e => handlePickQr(e.target.files?.[0])}
@@ -852,7 +853,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
 
         {/* จังหวัดที่นับเป็นโซน metro — ระบบตัดสินโซนจากชื่อจังหวัด/ที่อยู่ที่มีคำในรายการนี้อยู่ (ดู zoneFor ใน geo.ts) */}
         <div className="mt-5 pt-5 border-t border-gray-100">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="new-metro-province" className="block text-sm font-medium text-gray-700 mb-1.5">
             จังหวัดในเขตกรุงเทพฯ/ปริมณฑล (นับเป็นโซนนี้)
           </label>
           <p className="text-xs text-gray-400 mb-3">
@@ -860,6 +861,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </p>
           <div className="flex gap-2 mb-3">
             <input
+              id="new-metro-province"
               type="text"
               value={newMetroProvince}
               onChange={e => setNewMetroProvince(e.target.value)}
