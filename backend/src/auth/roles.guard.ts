@@ -44,7 +44,9 @@ export class RolesGuard implements CanActivate {
     // ไม่พบ user ใน DB เลย = ถือเป็น customer โดย default เสมอ ไม่ cache เคสนี้ไว้ (แถวอาจถูกสร้างในวินาทีถัดไปหลัง sync)
     if (!dbUser) return 'customer'
 
-    const role: AppRole = dbUser.role === Role.OWNER ? 'owner' : dbUser.role === Role.SUPER_ADMIN ? 'super_admin' : 'customer'
+    let role: AppRole = 'customer'
+    if (dbUser.role === Role.OWNER) role = 'owner'
+    else if (dbUser.role === Role.SUPER_ADMIN) role = 'super_admin'
     this.cache.set(sub, { role, at: Date.now() })
     return role
   }

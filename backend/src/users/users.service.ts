@@ -171,7 +171,10 @@ export class UsersService {
       }
     }
 
-    const shopId = editor.role === Role.OWNER && role === Role.OWNER ? editor.shopId : role === Role.CUSTOMER ? null : target.shopId
+    let shopId: string | null
+    if (editor.role === Role.OWNER && role === Role.OWNER) shopId = editor.shopId
+    else if (role === Role.CUSTOMER) shopId = null
+    else shopId = target.shopId
     const after = await this.prisma.user.update({ where: { id }, data: { role, shopId } })
     // เปลี่ยน role กระทบสิทธิ์เข้าถึงโดยตรง — ต้องมี audit log ว่าใครเลื่อน/ถอดสิทธิ์ให้ใครเมื่อไหร่
     await this.audit.log(editorAuth0Sub, 'user.setRole', 'User', id, { role: target.role }, { role: after.role }, editor.shopId)

@@ -125,8 +125,19 @@ const CUSTOMER_PATH_TO_SCREEN: Record<string, Screen> = Object.fromEntries(
   Object.entries(CUSTOMER_SCREEN_PATH).map(([s, p]) => [p, s as Screen]),
 )
 
-const defaultScreenFor = (r: AppRoleForPath): Screen =>
-  r === 'owner' ? 'owner-dashboard' : r === 'super_admin' ? 'super-admin' : 'home'
+const defaultScreenFor = (r: AppRoleForPath): Screen => {
+  if (r === 'owner') return 'owner-dashboard'
+  if (r === 'super_admin') return 'super-admin'
+  return 'home'
+}
+
+/** map role ดิบจาก backend (ตัวพิมพ์ใหญ่ตาม Prisma enum) เป็น AppRoleForPath — จุดเดียวที่ใช้ร่วมกันทุกที่ที่
+ *  ต้องแปลง backendUser.role/syncProfile response กันสี่จุดคำนวณไม่ตรงกัน */
+const roleForPathFrom = (role: 'OWNER' | 'CUSTOMER' | 'SUPER_ADMIN' | undefined): AppRoleForPath => {
+  if (role === 'OWNER') return 'owner'
+  if (role === 'SUPER_ADMIN') return 'super_admin'
+  return 'customer'
+}
 
 /**
  * screen + ร้านปัจจุบัน -> URL ที่ "ควรจะเป็น" ใช้ตอน navigate() (pushState) และตอน sync URL ทุกจุด — ตัดสินจาก
@@ -367,8 +378,7 @@ export default function App() {
   useEffect(() => {
     const onPopState = () => {
       if (isAuthenticated) {
-        const roleForPath: AppRoleForPath =
-          backendUser?.role === 'OWNER' ? 'owner' : backendUser?.role === 'SUPER_ADMIN' ? 'super_admin' : 'customer'
+        const roleForPath: AppRoleForPath = roleForPathFrom(backendUser?.role)
         const shopSlug = roleForPath === 'owner' ? (backendUser?.shop?.slug ?? null) : selectedShopSlug
 
         const resolved = screenFromPath(window.location.pathname, roleForPath)
@@ -442,7 +452,7 @@ export default function App() {
         if (cancelled) return
         setBackendUser(me)
 
-        const roleForPath: AppRoleForPath = me.role === 'OWNER' ? 'owner' : me.role === 'SUPER_ADMIN' ? 'super_admin' : 'customer'
+        const roleForPath: AppRoleForPath = roleForPathFrom(me.role)
         // sync หน้าเริ่มต้น + URL ให้ตรงกับ role/ร้านของ session ปัจจุบันเสมอ (ครั้งแรกที่ login สำเร็จเท่านั้น
         // ดู initialScreenResolvedRef) resolve จาก URL ปัจจุบันก่อน (รองรับ deep-link/reload กลางทาง) ถ้าไม่ตรง
         // หน้าไหนของ role นี้เลย ค่อย fallback ไปหน้า default — กันเคส login ค้างอยู่แล้วมีใครพิมพ์ path ร้าน/
@@ -754,11 +764,7 @@ export default function App() {
    *  "สิทธิ์การเข้าถึง" แก้แค่ DB ไม่ได้แก้ token/Auth0 profile จึง claim เดิมค้างอยู่จนกว่าจะขอ token ใหม่
    *  ก่อน backendUser โหลดเสร็จ (ตอนแรกสุดหลัง login) ใช้ claim ไปพลางๆ ได้ เพราะหน้าจอที่พึ่ง role ยังไม่ render จนกว่า dataLoaded */
   const role = backendUser
-    ? backendUser.role === 'OWNER'
-      ? 'owner'
-      : backendUser.role === 'SUPER_ADMIN'
-        ? 'super_admin'
-        : 'customer'
+    ? roleForPathFrom(backendUser.role)
     : roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
   /** เบอร์โทร/ชื่อ/นามสกุล เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ขาดตัวไหนก็ถือว่ายังกรอกไม่ครบ ต้องเด้งไปกรอกใหม่ทุกครั้งที่ login จนกว่าจะครบ */
   const needsProfile =
@@ -834,13 +840,7 @@ export default function App() {
 
   /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที */
   const effectiveScreen: Screen =
-    screen === 'login' && isAuthenticated && !needsProfile
-      ? role === 'owner'
-        ? 'owner-dashboard'
-        : role === 'super_admin'
-          ? 'super-admin'
-          : 'home'
-      : screen
+    screen === 'login' && isAuthenticated && !needsProfile ? defaultScreenFor(role) : screen
 
   /** ตาข่ายสำรอง — เผื่อ role เปลี่ยนกลางเซสชัน (เช่นถูกถอดสิทธิ์ owner จากอีกแท็บ ระหว่างที่ค้างอยู่หน้า owner-*)
    *  แล้ว screen ที่ค้างอยู่ไม่ตรงกับ role ใหม่แล้ว ดีดกลับไปหน้า default ของ role ปัจจุบันแทนที่จะโชว์จอว่างเปล่า
