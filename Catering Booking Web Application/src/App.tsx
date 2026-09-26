@@ -999,16 +999,21 @@ export default function App() {
           onCreateShop={(input) =>
             runAction(async () => {
               const token = await withToken()
-              const created = await api.createShop(token, input)
-              setShopsAdmin(prev => [created, ...prev])
-              setOwnersAdmin(await api.listOwners(token))
+              await api.createShop(token, input)
+              // createShop คืนแค่แถว Shop ดิบ (ไม่มี _count/totalRevenue เหมือน shopsList) — ถ้าเอามาต่อ state
+              // ตรงๆ การ์ดร้านใหม่จะโชว์ 0 owner/0 การจอง ค้างจนกว่าจะ refresh หน้า ดึงชุดที่มี _count มาแทนเลย
+              const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
+              setShopsAdmin(shops)
+              setOwnersAdmin(owners)
             })
           }
           onSetShopStatus={(id, status) =>
             runAction(async () => {
               const token = await withToken()
               const updated = await api.setShopStatus(token, id, status)
-              setShopsAdmin(prev => prev.map(s => (s.id === id ? updated : s)))
+              // setShopStatus คืนแค่แถว Shop ดิบเหมือน createShop/updateShop (ไม่มี _count/totalRevenue) —
+              // merge แทนที่ทั้งก้อน กัน owner/จำนวนจองที่โชว์อยู่หายไปตอนกดระงับ/เปิดใช้งาน
+              setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
             })
           }
           onAddOwner={(id, email) =>
