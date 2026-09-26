@@ -28,7 +28,7 @@ export default function Cart({
   freeDeliveryMinTables,
   fuelCostPerKm,
   homeProvince,
-}: CartProps) {
+}: Readonly<CartProps>) {
   const { navigate } = useNav()
   const [showConfirm, setShowConfirm] = useState(false)
   const [ownerBlocked, setOwnerBlocked] = useState(false)

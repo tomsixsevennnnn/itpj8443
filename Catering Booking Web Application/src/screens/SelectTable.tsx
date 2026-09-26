@@ -12,7 +12,7 @@ interface SelectTableProps {
   homeProvince: string
 }
 
-export default function SelectTable({ tables, onSetTables, date, timeSlot, deliveryFee, freeDeliveryMinTables, homeProvince }: SelectTableProps) {
+export default function SelectTable({ tables, onSetTables, date, timeSlot, deliveryFee, freeDeliveryMinTables, homeProvince }: Readonly<SelectTableProps>) {
   const { navigate } = useNav()
   const totalGuests = tables * 10
 

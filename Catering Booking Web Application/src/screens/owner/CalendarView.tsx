@@ -33,7 +33,7 @@ const DAYS_TH = ['อาทิตย์','จันทร์','อังคา�
 
 const SLOT_LABEL = Object.fromEntries(TIME_SLOTS.map(s => [s.id, s.label])) as Record<string, string>
 
-export default function CalendarView({ bookings, onUpdateBooking, onFetchPaymentSlip }: CalendarViewProps) {
+export default function CalendarView({ bookings, onUpdateBooking, onFetchPaymentSlip }: Readonly<CalendarViewProps>) {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())

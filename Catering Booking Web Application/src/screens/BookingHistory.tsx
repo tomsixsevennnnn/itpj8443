@@ -34,7 +34,7 @@ export default function BookingHistory({
   onFetchPaymentSlip,
   openBookingId,
   onOpenBookingIdHandled,
-}: BookingHistoryProps) {
+}: Readonly<BookingHistoryProps>) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [detailId, setDetailId] = useState<string | null>(null)

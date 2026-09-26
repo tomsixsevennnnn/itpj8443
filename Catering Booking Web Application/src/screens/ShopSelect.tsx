@@ -13,7 +13,7 @@ interface ShopSelectProps {
 /** หน้าแรกสุดของแอป (multi-tenant) — ลูกค้าต้องเลือกร้านก่อนเสมอ ถึงจะเห็นหน้า login/เริ่มจองของร้านนั้นได้
  *  ไม่ต้อง login (ดู GET /shops/public ฝั่ง backend) หน้านี้ยังไม่ login เลยต่อ SSE (useAppStream) ไม่ได้ —
  *  poll ทุก 20 วิแทน กันรายชื่อร้านค้าง (ร้านใหม่ที่ superadmin เพิ่งสร้าง/ระงับ/ลบ ไม่โผล่จนกว่าจะ reload เอง) */
-export default function ShopSelect({ onSelect }: ShopSelectProps) {
+export default function ShopSelect({ onSelect }: Readonly<ShopSelectProps>) {
   const [shops, setShops] = useState<ShopPublic[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const loadedOnceRef = useRef(false)

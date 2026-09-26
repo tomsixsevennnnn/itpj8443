@@ -8,7 +8,7 @@ interface NavbarProps {
   currentScreen: Screen
 }
 
-export default function Navbar({ currentScreen }: NavbarProps) {
+export default function Navbar({ currentScreen }: Readonly<NavbarProps>) {
   const { navigate, user, shopInfo, notifCount } = useNav()
   const navItems = [
     { label: 'หน้าแรก', screen: 'home' as Screen, icon: Home },

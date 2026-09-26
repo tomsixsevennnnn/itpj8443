@@ -37,7 +37,7 @@ export default function Orders({
   onFetchPaymentSlip,
   openBookingId,
   onOpenBookingIdHandled,
-}: OrdersProps) {
+}: Readonly<OrdersProps>) {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)

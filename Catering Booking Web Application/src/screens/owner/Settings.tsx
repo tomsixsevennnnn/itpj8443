@@ -81,7 +81,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; icon: typeof Building2 }[
   { id: 'categories', label: 'ประเภทอาหาร', icon: ListOrdered },
 ]
 
-export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: SettingsProps) {
+export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: Readonly<SettingsProps>) {
   const [form, setForm] = useState<AppSettings>(settings)
   const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
   const [savedAt, setSavedAt] = useState<number | null>(null)

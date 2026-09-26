@@ -22,7 +22,7 @@ interface UserRowProps {
   onDemote: () => void
 }
 
-function UserRow({ user, isSelf, busy, onPromote, onDemote }: UserRowProps) {
+function UserRow({ user, isSelf, busy, onPromote, onDemote }: Readonly<UserRowProps>) {
   const isOwner = user.role === 'OWNER'
   return (
     <div className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-4 py-3">
@@ -69,7 +69,7 @@ function UserRow({ user, isSelf, busy, onPromote, onDemote }: UserRowProps) {
   )
 }
 
-export default function UserRoles({ onSearchUser, onSetRole, onListOwners, currentAuth0Sub, refreshSignal }: UserRolesProps) {
+export default function UserRoles({ onSearchUser, onSetRole, onListOwners, currentAuth0Sub, refreshSignal }: Readonly<UserRolesProps>) {
   const [owners, setOwners] = useState<BackendUser[] | null>(null)
   const [loadingOwners, setLoadingOwners] = useState(true)
   const [ownersError, setOwnersError] = useState<string | null>(null)

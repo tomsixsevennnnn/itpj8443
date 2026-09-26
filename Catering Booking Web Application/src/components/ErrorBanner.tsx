@@ -6,7 +6,7 @@ interface ErrorBannerProps {
 }
 
 /** แจ้งเตือนตอนทำรายการ (จอง/แก้แพ็กเกจ/แก้เมนู ฯลฯ) ไม่สำเร็จ — ลอยด้านบน ปิดเองได้ */
-export default function ErrorBanner({ message, onDismiss }: ErrorBannerProps) {
+export default function ErrorBanner({ message, onDismiss }: Readonly<ErrorBannerProps>) {
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] w-[calc(100%-2rem)] max-w-md">
       <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 rounded-2xl shadow-lg px-4 py-3">

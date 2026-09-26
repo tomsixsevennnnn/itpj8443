@@ -40,7 +40,7 @@ const pctChange = (now: number, prev: number): number | null => {
   return Math.round(((now - prev) / prev) * 100)
 }
 
-export default function Dashboard({ bookings, menus, settings }: DashboardProps) {
+export default function Dashboard({ bookings, menus, settings }: Readonly<DashboardProps>) {
   const stats = useMemo(() => {
     const today = new Date()
     const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`

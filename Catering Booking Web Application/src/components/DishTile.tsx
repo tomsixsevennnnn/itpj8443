@@ -10,7 +10,7 @@ interface DishTileProps {
   className?: string
 }
 
-export default function DishTile({ item, category, emojiClass = 'text-4xl', className = '' }: DishTileProps) {
+export default function DishTile({ item, category, emojiClass = 'text-4xl', className = '' }: Readonly<DishTileProps>) {
   const { categoryMap } = useNav()
   if (item.image) {
     const { x, y } = item.imagePosition ?? { x: 50, y: 50 }

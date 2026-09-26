@@ -11,7 +11,7 @@ const COLORS = ['bg-orange-500', 'bg-blue-500', 'bg-emerald-500', 'bg-violet-500
 const colorFor = (initial: string) => COLORS[initial.charCodeAt(0) % COLORS.length]
 
 /** โชว์รูปโปรไฟล์ ถ้าไม่มี src หรือโหลดไม่สำเร็จ (เช่น googleusercontent โดน rate limit) ใช้ตัวอักษรแรกของชื่อแทนแทนที่จะเป็นไอคอนรูปแตก */
-export default function Avatar({ src, name = '', className = '' }: AvatarProps) {
+export default function Avatar({ src, name = '', className = '' }: Readonly<AvatarProps>) {
   const [failed, setFailed] = useState(false)
   // src เปลี่ยน (เช่น อัปโหลดรูปใหม่ทับของเดิมที่เคยโหลดพลาด) — ต้องลองโหลดใหม่ ไม่งั้นค้างโชว์ตัวอักษรแทนตลอดไป
   useEffect(() => setFailed(false), [src])

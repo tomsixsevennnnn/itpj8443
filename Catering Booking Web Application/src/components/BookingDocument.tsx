@@ -51,7 +51,7 @@ export default function BookingDocument({
   quotationValidDays = DEFAULT_QUOTATION_VALID_DAYS,
   quotationTerms = DEFAULT_QUOTATION_TERMS,
   bookingTerms = DEFAULT_BOOKING_TERMS,
-}: BookingDocumentProps) {
+}: Readonly<BookingDocumentProps>) {
   const price = bookingPricing(booking, depositRate)
   const issuedAt = new Date().toISOString().slice(0, 10)
 

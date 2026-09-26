@@ -16,7 +16,7 @@ const FEATURE_ICONS = [
   { icon: Users, color: 'text-purple-500' },
 ]
 
-export default function Home({ homeContent }: HomeProps) {
+export default function Home({ homeContent }: Readonly<HomeProps>) {
   const { navigate, shopInfo } = useNav()
   return (
     <div className="min-h-screen bg-gray-50">

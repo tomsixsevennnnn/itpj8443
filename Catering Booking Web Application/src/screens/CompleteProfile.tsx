@@ -13,7 +13,7 @@ interface CompleteProfileProps {
  * ขอชื่อจริง/นามสกุล/เบอร์โทร/Line ID — เด้งมาหน้านี้ทุกครั้งที่ login จนกว่าจะกรอกครบ (ดู needsProfile ใน App.tsx)
  * ดึงค่าที่เคยกรอกไว้มาแสดงล่วงหน้าเสมอ (ไม่ใช่แค่ครั้งแรก) เผื่อกรอกไว้บางส่วนแล้วแค่ต้องมาเติมที่ขาด
  */
-export default function CompleteProfile({ name, surname, phone, lineId, onComplete }: CompleteProfileProps) {
+export default function CompleteProfile({ name, surname, phone, lineId, onComplete }: Readonly<CompleteProfileProps>) {
   const [form, setForm] = useState({ name, surname, phone, lineId })
 
   const handleSave = () => {

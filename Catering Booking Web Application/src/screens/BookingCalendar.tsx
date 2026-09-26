@@ -27,7 +27,7 @@ const MONTHS_TH = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ]
 
-export default function BookingCalendar({ bookings, onSelectDateTime, slotHours, closedDates }: BookingCalendarProps) {
+export default function BookingCalendar({ bookings, onSelectDateTime, slotHours, closedDates }: Readonly<BookingCalendarProps>) {
   const { navigate } = useNav()
   const slots = bookableSlots(slotHours)
   const today = new Date()

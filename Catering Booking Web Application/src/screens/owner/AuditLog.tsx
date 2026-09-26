@@ -311,7 +311,7 @@ function diffEntries(before: unknown, after: unknown): DiffEntry[] {
   return entries
 }
 
-function EntryRow({ entry, viewMode }: { entry: AuditLogEntry; viewMode: 'friendly' | 'raw' }) {
+function EntryRow({ entry, viewMode }: Readonly<{ entry: AuditLogEntry; viewMode: 'friendly' | 'raw' }>) {
   const [open, setOpen] = useState(false)
   const hasDetail = entry.before != null || entry.after != null
   const diff = diffEntries(entry.before, entry.after)
@@ -460,7 +460,7 @@ function EntryRow({ entry, viewMode }: { entry: AuditLogEntry; viewMode: 'friend
   )
 }
 
-export default function AuditLog({ onFetchPage, refreshSignal }: AuditLogProps) {
+export default function AuditLog({ onFetchPage, refreshSignal }: Readonly<AuditLogProps>) {
   const [page, setPage] = useState(1)
   const [data, setData] = useState<AuditLogPage | null>(null)
   const [loading, setLoading] = useState(true)

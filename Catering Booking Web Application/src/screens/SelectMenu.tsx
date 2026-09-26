@@ -13,7 +13,7 @@ interface SelectMenuProps {
   onSetMenus: (menus: MenuItem[]) => void
 }
 
-export default function SelectMenu({ packages, packageId, selectedMenus, onSetMenus }: SelectMenuProps) {
+export default function SelectMenu({ packages, packageId, selectedMenus, onSetMenus }: Readonly<SelectMenuProps>) {
   const { navigate, categoryMap } = useNav()
   const pkg = packages.find(p => p.id === packageId) ?? null
   const [activeCourseNo, setActiveCourseNo] = useState(1)

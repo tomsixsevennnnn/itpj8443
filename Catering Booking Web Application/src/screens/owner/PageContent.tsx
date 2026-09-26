@@ -31,7 +31,7 @@ const PAGE_CONTENT_TABS: { id: PageContentTab; label: string; icon: typeof Image
   { id: 'cta', label: 'CTA ท้ายหน้า', icon: Megaphone },
 ]
 
-export default function PageContent({ settings, onUpdateSettings, onUploadImage }: PageContentProps) {
+export default function PageContent({ settings, onUpdateSettings, onUploadImage }: Readonly<PageContentProps>) {
   const [form, setForm] = useState<AppSettings>(settings)
   const [activeTab, setActiveTab] = useState<PageContentTab>('hero')
   const [savedAt, setSavedAt] = useState<number | null>(null)

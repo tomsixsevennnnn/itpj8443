@@ -11,7 +11,7 @@ interface ImageLightboxProps {
 }
 
 /** เปิดรูปเต็มจอ พร้อมปุ่มดาวน์โหลด — ใช้ดูสลิปโอนเงิน/รูปเมนูแบบขยาย */
-export default function ImageLightbox({ src, alt, fileName = 'image.jpg', onClose, zIndexClass = 'z-[60]' }: ImageLightboxProps) {
+export default function ImageLightbox({ src, alt, fileName = 'image.jpg', onClose, zIndexClass = 'z-[60]' }: Readonly<ImageLightboxProps>) {
   return (
     <div
       className={`fixed inset-0 bg-black/80 ${zIndexClass} flex items-center justify-center p-4`}

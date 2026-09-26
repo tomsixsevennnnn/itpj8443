@@ -12,7 +12,7 @@ interface PromptPayQrProps {
 }
 
 /** สร้าง QR พร้อมเพย์แบบ dynamic ต่อใบจอง (มาตรฐาน EMV ของ ธปท.) แทนรูป QR คงที่ที่ร้านอัปโหลดไว้ล่วงหน้า */
-export default function PromptPayQr({ promptPayId, amount, size = 176, className }: PromptPayQrProps) {
+export default function PromptPayQr({ promptPayId, amount, size = 176, className }: Readonly<PromptPayQrProps>) {
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   const [error, setError] = useState(false)
 

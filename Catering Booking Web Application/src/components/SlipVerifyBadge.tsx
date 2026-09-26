@@ -20,7 +20,7 @@ const STATUS_CONFIG: Record<
   UNAVAILABLE: { icon: HelpCircle, className: 'text-gray-600 bg-gray-50 border-gray-200', label: 'ยังไม่ได้ตรวจสอบอัตโนมัติ (ระบบ SlipOK ขัดข้องชั่วคราว)' },
 }
 
-export default function SlipVerifyBadge({ status, message }: SlipVerifyBadgeProps) {
+export default function SlipVerifyBadge({ status, message }: Readonly<SlipVerifyBadgeProps>) {
   if (!status) return null
   const cfg = STATUS_CONFIG[status]
   const Icon = cfg.icon

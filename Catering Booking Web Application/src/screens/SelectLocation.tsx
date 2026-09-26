@@ -63,7 +63,7 @@ export default function SelectLocation({
   fuelCostPerKm,
   metroProvinces,
   homeProvince,
-}: SelectLocationProps) {
+}: Readonly<SelectLocationProps>) {
   const { navigate } = useNav()
   const [pos, setPos] = useState(location ? { lat: location.lat, lng: location.lng } : DEFAULT_CENTER)
   const mapRef = useRef<LocationMapHandle>(null)

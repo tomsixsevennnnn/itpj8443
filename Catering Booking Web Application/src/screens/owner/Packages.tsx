@@ -43,7 +43,7 @@ export default function Packages({
   onUpdatePackage,
   onDeletePackage,
   onReorderPackages,
-}: PackagesProps) {
+}: Readonly<PackagesProps>) {
   const categories = orderedCategories(settings.categoryOrder, settings.categories)
   const categoryMap = categoryMapOf(settings.categories)
   const [showModal, setShowModal] = useState(false)

@@ -18,7 +18,7 @@ const PKG_COLORS = [
   { bg: 'bg-purple-50', border: 'border-purple-100', accent: 'text-purple-600', badge: 'bg-purple-100 text-purple-600', btn: 'bg-purple-600 hover:bg-purple-700' },
 ]
 
-export default function SelectPackage({ packages, tables, selectedPackageId, onSelectPackage }: SelectPackageProps) {
+export default function SelectPackage({ packages, tables, selectedPackageId, onSelectPackage }: Readonly<SelectPackageProps>) {
   const { navigate, categoryMap } = useNav()
   return (
     <div className="min-h-screen bg-gray-50">

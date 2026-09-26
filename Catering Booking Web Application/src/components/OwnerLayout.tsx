@@ -49,7 +49,7 @@ const sidebarItems = [
   { label: 'ตั้งค่า', screen: 'owner-settings' as Screen, icon: Settings },
 ]
 
-export default function OwnerLayout({ currentScreen, bookings, children }: OwnerLayoutProps) {
+export default function OwnerLayout({ currentScreen, bookings, children }: Readonly<OwnerLayoutProps>) {
   const { navigate, user, shopInfo, openNotificationBooking } = useNav()
   // ต่ำกว่า lg (จอแท็บเล็ตแนวตั้งอย่าง iPad) sidebar ซ่อนเป็น off-canvas drawer เปิดผ่านปุ่มแฮมเบอร์เกอร์
   const [sidebarOpen, setSidebarOpen] = useState(false)

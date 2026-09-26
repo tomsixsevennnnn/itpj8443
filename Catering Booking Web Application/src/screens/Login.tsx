@@ -16,7 +16,7 @@ interface LoginProps {
   onChangeShop: () => void
 }
 
-export default function Login({ shopId, onChangeShop }: LoginProps) {
+export default function Login({ shopId, onChangeShop }: Readonly<LoginProps>) {
   const { loginWithRedirect, isLoading } = useAuth0()
   // ค่าเริ่มต้นไว้โชว์ระหว่างโหลด/กันพัง ถ้าดึงจาก backend ไม่สำเร็จ — พอโหลดเสร็จจะได้ข้อมูลร้านล่าสุดจริง
   const [shopName, setShopName] = useState(DEFAULT_SHOP_INFO.name)

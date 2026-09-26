@@ -30,7 +30,7 @@ const MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ
 
 const emptyRow = (key: string, label: string): PeriodRow => ({ key, label, count: 0, tables: 0, revenue: 0, cost: 0, profit: 0 })
 
-export default function Reports({ bookings, menus, settings }: ReportsProps) {
+export default function Reports({ bookings, menus, settings }: Readonly<ReportsProps>) {
   const [mode, setMode] = useState<Mode>('month')
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear())
 

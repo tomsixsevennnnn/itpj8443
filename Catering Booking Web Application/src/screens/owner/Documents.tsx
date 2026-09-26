@@ -11,7 +11,7 @@ interface DocumentsProps {
   settings: AppSettings
 }
 
-export default function Documents({ bookings, menus, settings }: DocumentsProps) {
+export default function Documents({ bookings, menus, settings }: Readonly<DocumentsProps>) {
   const [activeTab, setActiveTab] = useState<DocType>('quotation')
   const [search, setSearch] = useState('')
   const [previewBooking, setPreviewBooking] = useState<Booking | null>(null)

@@ -18,7 +18,7 @@ const KIND_UI: Record<NotificationKind, { icon: typeof Clock; color: string; bg:
   cancelled: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50', border: 'border-red-100' },
 }
 
-export default function Notifications({ bookings, notifSeenAt }: NotificationsProps) {
+export default function Notifications({ bookings, notifSeenAt }: Readonly<NotificationsProps>) {
   const { openNotificationBooking } = useNav()
   const items = useMemo(() => buildNotifications(bookings), [bookings])
 

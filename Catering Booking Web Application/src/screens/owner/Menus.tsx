@@ -42,7 +42,7 @@ const emptyForm = (category: string): MenuForm => ({
   imageScale: 1,
 })
 
-export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteMenu, onUploadImage }: MenusProps) {
+export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteMenu, onUploadImage }: Readonly<MenusProps>) {
   const categories = orderedCategories(settings.categoryOrder, settings.categories)
   const categoryMap = categoryMapOf(categories)
   const [activeCategory, setActiveCategory] = useState(categories[0].id)

@@ -57,7 +57,7 @@ export default function SuperAdmin({
   onSetSuperAdmin,
   onFetchAuditPage,
   auditRefreshSignal,
-}: SuperAdminProps) {
+}: Readonly<SuperAdminProps>) {
   const { navigate } = useNav()
   const [tab, setTab] = useState<Tab>('shops')
 
@@ -495,7 +495,7 @@ interface SuperAdminManagerProps {
 
 /** ค้นหาผู้ใช้ด้วยอีเมล (ต้องเคย login เข้าระบบมาก่อนอย่างน้อย 1 ครั้ง) แล้วตั้ง/ถอด SUPER_ADMIN ได้ — เว้น OWNER
  *  ไว้ไม่ให้แตะจากหน้านี้ (ต้องผ่านหน้าจัดการร้านเท่านั้น เพราะ OWNER ต้องมี shopId คู่กันเสมอ ดู users.service.ts) */
-function SuperAdminManager({ onSearchUser, onSetSuperAdmin }: SuperAdminManagerProps) {
+function SuperAdminManager({ onSearchUser, onSetSuperAdmin }: Readonly<SuperAdminManagerProps>) {
   const [email, setEmail] = useState('')
   const [debouncedEmail, setDebouncedEmail] = useState('')
   const [results, setResults] = useState<BackendUser[] | null>(null)
