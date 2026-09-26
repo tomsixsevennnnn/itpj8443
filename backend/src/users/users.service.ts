@@ -34,8 +34,8 @@ const superAdminEmails = (): Set<string> =>
 @Injectable()
 export class UsersService {
   constructor(
-    private prisma: PrismaService,
-    private audit: AuditService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   /**

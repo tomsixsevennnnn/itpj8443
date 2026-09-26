@@ -255,8 +255,8 @@ const toGeoResult = (place: NominatimPlace): GeoResult => {
     name: place.name?.trim() || parts[0] || 'ตำแหน่งที่เลือก',
     address: place.display_name,
     province: a.province ?? a.state ?? a.city ?? a.county ?? '',
-    lat: parseFloat(place.lat),
-    lng: parseFloat(place.lon),
+    lat: Number.parseFloat(place.lat),
+    lng: Number.parseFloat(place.lon),
   }
 }
 
@@ -383,19 +383,19 @@ export const parseGoogleMapsUrl = (text: string): { lat: number; lng: number } |
 
   // !3d<lat>!4d<lng> — พิกัดหมุดจริงที่ปักไว้ในหน้าสถานที่ แม่นที่สุด
   const pin = url.match(/!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/)
-  if (pin) return { lat: parseFloat(pin[1]), lng: parseFloat(pin[2]) }
+  if (pin) return { lat: Number.parseFloat(pin[1]), lng: Number.parseFloat(pin[2]) }
 
   // ?q=<lat>,<lng> หรือ ?query=<lat>,<lng>
   const query = url.match(/[?&](?:q|query)=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
-  if (query) return { lat: parseFloat(query[1]), lng: parseFloat(query[2]) }
+  if (query) return { lat: Number.parseFloat(query[1]), lng: Number.parseFloat(query[2]) }
 
   // ?ll=<lat>,<lng>
   const ll = url.match(/[?&]ll=(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
-  if (ll) return { lat: parseFloat(ll[1]), lng: parseFloat(ll[2]) }
+  if (ll) return { lat: Number.parseFloat(ll[1]), lng: Number.parseFloat(ll[2]) }
 
   // @<lat>,<lng>,<zoom> — จุดกึ่งกลางแผนที่ตอนคัดลอกลิงก์ มีอยู่เกือบทุกลิงก์แต่หยาบสุด
   const center = url.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/)
-  if (center) return { lat: parseFloat(center[1]), lng: parseFloat(center[2]) }
+  if (center) return { lat: Number.parseFloat(center[1]), lng: Number.parseFloat(center[2]) }
 
   return null
 }

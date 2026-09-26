@@ -17,8 +17,8 @@ import { UpdatePaymentSlipDto } from './dto/update-payment-slip.dto'
 @Controller('bookings')
 export class BookingsController {
   constructor(
-    private bookings: BookingsService,
-    private users: UsersService,
+    private readonly bookings: BookingsService,
+    private readonly users: UsersService,
   ) {}
 
   /** owner เห็นทุกใบจองของร้านตัวเอง, customer เห็นใบจองของตัวเอง (ข้ามทุกร้าน) — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */

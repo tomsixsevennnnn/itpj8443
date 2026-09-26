@@ -25,8 +25,8 @@ const slugify = (name: string): string => {
 @Injectable()
 export class ShopsService {
   constructor(
-    private prisma: PrismaService,
-    private audit: AuditService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   /** เฉพาะ super admin เรียกได้ — เห็นทุกร้านข้ามระบบ พร้อมจำนวน owner/booking และยอดขายรวมของแต่ละร้าน (สรุป

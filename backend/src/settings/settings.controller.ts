@@ -13,9 +13,9 @@ import { SettingsService } from './settings.service'
 @Controller('settings')
 export class SettingsController {
   constructor(
-    private settings: SettingsService,
-    private users: UsersService,
-    private slipVerify: SlipVerifyService,
+    private readonly settings: SettingsService,
+    private readonly users: UsersService,
+    private readonly slipVerify: SlipVerifyService,
   ) {}
 
   /** ไม่ต้อง login — หน้า Login ฝั่ง frontend เรียกใช้เพื่อโชว์ชื่อร้าน/ข้อมูลติดต่อปัจจุบันก่อนเข้าสู่ระบบ ต้อง

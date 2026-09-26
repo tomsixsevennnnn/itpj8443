@@ -23,12 +23,12 @@ const isSerializationConflict = (err: unknown): boolean =>
 @Injectable()
 export class BookingsService {
   constructor(
-    private prisma: PrismaService,
-    private settingsService: SettingsService,
-    private audit: AuditService,
-    private uploads: UploadsService,
-    private realtime: RealtimeService,
-    private slipVerify: SlipVerifyService,
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+    private readonly audit: AuditService,
+    private readonly uploads: UploadsService,
+    private readonly realtime: RealtimeService,
+    private readonly slipVerify: SlipVerifyService,
   ) {}
 
   /** เจ้าของร้านต้องเห็นข้อมูลบัญชีลูกค้าปัจจุบัน (ชื่อ/นามสกุล/อีเมล/LINE ID) ไม่ใช่แค่ snapshot ตอนจอง — join จาก User ที่ผูกไว้
@@ -100,8 +100,8 @@ export class BookingsService {
     }
 
     // zone === 'outside' — ต้อง verify ระยะทางจริงเอง ห้าม fallback ไปเชื่อ distanceKm จาก client
-    const lat = typeof loc.lat === 'number' ? loc.lat : NaN
-    const lng = typeof loc.lng === 'number' ? loc.lng : NaN
+    const lat = typeof loc.lat === 'number' ? loc.lat : Number.NaN
+    const lng = typeof loc.lng === 'number' ? loc.lng : Number.NaN
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       throw new BadRequestException('ไม่พบพิกัดสถานที่จัดงาน กรุณาเลือกตำแหน่งบนแผนที่ใหม่')
     }
@@ -131,7 +131,7 @@ export class BookingsService {
    */
   async create(customerId: string, customerName: string, phone: string, dto: CreateBookingDto) {
     const shop = await this.prisma.shop.findUnique({ where: { id: dto.shopId } })
-    if (!shop || shop.status !== 'ACTIVE') throw new NotFoundException('ไม่พบร้านนี้ หรือร้านปิดให้บริการชั่วคราว')
+    if (shop?.status !== 'ACTIVE') throw new NotFoundException('ไม่พบร้านนี้ หรือร้านปิดให้บริการชั่วคราว')
 
     // เมนู/แพ็กเกจต้องเป็นของร้านเดียวกับ shopId ที่จอง — กันเลือกแพ็กเกจ/เมนูข้ามร้านผ่าน id ตรงๆ
     const pkg = await this.prisma.package.findUnique({

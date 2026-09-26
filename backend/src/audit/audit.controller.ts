@@ -14,8 +14,8 @@ import { AuditService } from './audit.service'
 @Controller('audit-log')
 export class AuditController {
   constructor(
-    private audit: AuditService,
-    private prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get()

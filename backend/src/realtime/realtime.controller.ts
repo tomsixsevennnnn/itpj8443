@@ -16,7 +16,7 @@ const HEARTBEAT_MS = 25_000
 @UseGuards(JwtAuthGuard)
 @Controller('realtime')
 export class RealtimeController {
-  constructor(private realtime: RealtimeService) {}
+  constructor(private readonly realtime: RealtimeService) {}
 
   @Sse('bookings')
   bookingsStream(): Observable<SseMessage> {

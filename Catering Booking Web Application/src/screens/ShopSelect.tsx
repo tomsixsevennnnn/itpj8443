@@ -75,7 +75,7 @@ export default function ShopSelect({ onSelect }: ShopSelectProps) {
             </div>
           )}
 
-          {shops && shops.length === 0 && !error && (
+          {shops?.length === 0 && !error && (
             <p className="text-center text-sm text-gray-400 py-10">ยังไม่มีร้านเปิดให้บริการ</p>
           )}
 

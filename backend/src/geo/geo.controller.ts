@@ -6,7 +6,7 @@ import { GeoService } from './geo.service'
 @UseGuards(JwtAuthGuard)
 @Controller('geo')
 export class GeoController {
-  constructor(private geo: GeoService) {}
+  constructor(private readonly geo: GeoService) {}
 
   // endpoint นี้สั่ง server ยิง fetch ออกไปยัง external host แทนผู้ใช้ (แม้จะ whitelist โดเมนไว้แล้ว) —
   // จำกัดให้เข้มกว่า default ของทั้ง API กันถูกใช้เป็นตัวรีเลย์ยิงถี่ๆ

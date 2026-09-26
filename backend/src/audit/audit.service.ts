@@ -19,8 +19,8 @@ export class AuditService {
   private readonly logger = new Logger(AuditService.name)
 
   constructor(
-    private prisma: PrismaService,
-    private realtime: RealtimeService,
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async log(

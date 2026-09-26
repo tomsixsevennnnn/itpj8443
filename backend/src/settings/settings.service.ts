@@ -77,9 +77,9 @@ const OWNER_ONLY_FIELDS = [
 @Injectable()
 export class SettingsService {
   constructor(
-    private prisma: PrismaService,
-    private audit: AuditService,
-    private uploads: UploadsService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly uploads: UploadsService,
   ) {}
 
   // เดิม cache ไว้ในหน่วยความจำ (TTL 1 วิ) กัน round-trip ไป DB ที่โฮสต์ไกล (Railway) — แต่ backend รันได้

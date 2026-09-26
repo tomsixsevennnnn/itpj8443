@@ -19,9 +19,9 @@ const CUSTOMER_SELECT = {
 @Injectable()
 export class MenusService {
   constructor(
-    private prisma: PrismaService,
-    private audit: AuditService,
-    private uploads: UploadsService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+    private readonly uploads: UploadsService,
   ) {}
 
   /** isOwner = false → strip costPrice ออกจาก response ทั้งหมด (ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม)
@@ -62,7 +62,7 @@ export class MenusService {
   /** ต้องเช็คว่าเมนูนี้เป็นของร้านที่ editor สังกัดอยู่จริงก่อนทุกครั้ง กัน owner ร้าน A แก้/ลบเมนูร้าน B ผ่าน id ตรงๆ */
   private async assertOwnedByShop(id: string, shopId: string) {
     const item = await this.prisma.menuItem.findUnique({ where: { id } })
-    if (!item || item.shopId !== shopId) throw new NotFoundException('ไม่พบเมนูนี้')
+    if (item?.shopId !== shopId) throw new NotFoundException('ไม่พบเมนูนี้')
     return item
   }
 

@@ -86,8 +86,8 @@ const CUSTOMER_MENU_ITEM_SELECT = {
 @Injectable()
 export class PackagesService {
   constructor(
-    private prisma: PrismaService,
-    private audit: AuditService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   private async fetchItemsById(itemIds: string[]): Promise<Map<string, MenuItem>> {
@@ -225,7 +225,7 @@ export class PackagesService {
   /** เช็คว่าแพ็กเกจนี้เป็นของร้านที่ editor สังกัดอยู่จริงก่อนทุกครั้ง กัน owner ร้าน A แก้/ลบแพ็กเกจร้าน B ผ่าน id ตรงๆ */
   private async assertPackageOwnedByShop(id: string, shopId: string) {
     const pkg = await this.prisma.package.findUnique({ where: { id } })
-    if (!pkg || pkg.shopId !== shopId) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
+    if (pkg?.shopId !== shopId) throw new NotFoundException('ไม่พบแพ็กเกจนี้')
     return pkg
   }
 

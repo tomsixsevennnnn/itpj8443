@@ -14,7 +14,7 @@ import { UsersService } from './users.service'
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private users: UsersService) {}
+  constructor(private readonly users: UsersService) {}
 
   /**
    * frontend เรียกทันทีหลัง login สำเร็จ — ส่ง profile จาก ID token มาเอง (access token ไม่มี

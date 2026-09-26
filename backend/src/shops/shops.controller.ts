@@ -12,7 +12,7 @@ import { ShopsService } from './shops.service'
 
 @Controller('shops')
 export class ShopsController {
-  constructor(private shops: ShopsService) {}
+  constructor(private readonly shops: ShopsService) {}
 
   /** ไม่ต้อง login — หน้ารายชื่อร้านให้ลูกค้าเลือกก่อนเริ่มจอง */
   @Get('public')

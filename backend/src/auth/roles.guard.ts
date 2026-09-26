@@ -16,8 +16,8 @@ export class RolesGuard implements CanActivate {
   private readonly CACHE_TTL_MS = 5000
 
   constructor(
-    private reflector: Reflector,
-    private prisma: PrismaService,
+    private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

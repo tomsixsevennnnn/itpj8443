@@ -1,4 +1,4 @@
-import { join } from 'path'
+import { join } from 'node:path'
 
 /** โฟลเดอร์เก็บไฟล์อัปโหลด — ตั้งผ่าน env ได้ เพื่อชี้ไปที่ mount path ของ volume ตอน deploy จริง
  * (ไม่งั้นไฟล์จะหายทุกครั้งที่ redeploy เพราะ container filesystem เป็น ephemeral) */

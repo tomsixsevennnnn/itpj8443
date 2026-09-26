@@ -14,8 +14,8 @@ import { MenusService } from './menus.service'
 @Controller('menus')
 export class MenusController {
   constructor(
-    private menus: MenusService,
-    private users: UsersService,
+    private readonly menus: MenusService,
+    private readonly users: UsersService,
   ) {}
 
   /** owner ดูเมนูร้านตัวเอง, ลูกค้าต้องระบุ shopId ของร้านที่กำลังดู (เลือกร้านมาก่อนแล้วจากหน้ารายชื่อร้าน) */

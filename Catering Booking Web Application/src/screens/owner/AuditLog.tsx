@@ -534,7 +534,7 @@ export default function AuditLog({ onFetchPage, refreshSignal }: AuditLogProps) 
             {error}
           </p>
         )}
-        {!loading && !error && data && data.items.length === 0 && (
+        {!loading && !error && data?.items.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-6">ยังไม่มีประวัติการแก้ไข</p>
         )}
         {!loading && !error && data && data.items.length > 0 && (

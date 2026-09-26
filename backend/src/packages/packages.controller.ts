@@ -16,8 +16,8 @@ import { PackagesService } from './packages.service'
 @Controller('packages')
 export class PackagesController {
   constructor(
-    private packages: PackagesService,
-    private users: UsersService,
+    private readonly packages: PackagesService,
+    private readonly users: UsersService,
   ) {}
 
   /** owner ดูแพ็กเกจร้านตัวเอง, ลูกค้าต้องระบุ shopId ของร้านที่กำลังดู (เลือกร้านมาก่อนแล้วจากหน้ารายชื่อร้าน) */
