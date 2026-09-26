@@ -6,7 +6,12 @@ export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 const readAsDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
+    // readAsDataURL การันตีว่า .result เป็น string เสมอตอน onload สำเร็จ (ไม่มีทาง null/ArrayBuffer) แต่
+    // TypeScript รู้แค่ type รวม FileReader.result — เช็คจริงแทนเดา กัน "[object Object]" หลุดเข้า data URL
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result)
+      else reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'))
+    }
     reader.onerror = () => reject(new Error('อ่านไฟล์รูปไม่สำเร็จ'))
     reader.readAsDataURL(file)
   })

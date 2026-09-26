@@ -92,7 +92,7 @@ export class BookingsService {
 
     const province = typeof loc.province === 'string' ? loc.province : ''
     const address = typeof loc.address === 'string' ? loc.address : ''
-    const zone = zoneFor(province, address, settings.metroProvinces, settings.homeProvince)
+    const zone = zoneFor(province, settings.metroProvinces, settings.homeProvince, address)
     if (zone === 'home') return { fee: 0, zone }
     if (zone === 'metro') {
       const fee = tables < settings.freeDeliveryMinTables ? settings.deliveryFee : 0

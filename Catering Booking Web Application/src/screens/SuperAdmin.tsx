@@ -334,7 +334,7 @@ export default function SuperAdmin({
                       </div>
 
                       {/* เจ้าของร้านนี้ทั้งหมด — ถอดออกได้ทีละคน (กลับไปเป็นลูกค้าธรรมดา) */}
-                      {owners.filter(o => o.shop?.id === shop.id).length > 0 && (
+                      {owners.some(o => o.shop?.id === shop.id) && (
                         <div className="mt-3 space-y-1.5">
                           {owners
                             .filter(o => o.shop?.id === shop.id)

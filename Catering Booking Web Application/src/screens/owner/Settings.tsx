@@ -318,7 +318,8 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
       .trim()
       .toLowerCase()
       .replace(/[^\p{L}\p{N}]+/gu, '-')
-      .replace(/^-+|-+$/g, '')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '')
     return base || `category-${Date.now()}`
   }
 

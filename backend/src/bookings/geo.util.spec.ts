@@ -14,7 +14,7 @@ const METRO_PROVINCES = [
 ]
 const HOME_PROVINCE = 'นครปฐม'
 
-const zone = (province: string, address = '') => zoneFor(province, address, METRO_PROVINCES, HOME_PROVINCE)
+const zone = (province: string, address = '') => zoneFor(province, METRO_PROVINCES, HOME_PROVINCE, address)
 
 describe('zoneFor', () => {
   it('นครปฐม = พื้นที่ร้าน', () => {

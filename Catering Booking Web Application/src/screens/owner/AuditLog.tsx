@@ -124,7 +124,8 @@ const summarizeCourses = (value: unknown): string => {
   return value
     .map((c: Record<string, unknown>) => {
       const items = Array.isArray(c.items) ? c.items.length : 0
-      return `${c.title ?? '(ไม่มีชื่อข้อ)'} (${items} อย่าง)`
+      const title = typeof c.title === 'string' ? c.title : '(ไม่มีชื่อข้อ)'
+      return `${title} (${items} อย่าง)`
     })
     .join(', ')
 }

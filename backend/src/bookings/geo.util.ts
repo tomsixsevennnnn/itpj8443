@@ -24,9 +24,9 @@ const zoneOfText = (text: string, homeProvince: string, metroProvinces: string[]
 
 export const zoneFor = (
   province: string,
-  address = '',
   metroProvinces: string[],
   homeProvince: string,
+  address = '',
 ): ServiceZone =>
   zoneOfText(province, homeProvince, metroProvinces) ?? zoneOfText(address, homeProvince, metroProvinces) ?? 'outside'
 

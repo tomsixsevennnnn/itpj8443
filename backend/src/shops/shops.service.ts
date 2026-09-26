@@ -18,7 +18,8 @@ const slugify = (name: string): string => {
     .toLowerCase()
     .replace(/[\s/?#&=%+]+/gu, '-')
     .replace(/[^\p{L}\p{N}-]+/gu, '')
-    .replace(/^-+|-+$/g, '')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '')
   return base || 'shop'
 }
 

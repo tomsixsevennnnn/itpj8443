@@ -87,6 +87,11 @@ const BOOKING_FLOW_SCREENS: Screen[] = [
 
 type AppRoleForPath = 'owner' | 'customer' | 'super_admin'
 
+/** ตัด "/" นำหน้า/ตามหลังออก (เช่น "/pipat-catering/" -> "pipat-catering") — แยกเป็น 2 regex เดี่ยวๆ
+ *  (แทน alternation เดียว /^\/+|\/+$/g) ให้ SonarQube วิเคราะห์ได้ตรงไปตรงมาว่าไม่มี backtracking ซับซ้อน
+ *  (regex เดี่ยวมี quantifier เดียว ไม่มีทางกำกวม) ผลลัพธ์เหมือนเดิมทุกกรณี */
+const trimSlashes = (s: string): string => s.replace(/^\/+/, '').replace(/\/+$/, '')
+
 /**
  * URL ต่อจากไฟล์นี้ทั้งหมด — แอปไม่มี router (แค่ useState<Screen> ตัวเดียว) เก็บ path mapping ไว้เป็นตารางเดียว
  * ตรงนี้ที่เดียว ให้ navigate()/bootstrap load effect/popstate handler ใช้ร่วมกัน กันสามจุดนั้นคำนวณ path ไม่ตรงกัน
@@ -161,7 +166,7 @@ const pathForScreen = (s: Screen, shopSlug: string | null): string => {
  * resolve ได้ทั้งคู่ เพราะ owner มีสิทธิ์ดูหน้าลูกค้าอยู่แล้ว (ปุ่ม "มุมมองลูกค้า")
  */
 const screenFromPath = (pathname: string, r: AppRoleForPath): Screen | null => {
-  const clean = '/' + pathname.replace(/^\/+|\/+$/g, '')
+  const clean = '/' + trimSlashes(pathname)
   if (clean === '/super-admin') return r === 'super_admin' ? 'super-admin' : null
   if (r === 'super_admin') return null // super admin ไม่มีหน้าอื่นให้ resolve นอกจาก /super-admin
 
@@ -305,14 +310,14 @@ export default function App() {
   // bootstrap load effect ด้านล่างที่ sync URL ให้ตรงร้านของ owner เอง (ไม่งั้นสอง effect แย่งกันเขียน URL/
   // selectedShopId พอ resolve จาก URL เสร็จทีหลังจะไปทับร้านที่ถูกต้องอยู่แล้วด้วยร้านอื่นตาม URL เดิมที่ค้างอยู่)
   const [resolvingShopFromUrl, setResolvingShopFromUrl] = useState(
-    () => window.location.pathname.replace(/^\/+|\/+$/g, '').length > 0,
+    () => trimSlashes(window.location.pathname).length > 0,
   )
   const resolvedShopFromUrlRef = useRef(false)
   useEffect(() => {
     if (isLoading || resolvedShopFromUrlRef.current) return
     resolvedShopFromUrlRef.current = true
 
-    const slug = window.location.pathname.replace(/^\/+|\/+$/g, '')
+    const slug = trimSlashes(window.location.pathname)
     if (!slug || isAuthenticated) {
       setResolvingShopFromUrl(false)
       return
@@ -398,7 +403,7 @@ export default function App() {
         return
       }
 
-      const slug = window.location.pathname.replace(/^\/+|\/+$/g, '')
+      const slug = trimSlashes(window.location.pathname)
       if (!slug) {
         applySelectedShop(null)
         return
