@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { Role } from '@prisma/client'
+import { Role, type User } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { SyncProfileDto } from './dto/sync-profile.dto'
@@ -147,29 +147,37 @@ export class UsersService {
    *  - SUPER_ADMIN แก้ได้แค่ CUSTOMER↔SUPER_ADMIN เท่านั้น — จะตั้งใครเป็น OWNER ต้องผ่าน ShopsService
    *    (createShop/addOwner) เพราะ OWNER ต้องมี shopId คู่กันเสมอ ตั้งผ่าน endpoint นี้ตรงๆ ไม่ได้
    */
+  /** ขอบเขตของ OWNER ที่แก้ role คนอื่น (แยกออกมาจาก setRole กันฟังก์ชันหลักซับซ้อนเกิน) — throw
+   *  BadRequestException ถ้าทำไม่ได้ ไม่มีอะไรคืนถ้าผ่านหมด */
+  private async assertOwnerCanSetRole(editor: ShopContext, target: User, role: Role): Promise<void> {
+    if (role === Role.SUPER_ADMIN || target.role === Role.SUPER_ADMIN) {
+      throw new BadRequestException('ไม่มีสิทธิ์แก้ไขบัญชีระดับ super admin')
+    }
+    if (role === Role.OWNER && target.role !== Role.CUSTOMER) {
+      throw new BadRequestException('เลื่อนสิทธิ์ได้เฉพาะบัญชีลูกค้าเท่านั้น')
+    }
+    if (target.role === Role.OWNER && target.shopId !== editor.shopId) {
+      throw new BadRequestException('ไม่มีสิทธิ์แก้ไขผู้ใช้ร้านอื่น')
+    }
+    if (target.role === Role.OWNER && role === Role.CUSTOMER) {
+      const ownerCount = await this.prisma.user.count({ where: { role: Role.OWNER, shopId: editor.shopId } })
+      if (ownerCount <= 1) throw new BadRequestException('ต้องมีเจ้าของร้านอย่างน้อย 1 คนเสมอ')
+    }
+  }
+
+  /** ขอบเขตของ SUPER_ADMIN ที่แก้ role คนอื่น */
+  private assertSuperAdminCanSetRole(target: User, role: Role): void {
+    if (role === Role.OWNER || target.role === Role.OWNER) {
+      throw new BadRequestException('ตั้ง/ถอดสิทธิ์เจ้าของร้านต้องทำผ่านหน้าจัดการร้าน ไม่ใช่หน้านี้')
+    }
+  }
+
   async setRole(id: string, role: Role, editorAuth0Sub: string, editor: ShopContext) {
     const target = await this.prisma.user.findUnique({ where: { id } })
     if (!target) throw new NotFoundException('ไม่พบผู้ใช้นี้')
 
-    if (editor.role === Role.OWNER) {
-      if (role === Role.SUPER_ADMIN || target.role === Role.SUPER_ADMIN) {
-        throw new BadRequestException('ไม่มีสิทธิ์แก้ไขบัญชีระดับ super admin')
-      }
-      if (role === Role.OWNER && target.role !== Role.CUSTOMER) {
-        throw new BadRequestException('เลื่อนสิทธิ์ได้เฉพาะบัญชีลูกค้าเท่านั้น')
-      }
-      if (target.role === Role.OWNER && target.shopId !== editor.shopId) {
-        throw new BadRequestException('ไม่มีสิทธิ์แก้ไขผู้ใช้ร้านอื่น')
-      }
-      if (target.role === Role.OWNER && role === Role.CUSTOMER) {
-        const ownerCount = await this.prisma.user.count({ where: { role: Role.OWNER, shopId: editor.shopId } })
-        if (ownerCount <= 1) throw new BadRequestException('ต้องมีเจ้าของร้านอย่างน้อย 1 คนเสมอ')
-      }
-    } else if (editor.role === Role.SUPER_ADMIN) {
-      if (role === Role.OWNER || target.role === Role.OWNER) {
-        throw new BadRequestException('ตั้ง/ถอดสิทธิ์เจ้าของร้านต้องทำผ่านหน้าจัดการร้าน ไม่ใช่หน้านี้')
-      }
-    }
+    if (editor.role === Role.OWNER) await this.assertOwnerCanSetRole(editor, target, role)
+    else if (editor.role === Role.SUPER_ADMIN) this.assertSuperAdminCanSetRole(target, role)
 
     let shopId: string | null
     if (editor.role === Role.OWNER && role === Role.OWNER) shopId = editor.shopId

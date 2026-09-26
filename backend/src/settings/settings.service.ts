@@ -132,6 +132,38 @@ export class SettingsService {
     return { apiKey: settings.slipOkApiKey, branchId: settings.slipOkBranchId }
   }
 
+  /** เปลี่ยนโลโก้ร้าน/QR พร้อมเพย์ — ไฟล์เก่ากำลังจะถูกลบทิ้งกัน orphan สะสมบน disk แต่ประวัติการแก้ไข (audit log)
+   *  ต้องยังดูรูปเดิมย้อนหลังได้ เลยย่อเป็น thumbnail คุณภาพต่ำฝังไว้แทน path เดิมก่อนลบไฟล์จริงทิ้ง (แยกออกมาจาก
+   *  update() กันฟังก์ชันหลักซับซ้อนเกิน — ตัวนี้เองไม่ได้ลบไฟล์จริง แค่เตรียม before สำหรับ audit log เท่านั้น) */
+  private async prepareImageReplacementAudit(dto: UpdateSettingsDto, before: Settings, after: Settings) {
+    const logoReplaced = !!(dto.shopLogo !== undefined && before.shopLogo && before.shopLogo !== after.shopLogo)
+    const qrReplaced = !!(dto.promptPayQr !== undefined && before.promptPayQr && before.promptPayQr !== after.promptPayQr)
+    let auditBefore = before
+    if (logoReplaced) {
+      auditBefore = { ...auditBefore, shopLogo: (await this.uploads.makeThumbnailDataUrl(before.shopLogo)) ?? before.shopLogo }
+    }
+    if (qrReplaced) {
+      auditBefore = { ...auditBefore, promptPayQr: (await this.uploads.makeThumbnailDataUrl(before.promptPayQr)) ?? before.promptPayQr }
+    }
+    return { auditBefore, logoReplaced, qrReplaced }
+  }
+
+  /** เนื้อหาหน้าแรก (Hero + แกลเลอรี) — รูป Hero เก่าที่ถูกแทนที่ และรูปแกลเลอรีที่ถูกตัดออกจากรายการ ต้องลบไฟล์
+   *  จริงทิ้งด้วย ไม่งั้นสะสมบน disk ไม่มีวันหมด (หน้าประวัติการแก้ไขสรุป homeContent เป็นข้อความ ไม่ได้โชว์รูปจริง
+   *  อยู่แล้ว เลยไม่ต้องทำ thumbnail เหมือนโลโก้/QR/รูปเมนูด้านบน) */
+  private async cleanupHomeContentImages(dto: UpdateSettingsDto, before: Settings, after: Settings) {
+    if (dto.homeContent === undefined) return
+    const beforeImages = homeContentImages(before.homeContent)
+    const afterImages = homeContentImages(after.homeContent)
+    if (beforeImages.heroImage && beforeImages.heroImage !== afterImages.heroImage) {
+      await this.uploads.deleteManagedFile(beforeImages.heroImage)
+    }
+    const afterGallerySet = new Set(afterImages.gallery ?? [])
+    for (const img of beforeImages.gallery ?? []) {
+      if (!afterGallerySet.has(img)) await this.uploads.deleteManagedFile(img)
+    }
+  }
+
   async update(shopId: string, dto: UpdateSettingsDto, editorAuth0Sub: string) {
     const { expectedVersion, ...patch } = dto
     const before = await this.getRaw(shopId)
@@ -150,36 +182,13 @@ export class SettingsService {
       throw err
     }
 
-    // เปลี่ยนโลโก้ร้าน/QR พร้อมเพย์ — ไฟล์เก่ากำลังจะถูกลบทิ้งกัน orphan สะสมบน disk แต่ประวัติการแก้ไข (audit log)
-    // ต้องยังดูรูปเดิมย้อนหลังได้ เลยย่อเป็น thumbnail คุณภาพต่ำฝังไว้แทน path เดิมก่อนลบไฟล์จริงทิ้ง
-    const logoReplaced = !!(dto.shopLogo !== undefined && before.shopLogo && before.shopLogo !== after.shopLogo)
-    const qrReplaced = !!(dto.promptPayQr !== undefined && before.promptPayQr && before.promptPayQr !== after.promptPayQr)
-    let auditBefore = before
-    if (logoReplaced) {
-      auditBefore = { ...auditBefore, shopLogo: (await this.uploads.makeThumbnailDataUrl(before.shopLogo)) ?? before.shopLogo }
-    }
-    if (qrReplaced) {
-      auditBefore = { ...auditBefore, promptPayQr: (await this.uploads.makeThumbnailDataUrl(before.promptPayQr)) ?? before.promptPayQr }
-    }
+    const { auditBefore, logoReplaced, qrReplaced } = await this.prepareImageReplacementAudit(dto, before, after)
     await this.audit.log(editorAuth0Sub, 'settings.update', 'Settings', String(after.id), auditBefore, after, shopId)
 
     if (logoReplaced) await this.uploads.deleteManagedFile(before.shopLogo)
     if (qrReplaced) await this.uploads.deleteManagedFile(before.promptPayQr)
 
-    // เนื้อหาหน้าแรก (Hero + แกลเลอรี) — รูป Hero เก่าที่ถูกแทนที่ และรูปแกลเลอรีที่ถูกตัดออกจากรายการ ต้องลบไฟล์
-    // จริงทิ้งด้วย ไม่งั้นสะสมบน disk ไม่มีวันหมด (หน้าประวัติการแก้ไขสรุป homeContent เป็นข้อความ ไม่ได้โชว์รูปจริง
-    // อยู่แล้ว เลยไม่ต้องทำ thumbnail เหมือนโลโก้/QR/รูปเมนูด้านบน)
-    if (dto.homeContent !== undefined) {
-      const beforeImages = homeContentImages(before.homeContent)
-      const afterImages = homeContentImages(after.homeContent)
-      if (beforeImages.heroImage && beforeImages.heroImage !== afterImages.heroImage) {
-        await this.uploads.deleteManagedFile(beforeImages.heroImage)
-      }
-      const afterGallerySet = new Set(afterImages.gallery ?? [])
-      for (const img of beforeImages.gallery ?? []) {
-        if (!afterGallerySet.has(img)) await this.uploads.deleteManagedFile(img)
-      }
-    }
+    await this.cleanupHomeContentImages(dto, before, after)
 
     return after
   }
