@@ -27,6 +27,14 @@ const STATUS_CONFIG = {
   cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
 }
 
+/** ป้ายของปุ่มกรองสถานะ — ตัวเลือก "ทั้งหมด" ไม่มีใน STATUS_CONFIG (ไม่ใช่สถานะจริงของ booking) เลยแยกไว้ต่างหาก */
+const FILTER_LABEL: Record<string, string> = {
+  all: 'ทั้งหมด',
+  pending: STATUS_CONFIG.pending.label,
+  confirmed: STATUS_CONFIG.confirmed.label,
+  completed: STATUS_CONFIG.completed.label,
+}
+
 export default function BookingHistory({
   bookings,
   onUpdateBooking,
@@ -160,9 +168,7 @@ export default function BookingHistory({
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {s === 'all' ? 'ทั้งหมด' :
-                     s === 'pending' ? 'รอยืนยัน' :
-                     s === 'confirmed' ? 'ยืนยันแล้ว' : 'เสร็จสิ้น'}
+                    {FILTER_LABEL[s]}
                   </button>
                 ))}
               </div>
@@ -490,86 +496,97 @@ export default function BookingHistory({
                   className="hidden"
                 />
 
-                {slipDraft?.id === detailBooking.id ? (
-                  // เลือกรูปไว้แล้วแต่ยังไม่ได้กดส่ง
-                  <div className="space-y-2">
-                    <button type="button" onClick={() => setSlipZoom(slipDraft.dataUrl)} className="block w-full">
-                      <img
-                        src={slipDraft.dataUrl}
-                        alt="ตัวอย่างสลิปที่เลือก"
-                        className="w-full max-h-64 object-contain rounded-xl border-2 border-dashed border-orange-300 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
-                      />
-                    </button>
-                    <p className="text-[11px] text-orange-600">ยังไม่ได้ส่ง — กด "ส่งสลิป" เพื่อแจ้งร้าน</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={submitSlip}
-                        disabled={submittingSlip}
-                        className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white rounded-xl py-2 text-xs font-semibold transition-colors"
-                      >
-                        {submittingSlip ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-                        {submittingSlip ? 'กำลังส่ง...' : 'ส่งสลิป'}
-                      </button>
-                      <button
-                        onClick={() => slipInputRef.current?.click()}
-                        disabled={uploadingSlip || submittingSlip}
-                        className="px-3 text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
-                      >
-                        เลือกรูปใหม่
-                      </button>
-                    </div>
-                  </div>
-                ) : detailBooking.paymentSlip && !slipObjectUrl ? (
-                  <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
-                    <Loader2 size={16} className="animate-spin" />
-                    กำลังโหลดสลิป...
-                  </div>
-                ) : detailBooking.paymentSlip && slipObjectUrl ? (
-                  <div className="space-y-2">
-                    <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
-                      <img
-                        src={slipObjectUrl}
-                        alt="สลิปโอนเงิน"
-                        className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
-                      />
-                    </button>
-                    {detailBooking.paymentSlipUploadedAt && (
-                      <p className="text-[11px] text-gray-400">
-                        {slipSent ? (
-                          <span className="text-green-600 font-medium inline-flex items-center gap-1">
-                            <Check size={11} />
-                            ส่งสลิปแล้ว
-                          </span>
-                        ) : (
-                          'แนบเมื่อ'
-                        )}{' '}
-                        {new Date(detailBooking.paymentSlipUploadedAt).toLocaleString('th-TH', {
-                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                        })}
-                        {' · '}รอร้านตรวจสอบกับบัญชี
-                      </p>
-                    )}
+                {(() => {
+                  if (slipDraft?.id === detailBooking.id) {
+                    // เลือกรูปไว้แล้วแต่ยังไม่ได้กดส่ง
+                    return (
+                      <div className="space-y-2">
+                        <button type="button" onClick={() => setSlipZoom(slipDraft.dataUrl)} className="block w-full">
+                          <img
+                            src={slipDraft.dataUrl}
+                            alt="ตัวอย่างสลิปที่เลือก"
+                            className="w-full max-h-64 object-contain rounded-xl border-2 border-dashed border-orange-300 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                          />
+                        </button>
+                        <p className="text-[11px] text-orange-600">ยังไม่ได้ส่ง — กด "ส่งสลิป" เพื่อแจ้งร้าน</p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={submitSlip}
+                            disabled={submittingSlip}
+                            className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white rounded-xl py-2 text-xs font-semibold transition-colors"
+                          >
+                            {submittingSlip ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                            {submittingSlip ? 'กำลังส่ง...' : 'ส่งสลิป'}
+                          </button>
+                          <button
+                            onClick={() => slipInputRef.current?.click()}
+                            disabled={uploadingSlip || submittingSlip}
+                            className="px-3 text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
+                          >
+                            เลือกรูปใหม่
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (detailBooking.paymentSlip && !slipObjectUrl) {
+                    return (
+                      <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        กำลังโหลดสลิป...
+                      </div>
+                    )
+                  }
+                  if (detailBooking.paymentSlip && slipObjectUrl) {
+                    return (
+                      <div className="space-y-2">
+                        <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
+                          <img
+                            src={slipObjectUrl}
+                            alt="สลิปโอนเงิน"
+                            className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                          />
+                        </button>
+                        {detailBooking.paymentSlipUploadedAt && (
+                          <p className="text-[11px] text-gray-400">
+                            {slipSent ? (
+                              <span className="text-green-600 font-medium inline-flex items-center gap-1">
+                                <Check size={11} />
+                                ส่งสลิปแล้ว
+                              </span>
+                            ) : (
+                              'แนบเมื่อ'
+                            )}{' '}
+                            {new Date(detailBooking.paymentSlipUploadedAt).toLocaleString('th-TH', {
+                              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                            })}
+                            {' · '}รอร้านตรวจสอบกับบัญชี
+                          </p>
+                        )}
+                        <button
+                          onClick={() => slipInputRef.current?.click()}
+                          disabled={uploadingSlip}
+                          className="flex items-center gap-1.5 text-xs text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50"
+                        >
+                          {uploadingSlip ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                          แนบสลิปใหม่
+                        </button>
+                      </div>
+                    )
+                  }
+                  return (
                     <button
                       onClick={() => slipInputRef.current?.click()}
                       disabled={uploadingSlip}
-                      className="flex items-center gap-1.5 text-xs text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50"
+                      className="w-full flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 rounded-xl py-6 text-gray-400 hover:text-orange-600 transition-colors disabled:opacity-50"
                     >
-                      {uploadingSlip ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                      แนบสลิปใหม่
+                      {uploadingSlip ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                      <span className="text-xs font-medium">
+                        {uploadingSlip ? 'กำลังอัปโหลด...' : 'แนบสลิปโอนเงินมัดจำ'}
+                      </span>
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => slipInputRef.current?.click()}
-                    disabled={uploadingSlip}
-                    className="w-full flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 rounded-xl py-6 text-gray-400 hover:text-orange-600 transition-colors disabled:opacity-50"
-                  >
-                    {uploadingSlip ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
-                    <span className="text-xs font-medium">
-                      {uploadingSlip ? 'กำลังอัปโหลด...' : 'แนบสลิปโอนเงินมัดจำ'}
-                    </span>
-                  </button>
-                )}
+                  )
+                })()}
                 {slipError && <p className="text-[11px] text-red-500 mt-1.5">{slipError}</p>}
               </div>
             </div>

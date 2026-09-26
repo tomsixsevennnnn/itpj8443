@@ -146,11 +146,16 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
 
         {/* Day headers */}
         <div className="grid grid-cols-7 border-b border-gray-100">
-          {DAYS_TH.map((d, i) => (
-            <div key={d} className={`py-3 text-center text-xs font-semibold ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'}`}>
-              {d}
-            </div>
-          ))}
+          {DAYS_TH.map((d, i) => {
+            let headerClass = 'text-gray-500'
+            if (i === 0) headerClass = 'text-red-400'
+            else if (i === 6) headerClass = 'text-blue-400'
+            return (
+              <div key={d} className={`py-3 text-center text-xs font-semibold ${headerClass}`}>
+                {d}
+              </div>
+            )
+          })}
         </div>
 
         {/* Calendar grid */}
@@ -164,6 +169,13 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
             const dow = idx % 7
 
             const clickable = !!day && events.length > 0
+            let cellClass = 'hover:bg-orange-50/20 transition-colors'
+            if (!day) cellClass = 'bg-gray-50/50'
+            else if (events.length > 0) cellClass = 'hover:bg-orange-50/40 transition-colors cursor-pointer'
+            let dayCircleClass = 'text-gray-700'
+            if (isToday) dayCircleClass = 'bg-orange-500 text-white'
+            else if (dow === 0) dayCircleClass = 'text-red-500'
+            else if (dow === 6) dayCircleClass = 'text-blue-500'
             return (
               <div
                 key={idx}
@@ -181,20 +193,12 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                       }
                     : undefined
                 }
-                className={`min-h-[118px] p-2 border-b border-r border-gray-50 ${
-                  !day ? 'bg-gray-50/50' : events.length > 0
-                    ? 'hover:bg-orange-50/40 transition-colors cursor-pointer'
-                    : 'hover:bg-orange-50/20 transition-colors'
-                }`}
+                className={`min-h-[118px] p-2 border-b border-r border-gray-50 ${cellClass}`}
               >
                 {day && (
                   <>
                     <div className="flex items-center justify-between mb-1">
-                      <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
-                        isToday ? 'bg-orange-500 text-white' :
-                        dow === 0 ? 'text-red-500' :
-                        dow === 6 ? 'text-blue-500' : 'text-gray-700'
-                      }`}>
+                      <div className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${dayCircleClass}`}>
                         {day}
                       </div>
                       {events.length > 0 && (
