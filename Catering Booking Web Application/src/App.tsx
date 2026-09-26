@@ -424,6 +424,10 @@ export default function App() {
 
     const load = async () => {
       setLoadError(null)
+      // true เฉพาะตอนกำลังดึงข้อมูลของ "ร้านที่ลูกค้าเลือกไว้เอง" (ไม่ใช่ร้านของ owner จาก JWT) — เผื่อร้านนั้น
+      // ถูกลบไปแล้วระหว่างที่ค้างอยู่ (super admin ลบทิ้งจากอีกเครื่อง) จะได้ดักแยก 404 นี้จากปัญหาโหลดข้อมูลอื่นๆ
+      // ที่ยังต้องโชว์จอ error+ลองใหม่ตามปกติ
+      let fetchingSelectedCustomerShop = false
       try {
         const token = await getAccessTokenSilently()
         // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
@@ -470,6 +474,7 @@ export default function App() {
           setDataLoaded(true)
           return
         }
+        fetchingSelectedCustomerShop = me.role !== 'OWNER'
 
         const [bks, avail, pkgs, mns, sttgs] = await Promise.all([
           api.bookings(token),
@@ -490,6 +495,20 @@ export default function App() {
         // session/token หมดอายุ — เด้งกลับหน้า login แทนที่จะโชว์หน้า error ให้กด "ลองใหม่" วนไม่รู้จบ
         if (isSessionExpiredError(err)) {
           forceLogout()
+          return
+        }
+        // ร้านที่ลูกค้าเลือกไว้ถูกลบไปแล้วระหว่างที่ค้างอยู่หน้านี้พอดี (settings.getRaw() โยน 404 ตอนนี้ ดู
+        // backend/src/settings/settings.service.ts) — เด้งกลับไปหน้าเลือกร้านใหม่เนียนๆ แทนที่จะโชว์จอ error
+        // ค้างให้กด "ลองใหม่" วนไม่รู้จบ (owner ไม่มีวันเจอ 404 นี้เพราะถูกลดสิทธิ์เป็น customer ไปตั้งแต่ตอน
+        // syncProfile ข้างบนแล้วถ้าร้านตัวเองถูกลบ — ไม่มีทางไหลมาถึงจุดนี้ได้)
+        if (fetchingSelectedCustomerShop && /-> 404/.test(err instanceof Error ? err.message : '')) {
+          applySelectedShop(null)
+          try {
+            window.history.pushState(null, '', '/')
+          } catch {
+            // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+          }
+          setDataLoaded(true)
           return
         }
         setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
