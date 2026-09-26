@@ -477,6 +477,10 @@ export const api = {
       }),
     ),
 
+  /** ทดสอบ API key + Branch ID ของ SlipOK ก่อนกดบันทึกจริง — ไม่กินโควต้า ไม่ต้องมีรูปสลิป (ดู settings.controller.ts) */
+  testSlipOk: (token: string, apiKey: string, branchId: string): Promise<{ ok: boolean; quota?: number; message?: string }> =>
+    request(token, '/settings/slipok/test', { method: 'POST', body: JSON.stringify({ apiKey, branchId }) }),
+
   /** อัปโหลด data URL ไปเก็บเป็นไฟล์บน backend แล้วคืน path สั้นๆ ให้เอาไปเก็บในฟิลด์ image/logo/qr/slip แทน data URL ดิบ */
   uploadImage: async (token: string, kind: UploadImageKind, dataUrl: string): Promise<string> =>
     (await request<{ url: string }>(token, `/uploads/${kind}`, { method: 'POST', body: JSON.stringify({ dataUrl }) }))

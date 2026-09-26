@@ -1,10 +1,12 @@
-import { Body, Controller, ForbiddenException, Get, Patch, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { Role } from '@prisma/client'
 import { CurrentUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
+import { SlipVerifyService } from '../slip-verify/slip-verify.service'
 import { UsersService } from '../users/users.service'
+import { TestSlipOkDto } from './dto/test-slipok.dto'
 import { UpdateSettingsDto } from './dto/update-settings.dto'
 import { SettingsService } from './settings.service'
 
@@ -13,6 +15,7 @@ export class SettingsController {
   constructor(
     private settings: SettingsService,
     private users: UsersService,
+    private slipVerify: SlipVerifyService,
   ) {}
 
   /** ไม่ต้อง login — หน้า Login ฝั่ง frontend เรียกใช้เพื่อโชว์ชื่อร้าน/ข้อมูลติดต่อปัจจุบันก่อนเข้าสู่ระบบ ต้อง
@@ -41,5 +44,14 @@ export class SettingsController {
     const ctx = await this.users.shopContextFor(jwtUser.sub)
     if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return this.settings.update(ctx.shopId, dto, jwtUser.sub)
+  }
+
+  /** ให้ owner กดทดสอบ API key + Branch ID ที่เพิ่งกรอกได้ทันทีก่อนกด "บันทึก" — ไม่ต้องรอให้ลูกค้าอัปโหลด
+   *  สลิปจริงแล้วมาเจอว่ากรอกผิด (เรียก endpoint โควต้าของ SlipOK ซึ่งไม่กินโควต้าจริง ไม่ต้องมีรูปสลิป) */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post('slipok/test')
+  @Roles('owner')
+  testSlipOk(@Body() dto: TestSlipOkDto) {
+    return this.slipVerify.checkQuota(dto.apiKey, dto.branchId)
   }
 }

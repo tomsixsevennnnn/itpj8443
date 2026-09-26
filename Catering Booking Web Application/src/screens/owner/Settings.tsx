@@ -38,6 +38,7 @@ interface SettingsProps {
   settings: AppSettings
   onUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
   onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
+  onTestSlipOk: (apiKey: string, branchId: string) => Promise<{ ok: boolean; quota?: number; message?: string }>
 }
 
 const SHOP_FIELDS: { key: keyof AppSettings['shopInfo']; label: string; placeholder: string }[] = [
@@ -78,7 +79,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; icon: typeof Building2 }[
   { id: 'categories', label: 'ประเภทอาหาร', icon: ListOrdered },
 ]
 
-export default function Settings({ settings, onUpdateSettings, onUploadImage }: SettingsProps) {
+export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: SettingsProps) {
   const [form, setForm] = useState<AppSettings>(settings)
   const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
   const [savedAt, setSavedAt] = useState<number | null>(null)
@@ -97,6 +98,8 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const [testingSlipOk, setTestingSlipOk] = useState(false)
+  const [slipOkTestResult, setSlipOkTestResult] = useState<{ ok: boolean; quota?: number; message?: string } | null>(null)
 
   // settings prop เปลี่ยนได้เองจาก polling (คนอื่นแก้ที่เครื่องอื่น) — sync form ตามให้ถ้ายังไม่ได้แก้อะไรค้างไว้
   // (เทียบกับค่า settings "ก่อนหน้า" ไม่ใช่ค่าล่าสุด กัน false positive ตอนกำลังจะเปลี่ยนพอดี)
@@ -694,6 +697,35 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
           </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            type="button"
+            disabled={!form.slipOkApiKey || !form.slipOkBranchId || testingSlipOk}
+            onClick={async () => {
+              setTestingSlipOk(true)
+              setSlipOkTestResult(null)
+              try {
+                setSlipOkTestResult(await onTestSlipOk(form.slipOkApiKey, form.slipOkBranchId))
+              } catch {
+                setSlipOkTestResult({ ok: false, message: 'ทดสอบไม่สำเร็จ ลองใหม่อีกครั้ง' })
+              } finally {
+                setTestingSlipOk(false)
+              }
+            }}
+            className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:hover:bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
+          >
+            {testingSlipOk ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+            ทดสอบการเชื่อมต่อ
+          </button>
+          {slipOkTestResult && (
+            <p className={`text-xs ${slipOkTestResult.ok ? 'text-green-600' : 'text-red-500'}`}>
+              {slipOkTestResult.ok
+                ? `เชื่อมต่อสำเร็จ${slipOkTestResult.quota !== undefined ? ` — เหลือโควต้า ${slipOkTestResult.quota} ครั้ง` : ''}`
+                : slipOkTestResult.message ?? 'เชื่อมต่อไม่สำเร็จ'}
+            </p>
+          )}
         </div>
       </div>
         </>

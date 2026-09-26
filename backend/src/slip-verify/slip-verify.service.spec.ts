@@ -99,3 +99,42 @@ describe('SlipVerifyService', () => {
     expect(result.status).toBe('UNAVAILABLE')
   })
 })
+
+describe('SlipVerifyService.checkQuota', () => {
+  beforeEach(() => {
+    global.fetch = jest.fn()
+  })
+
+  it('key/branch id ถูกต้อง — คืน ok:true พร้อมโควต้าคงเหลือ', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, data: { quota: 87, overQuota: 0 } }),
+    })
+    const service = new SlipVerifyService()
+
+    const result = await service.checkQuota('key1', 'branch1')
+
+    expect(result).toEqual({ ok: true, quota: 87 })
+  })
+
+  it('key/branch id ผิด — คืน ok:false พร้อม message จาก SlipOK', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      json: async () => ({ code: 1001, message: 'ไม่พบข้อมูลสาขา กรุณาตรวจสอบไอดีสาขา' }),
+    })
+    const service = new SlipVerifyService()
+
+    const result = await service.checkQuota('key1', 'wrong-branch')
+
+    expect(result).toEqual({ ok: false, message: 'ไม่พบข้อมูลสาขา กรุณาตรวจสอบไอดีสาขา' })
+  })
+
+  it('เรียก SlipOK ไม่สำเร็จ (เครือข่ายล่ม) — คืน ok:false ไม่ throw', async () => {
+    ;(global.fetch as jest.Mock).mockRejectedValue(new Error('network down'))
+    const service = new SlipVerifyService()
+
+    const result = await service.checkQuota('key1', 'branch1')
+
+    expect(result.ok).toBe(false)
+  })
+})

@@ -1156,7 +1156,12 @@ export default function App() {
             <Reports bookings={bookings} menus={menus} settings={settings} />
           )}
           {effectiveScreen === 'owner-settings' && (
-            <Settings settings={settings} onUpdateSettings={handleUpdateSettings} onUploadImage={handleUploadImage} />
+            <Settings
+              settings={settings}
+              onUpdateSettings={handleUpdateSettings}
+              onUploadImage={handleUploadImage}
+              onTestSlipOk={(apiKey, branchId) => withToken().then(token => api.testSlipOk(token, apiKey, branchId))}
+            />
           )}
           {effectiveScreen === 'owner-page-content' && (
             <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} onUploadImage={handleUploadImage} />

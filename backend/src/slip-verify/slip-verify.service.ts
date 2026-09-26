@@ -16,6 +16,14 @@ export interface SlipVerifyResult {
   transRef: string | null
 }
 
+export interface SlipOkQuotaResult {
+  ok: boolean
+  /** โควต้าคงเหลือ — มีค่าเฉพาะตอน ok:true */
+  quota?: number
+  /** ข้อความจาก SlipOK ตอนล้มเหลว (เช่น key/branch id ผิด) — มีค่าเฉพาะตอน ok:false */
+  message?: string
+}
+
 export interface SlipVerifyParams {
   apiKey: string
   branchId: string
@@ -69,6 +77,29 @@ export class SlipVerifyService {
     } catch (err) {
       this.logger.warn('เรียก SlipOK ไม่สำเร็จ', err as Error)
       return { status: SlipVerifyStatus.UNAVAILABLE, message: 'เรียกระบบตรวจสอบสลิปไม่สำเร็จ (เครือข่าย/บริการขัดข้องชั่วคราว)', transRef: null }
+    }
+  }
+
+  /**
+   * เช็คว่า API key + Branch ID ที่ owner กรอกใช้งานได้จริงไหม โดยไม่ต้องมีรูปสลิป (endpoint โควต้าของ SlipOK
+   * เบากว่า checkSlip เยอะ ไม่กินโควต้าจริงด้วย) ใช้ตอนกดปุ่ม "ทดสอบการเชื่อมต่อ" ในหน้าตั้งค่า ให้ owner รู้ทันที
+   * ว่ากรอกถูกไหม ไม่ต้องรอให้ลูกค้าอัปโหลดสลิปจริงแล้วเจอ error ทีหลัง
+   */
+  async checkQuota(apiKey: string, branchId: string): Promise<SlipOkQuotaResult> {
+    try {
+      const res = await fetch(`https://api.slipok.com/api/line/apikey/${encodeURIComponent(branchId)}/quota`, {
+        headers: { 'x-authorization': apiKey },
+      })
+      const body: any = await res.json().catch(() => null)
+      if (!body) return { ok: false, message: 'เรียกระบบ SlipOK ไม่สำเร็จ (อ่านผลลัพธ์ไม่ได้)' }
+
+      if (res.ok && body.success) {
+        return { ok: true, quota: typeof body.data?.quota === 'number' ? body.data.quota : undefined }
+      }
+      return { ok: false, message: typeof body.message === 'string' ? body.message : 'API key หรือ Branch ID ไม่ถูกต้อง' }
+    } catch (err) {
+      this.logger.warn('เรียก SlipOK (เช็คโควต้า) ไม่สำเร็จ', err as Error)
+      return { ok: false, message: 'เรียกระบบ SlipOK ไม่สำเร็จ (เครือข่าย/บริการขัดข้องชั่วคราว)' }
     }
   }
 }
