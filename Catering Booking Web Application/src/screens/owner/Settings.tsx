@@ -72,6 +72,13 @@ const STAFF_RATIO_FIELDS: { key: 'tablesPerServer' | 'tablesPerSupport' | 'staff
 
 type SettingsTab = 'shop' | 'finance' | 'delivery' | 'staff' | 'booking' | 'categories'
 
+/** ข้อความสรุปผลทดสอบ SlipOK ใต้ปุ่ม "ทดสอบการเชื่อมต่อ" — แยกออกมาจาก JSX กันซ้อน ternary หลายชั้น */
+const slipOkResultText = (result: { ok: boolean; quota?: number; message?: string }): string => {
+  if (!result.ok) return result.message ?? 'เชื่อมต่อไม่สำเร็จ'
+  if (result.quota === undefined) return 'เชื่อมต่อสำเร็จ'
+  return `เชื่อมต่อสำเร็จ — เหลือโควต้า ${result.quota} ครั้ง`
+}
+
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: typeof Building2 }[] = [
   { id: 'shop', label: 'ข้อมูลร้าน', icon: Building2 },
   { id: 'finance', label: 'การเงิน', icon: Wallet },
@@ -337,6 +344,10 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
     setSavedAt(null)
   }
 
+  let logoButtonLabel = 'อัปโหลดโลโก้'
+  if (logoUploading) logoButtonLabel = 'กำลังอัปโหลด...'
+  else if (form.shopInfo.logo) logoButtonLabel = 'เปลี่ยนโลโก้'
+
   return (
     <div className="max-w-2xl space-y-5 pb-24">
       {/* แท็บย่อย */}
@@ -397,7 +408,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
                 className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
               >
                 {logoUploading ? <Loader2 size={12} className="animate-spin" /> : null}
-                {logoUploading ? 'กำลังอัปโหลด...' : form.shopInfo.logo ? 'เปลี่ยนโลโก้' : 'อัปโหลดโลโก้'}
+                {logoButtonLabel}
               </button>
               {form.shopInfo.logo && (
                 <button
@@ -752,9 +763,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </button>
           {slipOkTestResult && (
             <p className={`text-xs ${slipOkTestResult.ok ? 'text-green-600' : 'text-red-500'}`}>
-              {slipOkTestResult.ok
-                ? `เชื่อมต่อสำเร็จ${slipOkTestResult.quota !== undefined ? ` — เหลือโควต้า ${slipOkTestResult.quota} ครั้ง` : ''}`
-                : slipOkTestResult.message ?? 'เชื่อมต่อไม่สำเร็จ'}
+              {slipOkResultText(slipOkTestResult)}
             </p>
           )}
         </div>

@@ -574,7 +574,12 @@ function SuperAdminManager({ onSearchUser, onSetSuperAdmin }: Readonly<SuperAdmi
 
       {!searching && results && results.length > 0 && (
         <div className="space-y-2">
-          {results.map(user => (
+          {results.map(user => {
+            const isSuperAdmin = user.role === 'SUPER_ADMIN'
+            let toggleIcon = <ShieldCheck size={12} />
+            if (actioningId === user.id) toggleIcon = <Loader2 size={12} className="animate-spin" />
+            else if (isSuperAdmin) toggleIcon = <ShieldOff size={12} />
+            return (
             <div key={user.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-800 truncate">
@@ -589,23 +594,18 @@ function SuperAdminManager({ onSearchUser, onSetSuperAdmin }: Readonly<SuperAdmi
                   onClick={() => handleToggle(user)}
                   disabled={actioningId === user.id}
                   className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0 ${
-                    user.role === 'SUPER_ADMIN'
+                    isSuperAdmin
                       ? 'bg-red-50 text-red-600 hover:bg-red-100'
                       : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
                   }`}
                 >
-                  {actioningId === user.id ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : user.role === 'SUPER_ADMIN' ? (
-                    <ShieldOff size={12} />
-                  ) : (
-                    <ShieldCheck size={12} />
-                  )}
-                  {user.role === 'SUPER_ADMIN' ? 'ถอด Super Admin' : 'ตั้งเป็น Super Admin'}
+                  {toggleIcon}
+                  {isSuperAdmin ? 'ถอด Super Admin' : 'ตั้งเป็น Super Admin'}
                 </button>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

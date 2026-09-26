@@ -12,10 +12,10 @@ import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 const PAGE_SIZE = 20
 
 const STATUS_CONFIG = {
-  pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
-  confirmed: { label: 'ยืนยันแล้ว', bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-400' },
-  completed: { label: 'เสร็จสิ้น', bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400' },
-  cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
+  pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400', border: 'border-yellow-300' },
+  confirmed: { label: 'ยืนยันแล้ว', bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-400', border: 'border-green-300' },
+  completed: { label: 'เสร็จสิ้น', bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400', border: 'border-gray-300' },
+  cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400', border: 'border-red-300' },
 }
 
 interface OrdersProps {
@@ -489,36 +489,42 @@ export default function Orders({
               {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">สลิปโอนเงินมัดจำ</p>
-                {selected.paymentSlip && !slipObjectUrl ? (
-                  <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
-                    <Loader2 size={16} className="animate-spin" />
-                    กำลังโหลดสลิป...
-                  </div>
-                ) : selected.paymentSlip && slipObjectUrl ? (
-                  <div className="space-y-2">
-                    <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
-                      <img
-                        src={slipObjectUrl}
-                        alt="สลิปโอนเงิน"
-                        className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
-                      />
-                    </button>
-                    {selected.paymentSlipUploadedAt && (
-                      <p className="text-[11px] text-gray-400">
-                        ลูกค้าแนบเมื่อ{' '}
-                        {new Date(selected.paymentSlipUploadedAt).toLocaleString('th-TH', {
-                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                        })}
-                      </p>
-                    )}
-                    <SlipVerifyBadge status={selected.paymentSlipVerifyStatus} message={selected.paymentSlipVerifyMessage} />
-                    <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
-                      ตรวจสอบยอดเงินเข้าบัญชีร้านให้ตรงกับสลิปก่อนกดเปลี่ยนสถานะเป็น "ยืนยันแล้ว"
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 bg-gray-50 rounded-xl px-3 py-2.5">ลูกค้ายังไม่ได้แนบสลิป</p>
-                )}
+                {(() => {
+                  if (selected.paymentSlip && !slipObjectUrl) {
+                    return (
+                      <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
+                        <Loader2 size={16} className="animate-spin" />
+                        กำลังโหลดสลิป...
+                      </div>
+                    )
+                  }
+                  if (selected.paymentSlip && slipObjectUrl) {
+                    return (
+                      <div className="space-y-2">
+                        <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
+                          <img
+                            src={slipObjectUrl}
+                            alt="สลิปโอนเงิน"
+                            className="w-full max-h-64 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                          />
+                        </button>
+                        {selected.paymentSlipUploadedAt && (
+                          <p className="text-[11px] text-gray-400">
+                            ลูกค้าแนบเมื่อ{' '}
+                            {new Date(selected.paymentSlipUploadedAt).toLocaleString('th-TH', {
+                              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                            })}
+                          </p>
+                        )}
+                        <SlipVerifyBadge status={selected.paymentSlipVerifyStatus} message={selected.paymentSlipVerifyMessage} />
+                        <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
+                          ตรวจสอบยอดเงินเข้าบัญชีร้านให้ตรงกับสลิปก่อนกดเปลี่ยนสถานะเป็น "ยืนยันแล้ว"
+                        </p>
+                      </div>
+                    )
+                  }
+                  return <p className="text-sm text-gray-400 bg-gray-50 rounded-xl px-3 py-2.5">ลูกค้ายังไม่ได้แนบสลิป</p>
+                })()}
               </div>
             </div>
             </div>
@@ -543,7 +549,7 @@ export default function Orders({
                           key={s}
                           onClick={() => updateStatus(selected.id, s)}
                           className={`flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                            isActive ? `${sc.bg} ${sc.text} border-2 ${s === 'confirmed' ? 'border-green-300' : s === 'pending' ? 'border-yellow-300' : 'border-gray-300'}` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            isActive ? `${sc.bg} ${sc.text} border-2 ${sc.border}` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                           }`}
                         >
                           {isActive && <Check size={12} />}

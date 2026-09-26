@@ -571,7 +571,9 @@ export default function App() {
       })
 
   // ร้านที่เกี่ยวข้องกับผู้ใช้ปัจจุบัน — owner = ร้านตัวเอง, customer = ร้านที่เลือกไว้, super admin ไม่มี (null)
-  const activeShopId = backendUser?.role === 'OWNER' ? backendUser.shopId : backendUser?.role === 'CUSTOMER' ? selectedShopId : null
+  let activeShopId: string | null = null
+  if (backendUser?.role === 'OWNER') activeShopId = backendUser.shopId
+  else if (backendUser?.role === 'CUSTOMER') activeShopId = selectedShopId
 
   const refetchSettings = () => {
     if (!activeShopId) return
