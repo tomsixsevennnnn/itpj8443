@@ -168,17 +168,28 @@ export default function App() {
       return null
     }
   })
+  /** เซ็ต state + localStorage ของร้านที่เลือกไว้ ไม่แตะ URL/history เลย — ใช้ตอน sync จาก popstate (ปุ่ม
+   *  back/forward ของเบราว์เซอร์) ที่ URL เปลี่ยนไปแล้วจริงๆ โดยเบราว์เซอร์เอง ไม่ควร push ซ้ำอีกชั้น */
+  const applySelectedShop = (shop: ShopPublic | null) => {
+    setSelectedShopId(shop?.id ?? null)
+    setSelectedShopSlug(shop?.slug ?? null)
+    try {
+      if (shop) {
+        localStorage.setItem(SELECTED_SHOP_KEY, shop.id)
+        localStorage.setItem(SELECTED_SHOP_SLUG_KEY, shop.slug)
+      } else {
+        localStorage.removeItem(SELECTED_SHOP_KEY)
+        localStorage.removeItem(SELECTED_SHOP_SLUG_KEY)
+      }
+    } catch {
+      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode)
+    }
+  }
+
   /** เลือกร้าน (จาก ShopSelect หรือ resolve จาก URL slug ตอน mount) — เก็บ id ไว้ทำงานจริง แล้วอัปเดต URL เป็น
    *  /{slug} ด้วย ให้ก็อปปี้ลิงก์ตรงร้านนั้นไปแชร์ต่อได้เลย (ดู resolveShopFromUrl effect ด้านล่าง) */
   const handleSelectShop = (shop: ShopPublic) => {
-    setSelectedShopId(shop.id)
-    setSelectedShopSlug(shop.slug)
-    try {
-      localStorage.setItem(SELECTED_SHOP_KEY, shop.id)
-      localStorage.setItem(SELECTED_SHOP_SLUG_KEY, shop.slug)
-    } catch {
-      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้ (เช่น private mode) — แค่ต้องเลือกร้านใหม่ทุกครั้งที่เปิดแอป
-    }
+    applySelectedShop(shop)
     try {
       window.history.pushState(null, '', `/${shop.slug}`)
     } catch {
@@ -188,14 +199,7 @@ export default function App() {
 
   /** กด "เปลี่ยนร้าน" ที่หน้า login — เคลียร์ทั้ง state, localStorage และ URL กันเผลอค้างร้านเดิมไว้ */
   const handleChangeShop = () => {
-    setSelectedShopId(null)
-    setSelectedShopSlug(null)
-    try {
-      localStorage.removeItem(SELECTED_SHOP_KEY)
-      localStorage.removeItem(SELECTED_SHOP_SLUG_KEY)
-    } catch {
-      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้
-    }
+    applySelectedShop(null)
     try {
       window.history.pushState(null, '', '/')
     } catch {
@@ -267,6 +271,45 @@ export default function App() {
   const [retryKey, setRetryKey] = useState(0)
   // แจ้งเตือนลอยตอนทำรายการ (จอง/แก้แพ็กเกจ/แก้เมนู ฯลฯ) ไม่สำเร็จ — คนละเรื่องกับ loadError ที่บล็อกทั้งหน้า
   const [actionError, setActionError] = useState<string | null>(null)
+
+  /**
+   * แอปนี้ไม่มี router — ทุก pushState/replaceState ในไฟล์นี้แค่ทำให้ URL "ดูตรง" กับสถานะปัจจุบัน ไม่เคยมีอะไรฟัง
+   * popstate เลย กดปุ่ม back/forward ของเบราว์เซอร์เลยเห็น URL เปลี่ยนแต่หน้าจอไม่ขยับตาม (เพราะ React ไม่รู้ตัว)
+   * เพิ่ม listener นี้ให้ตอบสนองปุ่ม back/forward เท่าที่แอประดับนี้ทำได้จริง:
+   *  - login อยู่แล้ว (owner/customer) → ร้านผูกกับ account/session ตายตัว ไม่ใช่ URL ไม่ยอมให้ back/forward
+   *    เปลี่ยนร้านได้ ดีดกลับไปที่ path ของร้านตัวเองเสมอ (เหมือน bootstrap load effect ที่ sync ไว้แล้ว)
+   *  - ยังไม่ login → ให้ back/forward สลับ "หน้าเลือกร้าน" กับ "หน้า login ของร้านที่เคยเลือก" ได้จริง
+   *    (อ่าน URL ใหม่แล้ว resolve ร้านใหม่ตามนั้น โดยไม่ push ซ้ำ เพราะเบราว์เซอร์เปลี่ยน URL ให้เองแล้ว)
+   */
+  useEffect(() => {
+    const onPopState = () => {
+      if (isAuthenticated) {
+        const slug = backendUser?.role === 'OWNER' ? backendUser.shop?.slug : selectedShopSlug
+        try {
+          window.history.replaceState(null, '', slug ? `/${slug}` : '/')
+        } catch {
+          // เพิกเฉยได้
+        }
+        return
+      }
+
+      const slug = window.location.pathname.replace(/^\/+|\/+$/g, '')
+      if (!slug) {
+        applySelectedShop(null)
+        return
+      }
+      api.shopBySlugPublic(slug).then(applySelectedShop).catch(() => {
+        try {
+          window.history.replaceState(null, '', '/')
+        } catch {
+          // เพิกเฉยได้
+        }
+        applySelectedShop(null)
+      })
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [isAuthenticated, backendUser, selectedShopSlug])
 
   // รายชื่อร้านทั้งหมด (พร้อมจำนวน owner) และ owner ทุกคนข้ามทุกร้าน — เฉพาะ super admin เท่านั้นที่เห็น/ใช้หน้า super-admin
   const [shopsAdmin, setShopsAdmin] = useState<ShopAdmin[]>([])
