@@ -668,14 +668,30 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           <ShieldCheck size={18} className="text-orange-500" />
           <h2 className="font-bold text-gray-900">ตรวจสอบสลิปอัตโนมัติ (SlipOK)</h2>
         </div>
-        <p className="text-xs text-gray-400 mb-4">
-          กรอก API key + Branch ID จากบัญชี SlipOK ของร้าน (สมัครที่{' '}
-          <a href="https://slipok.com" target="_blank" rel="noreferrer" className="text-orange-500 underline">
-            slipok.com
-          </a>
-          ) ให้ระบบยิงตรวจสอบสลิปกับธนาคารจริงทันทีที่ลูกค้าอัปโหลด — ปล่อยว่างไว้ได้ถ้ายังไม่ต้องการใช้ ระบบจะรับสลิปตามปกติ
-          โดยไม่มีผลตรวจสอบกำกับ
+        <p className="text-xs text-gray-400 mb-3">
+          กรอก API key + Branch ID จากบัญชี SlipOK ของร้าน ให้ระบบยิงตรวจสอบสลิปกับธนาคารจริงทันทีที่ลูกค้าอัปโหลด —
+          ปล่อยว่างไว้ได้ถ้ายังไม่ต้องการใช้ ระบบจะรับสลิปตามปกติโดยไม่มีผลตรวจสอบกำกับ
         </p>
+        <div className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 mb-4 space-y-1.5">
+          <p className="font-semibold text-gray-600">วิธีขอ API key + Branch ID:</p>
+          <ol className="list-decimal list-inside space-y-1">
+            <li>
+              เพิ่มเพื่อน LINE Official Account{' '}
+              <a href="https://line.me/R/ti/p/@slipok" target="_blank" rel="noreferrer" className="text-orange-500 underline">
+                @slipok
+              </a>
+            </li>
+            <li>กรอกข้อมูลธุรกิจ/ร้าน + บัญชีธนาคารที่รับเงินจริงผ่านแชท LINE นั้น</li>
+            <li>เลือกช่องทางตรวจสอบเป็น "API" (ไม่ใช่แบบแชทบอทเฉยๆ)</li>
+            <li>ระบบจะออก API key + Branch ID ให้ตรงจุดนี้ — เอามากรอกด้านล่างแล้วกด "ทดสอบการเชื่อมต่อ" ก่อนบันทึกได้เลย</li>
+          </ol>
+          <p className="text-gray-400 pt-1">
+            รายละเอียดเพิ่มเติมดูที่{' '}
+            <a href="https://slipok.com" target="_blank" rel="noreferrer" className="text-orange-500 underline">
+              slipok.com
+            </a>
+          </p>
+        </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK API key</label>
