@@ -183,10 +183,32 @@ const PACKAGES: PackageSeed[] = [
   },
 ]
 
+/** id ของแพ็กเกจ/เมนูใน seed นี้ตายตัว (ไม่ผูก shopId) แต่ตั้งแต่ multi-tenant แล้ว MenuItem/Package ทุกแถวต้องมี
+ *  shopId — ต่อ id เดิมด้วย shopId ต่อท้ายให้ไม่ชนกันข้ามร้าน เผื่อรันซ้ำให้หลายร้าน (id เดิมยังอ่านง่ายอยู่) */
+const scopedId = (id: string, shopId: string) => `${id}__${shopId}`
+
+/** ระบุร้านที่จะ seed ให้ผ่าน SEED_SHOP_ID (env หรือ argv) — ไม่ระบุ = ใช้ร้านแรก/ร้านเดียวที่มีอยู่ในระบบ
+ *  (สะดวกตอน dev ที่มีร้านเดียว) ต้องระบุชัดเจนถ้ามีหลายร้านกันเผื่อ seed ผิดร้าน */
+async function resolveShopId(): Promise<string> {
+  const explicit = process.env.SEED_SHOP_ID ?? process.argv[2]
+  if (explicit) return explicit
+
+  const shops = await prisma.shop.findMany({ select: { id: true, name: true } })
+  if (shops.length === 0) throw new Error('ไม่พบร้านในระบบเลย — ต้องสร้างร้านก่อน (ผ่านหน้า Super Admin) ถึงจะ seed เมนู/แพ็กเกจได้')
+  if (shops.length > 1) {
+    throw new Error(
+      `มีมากกว่า 1 ร้านในระบบ (${shops.map((s) => `${s.name} [${s.id}]`).join(', ')}) — ต้องระบุร้านให้ชัดเจนผ่าน SEED_SHOP_ID=<id> หรือ argument`,
+    )
+  }
+  return shops[0].id
+}
+
 async function main() {
-  const existing = await prisma.package.count()
+  const shopId = await resolveShopId()
+
+  const existing = await prisma.package.count({ where: { shopId } })
   if (existing > 0) {
-    console.log(`มีแพ็กเกจอยู่แล้ว ${existing} รายการ — ข้าม seed (ลบข้อมูลเดิมก่อนถ้าต้องการ seed ใหม่)`)
+    console.log(`ร้านนี้ (${shopId}) มีแพ็กเกจอยู่แล้ว ${existing} รายการ — ข้าม seed (ลบข้อมูลเดิมก่อนถ้าต้องการ seed ใหม่)`)
     return
   }
 
@@ -201,17 +223,18 @@ async function main() {
 
   for (const item of byId.values()) {
     await prisma.menuItem.upsert({
-      where: { id: item.id },
+      where: { id: scopedId(item.id, shopId) },
       update: {},
-      create: item,
+      create: { ...item, id: scopedId(item.id, shopId), shopId },
     })
   }
-  console.log(`สร้างเมนู ${byId.size} รายการ`)
+  console.log(`สร้างเมนู ${byId.size} รายการ ให้ร้าน ${shopId}`)
 
   for (const pkg of PACKAGES) {
     await prisma.package.create({
       data: {
-        id: pkg.id,
+        id: scopedId(pkg.id, shopId),
+        shopId,
         name: pkg.name,
         pricePerTable: pkg.pricePerTable,
         menuLimit: pkg.menuLimit,
@@ -224,13 +247,13 @@ async function main() {
             title: c.title,
             category: c.category,
             choose: c.choose,
-            items: { connect: c.items.map((i) => ({ id: i.id })) },
+            items: { connect: c.items.map((i) => ({ id: scopedId(i.id, shopId) })) },
           })),
         },
       },
     })
   }
-  console.log(`สร้างแพ็กเกจ ${PACKAGES.length} รายการ`)
+  console.log(`สร้างแพ็กเกจ ${PACKAGES.length} รายการ ให้ร้าน ${shopId}`)
 }
 
 main()
