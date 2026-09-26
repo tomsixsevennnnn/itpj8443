@@ -61,6 +61,10 @@ export default function Cart({
     }
   }
 
+  let zoneBadgeClass = 'bg-gray-100 text-gray-600'
+  if (booking.location?.zone === 'home') zoneBadgeClass = 'bg-green-100 text-green-700'
+  else if (booking.location?.zone === 'metro') zoneBadgeClass = 'bg-blue-100 text-blue-700'
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar currentScreen="cart" />
@@ -138,13 +142,7 @@ export default function Cart({
                       {booking.location.lat.toFixed(6)}, {booking.location.lng.toFixed(6)}
                     </span>
                     <span
-                      className={`px-2.5 py-1 rounded-lg font-medium ${
-                        booking.location.zone === 'home'
-                          ? 'bg-green-100 text-green-700'
-                          : booking.location.zone === 'metro'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-gray-100 text-gray-600'
-                      }`}
+                      className={`px-2.5 py-1 rounded-lg font-medium ${zoneBadgeClass}`}
                     >
                       {booking.location.province ? `${booking.location.province} · ` : ''}
                       {zoneLabel(homeProvince)[booking.location.zone]}

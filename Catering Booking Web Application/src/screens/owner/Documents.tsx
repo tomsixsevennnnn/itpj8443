@@ -58,6 +58,15 @@ export default function Documents({ bookings, menus, settings }: Readonly<Docume
           <div className="divide-y divide-gray-50">
             {filtered.map(b => {
               const docId = docNumber(b, activeTab)
+              let statusBadgeClass = 'bg-gray-100 text-gray-500'
+              let statusBadgeLabel = 'เสร็จ'
+              if (b.status === 'confirmed') {
+                statusBadgeClass = 'bg-green-100 text-green-600'
+                statusBadgeLabel = 'ยืนยัน'
+              } else if (b.status === 'pending') {
+                statusBadgeClass = 'bg-yellow-100 text-yellow-600'
+                statusBadgeLabel = 'รอ'
+              }
               return (
                 <div
                   key={b.id}
@@ -79,11 +88,8 @@ export default function Documents({ bookings, menus, settings }: Readonly<Docume
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <p className="font-mono text-xs font-bold text-gray-600">{docId}</p>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
-                          b.status === 'confirmed' ? 'bg-green-100 text-green-600' :
-                          b.status === 'pending' ? 'bg-yellow-100 text-yellow-600' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {b.status === 'confirmed' ? 'ยืนยัน' : b.status === 'pending' ? 'รอ' : 'เสร็จ'}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${statusBadgeClass}`}>
+                          {statusBadgeLabel}
                         </span>
                       </div>
                       <p className="font-semibold text-gray-800 text-sm">{bookingCustomerName(b)}</p>

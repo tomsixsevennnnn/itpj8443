@@ -96,11 +96,16 @@ export default function BookingCalendar({ bookings, onSelectDateTime, slotHours,
 
             {/* Day headers */}
             <div className="grid grid-cols-7 mb-2">
-              {DAYS_TH.map((d, i) => (
-                <div key={d} className={`text-center text-xs font-semibold py-2 ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-500'}`}>
-                  {d}
-                </div>
-              ))}
+              {DAYS_TH.map((d, i) => {
+                let headerClass = 'text-gray-500'
+                if (i === 0) headerClass = 'text-red-400'
+                else if (i === 6) headerClass = 'text-blue-400'
+                return (
+                  <div key={d} className={`text-center text-xs font-semibold py-2 ${headerClass}`}>
+                    {d}
+                  </div>
+                )
+              })}
             </div>
 
             {/* Date grid */}

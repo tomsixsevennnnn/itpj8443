@@ -378,6 +378,9 @@ export default function Packages({
                       const cat = categoryMap[course.category]
                       const isOpen = openCourse === course.no
                       const isEmpty = course.items.length === 0
+                      let courseCardClass = 'border-gray-200'
+                      if (dragCourseNo === course.no) courseCardClass = 'opacity-40'
+                      else if (isEmpty) courseCardClass = 'border-red-200 bg-red-50/40'
 
                       return (
                         <div
@@ -387,13 +390,7 @@ export default function Packages({
                           onDragOver={handleCourseDragOver}
                           onDrop={() => handleCourseDrop(course.no)}
                           onDragEnd={() => setDragCourseNo(null)}
-                          className={`rounded-2xl border overflow-hidden transition-colors cursor-grab active:cursor-grabbing ${
-                            dragCourseNo === course.no
-                              ? 'opacity-40'
-                              : isEmpty
-                              ? 'border-red-200 bg-red-50/40'
-                              : 'border-gray-200'
-                          }`}
+                          className={`rounded-2xl border overflow-hidden transition-colors cursor-grab active:cursor-grabbing ${courseCardClass}`}
                         >
                           {/* หัวข้อ */}
                           <button

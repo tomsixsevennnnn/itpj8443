@@ -244,6 +244,19 @@ export default function SelectLocation({
     homeProvince,
   )
 
+  let zoneBadgeClass = 'bg-gray-200 text-gray-600'
+  if (zone === 'home') zoneBadgeClass = 'bg-green-100 text-green-700'
+  else if (zone === 'metro') zoneBadgeClass = 'bg-blue-100 text-blue-700'
+
+  let deliveryCheckClass = 'bg-gray-50 border-gray-100 text-gray-500'
+  if (check.tone === 'blocked') deliveryCheckClass = 'bg-red-50 border-red-200 text-red-700'
+  else if (check.tone === 'fee') deliveryCheckClass = 'bg-orange-50 border-orange-100 text-orange-700'
+  else if (check.tone === 'ok') deliveryCheckClass = 'bg-green-50 border-green-100 text-green-700'
+
+  let deliveryCheckIcon = <Truck size={15} className="flex-shrink-0 mt-0.5" />
+  if (check.tone === 'blocked') deliveryCheckIcon = <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
+  else if (zone === 'outside' && outsideLoading) deliveryCheckIcon = <Loader2 size={15} className="flex-shrink-0 mt-0.5 animate-spin" />
+
   const handleNext = () => {
     if (check.blocked) return
     onSetLocation({
@@ -382,13 +395,7 @@ export default function SelectLocation({
                     </p>
                     {place.province && (
                       <span
-                        className={`inline-block mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          zone === 'home'
-                            ? 'bg-green-100 text-green-700'
-                            : zone === 'metro'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-gray-200 text-gray-600'
-                        }`}
+                        className={`inline-block mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full ${zoneBadgeClass}`}
                       >
                         {place.province} · {zoneLabel(homeProvince)[zone]}
                       </span>
@@ -428,24 +435,10 @@ export default function SelectLocation({
                 </div>
               ) : (
                 <div
-                  className={`rounded-xl px-3 py-3 text-xs border ${
-                    check.tone === 'blocked'
-                      ? 'bg-red-50 border-red-200 text-red-700'
-                      : check.tone === 'fee'
-                        ? 'bg-orange-50 border-orange-100 text-orange-700'
-                        : check.tone === 'ok'
-                          ? 'bg-green-50 border-green-100 text-green-700'
-                          : 'bg-gray-50 border-gray-100 text-gray-500'
-                  }`}
+                  className={`rounded-xl px-3 py-3 text-xs border ${deliveryCheckClass}`}
                 >
                   <div className="flex items-start gap-2.5">
-                    {check.tone === 'blocked' ? (
-                      <AlertCircle size={15} className="flex-shrink-0 mt-0.5" />
-                    ) : zone === 'outside' && outsideLoading ? (
-                      <Loader2 size={15} className="flex-shrink-0 mt-0.5 animate-spin" />
-                    ) : (
-                      <Truck size={15} className="flex-shrink-0 mt-0.5" />
-                    )}
+                    {deliveryCheckIcon}
                     <div className="leading-relaxed">
                       <span className="font-semibold">{check.title}</span>
                       <span className="block mt-0.5">{check.detail}</span>
