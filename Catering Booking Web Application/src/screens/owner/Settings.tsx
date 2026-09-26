@@ -18,6 +18,7 @@ import {
   QrCode,
   RotateCcw,
   Save,
+  ShieldCheck,
   Trash2,
   Truck,
   Users,
@@ -655,6 +656,44 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage }: 
             </button>
           )}
           {qrError && <p className="mt-2 text-xs text-red-500">{qrError}</p>}
+        </div>
+      </div>
+
+      {/* ตรวจสอบสลิปอัตโนมัติผ่าน SlipOK */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <ShieldCheck size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">ตรวจสอบสลิปอัตโนมัติ (SlipOK)</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          กรอก API key + Branch ID จากบัญชี SlipOK ของร้าน (สมัครที่{' '}
+          <a href="https://slipok.com" target="_blank" rel="noreferrer" className="text-orange-500 underline">
+            slipok.com
+          </a>
+          ) ให้ระบบยิงตรวจสอบสลิปกับธนาคารจริงทันทีที่ลูกค้าอัปโหลด — ปล่อยว่างไว้ได้ถ้ายังไม่ต้องการใช้ ระบบจะรับสลิปตามปกติ
+          โดยไม่มีผลตรวจสอบกำกับ
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK API key</label>
+            <input
+              type="password"
+              value={form.slipOkApiKey}
+              placeholder="เช่น SLIPOKXXXXXXXXXXXX"
+              onChange={e => setForm(f => ({ ...f, slipOkApiKey: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK Branch ID</label>
+            <input
+              type="text"
+              value={form.slipOkBranchId}
+              placeholder="เช่น 12345"
+              onChange={e => setForm(f => ({ ...f, slipOkBranchId: e.target.value }))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+            />
+          </div>
         </div>
       </div>
         </>

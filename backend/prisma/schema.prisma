@@ -29,6 +29,37 @@ enum ShopStatus {
 }
 
 /**
+ * ผลตรวจสอบสลิปโอนเงินผ่าน SlipOK (ดู backend/src/slip-verify) — null บน Booking แปลว่ายังไม่เคยตรวจ
+ * (ร้านนั้นยังไม่ได้ตั้งค่า SlipOK หรือยังไม่เคยอัปโหลดสลิป)
+ */
+enum SlipVerifyStatus {
+  /**
+   * SlipOK ยืนยันว่าเป็นรายการโอนจริง ยอด/บัญชีผู้รับตรงกับที่คาดไว้
+   */
+  VERIFIED
+  /**
+   * สลิปนี้เคยถูกส่งเข้าระบบ SlipOK มาก่อนแล้ว (อาจเอาสลิปเก่ามาใช้ซ้ำ)
+   */
+  DUPLICATE
+  /**
+   * ยอดเงินในสลิปไม่ตรงกับยอดที่คาดไว้ (totalPrice ของใบจอง)
+   */
+  AMOUNT_MISMATCH
+  /**
+   * บัญชีผู้รับในสลิปไม่ตรงกับบัญชีหลักที่ผูกกับ Branch ID ของร้าน
+   */
+  ACCOUNT_MISMATCH
+  /**
+   * SlipOK ปฏิเสธด้วยเหตุผลอื่น (อ่าน QR ไม่ได้/ไฟล์ไม่ใช่รูปสลิป/QR หมดอายุ ฯลฯ) — ดู message ประกอบ
+   */
+  REJECTED
+  /**
+   * เรียก SlipOK ไม่สำเร็จ (เครือข่าย/API ล่ม/timeout) — ไม่ใช่ว่าสลิปมีปัญหา แค่ตรวจตอนนี้ไม่ได้
+   */
+  UNAVAILABLE
+}
+
+/**
  * ร้านแต่ละร้านในระบบ multi-tenant — ทุกตารางข้อมูลจริง (Booking/MenuItem/Package/Settings/AuditLog) ผูกกับ
  * shopId เพื่อแยกข้อมูลกันเด็ดขาดระหว่างร้าน มีแค่ SUPER_ADMIN เท่านั้นที่มองเห็น/จัดการได้ข้ามร้าน
  */
@@ -153,52 +184,63 @@ model PackageCourse {
 }
 
 model Booking {
-  id                    String        @id @default(cuid())
-  shop                  Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  shopId                String
-  customer              User?         @relation(fields: [customerId], references: [id])
-  customerId            String?
-  customerName          String
+  id                       String            @id @default(cuid())
+  shop                     Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId                   String
+  customer                 User?             @relation(fields: [customerId], references: [id])
+  customerId               String?
+  customerName             String
   /**
    * ปีที่ออกเลขที่ใบจอง (ปี ค.ศ. ของ createdAt) — คู่กับ bookingNo ใช้ประกอบเลขที่ใบจอง BK-{bookingYear}-{bookingNo}
    */
-  bookingYear           Int
+  bookingYear              Int
   /**
    * เลขลำดับใบจองภายในปีนั้น เริ่ม 1 ทุกปี — จองจาก BookingCounter แบบ atomic ตอนสร้าง
    */
-  bookingNo             Int
-  date                  String
-  timeSlot              String
-  tables                Int
-  guestCount            Int
-  packageName           String
-  totalPrice            Int
-  pricePerTable         Int?
-  deliveryFee           Int?
-  status                BookingStatus @default(PENDING)
-  location              String
+  bookingNo                Int
+  date                     String
+  timeSlot                 String
+  tables                   Int
+  guestCount               Int
+  packageName              String
+  totalPrice               Int
+  pricePerTable            Int?
+  deliveryFee              Int?
+  status                   BookingStatus     @default(PENDING)
+  location                 String
   /**
    * พิกัด + รายละเอียดสถานที่จากแผนที่ (EventLocation ฝั่ง frontend)
    */
-  locationDetail        Json?
-  menus                 String[]
-  phone                 String
+  locationDetail           Json?
+  menus                    String[]
+  phone                    String
   /**
    * Line ID ของลูกค้า ณ ตอนจอง (ถ้ามี)
    */
-  lineId                String?
-  staffAuto             Json?
-  staffActual           Json?
-  staffNote             String?
-  staffSavedAt          DateTime?
-  paymentSlipUrl        String?
-  paymentSlipUploadedAt DateTime?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  lineId                   String?
+  staffAuto                Json?
+  staffActual              Json?
+  staffNote                String?
+  staffSavedAt             DateTime?
+  paymentSlipUrl           String?
+  paymentSlipUploadedAt    DateTime?
+  /**
+   * ผลตรวจสอบสลิปผ่าน SlipOK (ดู backend/src/slip-verify/slip-verify.service.ts) — null = ยังไม่เคยตรวจ
+   * (ร้านยังไม่ได้ตั้งค่า SlipOK หรือยังไม่มีสลิป) เคลียร์กลับเป็น null ทุกครั้งที่อัปโหลดสลิปใหม่ทับของเดิม
+   */
+  paymentSlipVerifyStatus  SlipVerifyStatus?
+  paymentSlipVerifyMessage String?
+  /**
+   * transaction reference จาก SlipOK — ใช้เทียบดูว่าสลิปนี้เคยผูกกับใบจองอื่นมาก่อนไหม (เผื่อ log ฝั่ง SlipOK พลาด)
+   */
+  paymentSlipTransRef      String?
+  paymentSlipVerifiedAt    DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
   /**
    * auth0Sub ของ owner ที่แก้ไขสถานะ/แผนกำลังคนล่าสุด — audit trail แบบง่าย (ยังไม่มีบทบาท staff แยก)
    */
-  lastEditedBy          String?
+  lastEditedBy             String?
 
   @@unique([shopId, bookingYear, bookingNo])
   @@index([customerId])
@@ -297,6 +339,12 @@ model Settings {
    */
   promptPayFirstName      String   @default("")
   promptPayLastName       String   @default("")
+  /**
+   * API key + Branch ID จากบัญชี SlipOK ของร้าน (สมัครเองที่ slipok.com ผูกกับบัญชีธนาคารที่รับเงินจริง) —
+   * ว่างทั้งคู่ = ร้านนี้ยังไม่เปิดใช้การตรวจสอบสลิปอัตโนมัติ (ไม่บังคับ อัปโหลดสลิปได้ตามปกติ แค่ไม่มีผลตรวจ)
+   */
+  slipOkApiKey            String   @default("")
+  slipOkBranchId          String   @default("")
   /**
    * 0–1 เช่น 0.5 = 50%
    */

@@ -76,6 +76,25 @@ export class UploadsService {
   }
 
   /**
+   * อ่านไฟล์ที่เคยบันทึกด้วย saveDataUrl กลับมาเป็น buffer — ใช้ตอนต้องส่งไฟล์นั้นต่อไปที่อื่น (เช่นส่งสลิปโอนเงิน
+   * ไปให้ SlipOK ตรวจสอบ ดู slip-verify.service.ts) คืน null เงียบๆ ถ้าอ่านไม่ได้ (ไฟล์หาย/path ไม่ถูกต้อง)
+   */
+  async readManagedFile(urlPath: string): Promise<{ buffer: Buffer; mimeType: string; filename: string } | null> {
+    const path = this.resolveManagedFilePath(urlPath)
+    if (!path) return null
+
+    try {
+      const buffer = await readFile(path)
+      const ext = path.split('.').pop()?.toLowerCase() ?? ''
+      const mimeType = Object.entries(ALLOWED_MIME_TO_EXT).find(([, e]) => e === ext)?.[0] ?? 'application/octet-stream'
+      return { buffer, mimeType, filename: path.split(/[\\/]/).pop() ?? 'slip' }
+    } catch (err) {
+      this.logger.warn(`อ่านไฟล์ไม่สำเร็จ: ${urlPath}`, err as Error)
+      return null
+    }
+  }
+
+  /**
    * ย่อรูปที่กำลังจะถูกลบ (deleteManagedFile) ให้เป็น thumbnail คุณภาพต่ำ ฝัง base64 เป็น data URL เดียวจบ —
    * เอาไว้แทนที่ path เดิมใน before/after ที่ audit.log() เก็บไว้ ก่อนลบไฟล์จริงทิ้งจาก disk เพื่อประหยัดพื้นที่
    * ต้องเรียก "ก่อน" deleteManagedFile เสมอ (ไฟล์ต้องยังอยู่ตอนอ่าน) — ถ้าย่อไม่สำเร็จคืน null เฉยๆ ไม่ throw

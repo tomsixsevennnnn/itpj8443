@@ -70,6 +70,8 @@ const OWNER_ONLY_FIELDS = [
   'tablesPerServer',
   'tablesPerSupport',
   'staffRemainderThreshold',
+  'slipOkApiKey',
+  'slipOkBranchId',
 ] as const
 
 @Injectable()
@@ -121,6 +123,13 @@ export class SettingsService {
       shopLoginTagline: s.shopLoginTagline,
       brandColor: s.brandColor,
     }
+  }
+
+  /** ให้ BookingsService เรียกตอนลูกค้าอัปโหลดสลิป — คืน null ถ้าร้านนี้ยังไม่ได้ตั้งค่า SlipOK ไว้ (ไม่บังคับ) */
+  async getSlipOkConfig(shopId: string): Promise<{ apiKey: string; branchId: string } | null> {
+    const settings = await this.getRaw(shopId)
+    if (!settings.slipOkApiKey || !settings.slipOkBranchId) return null
+    return { apiKey: settings.slipOkApiKey, branchId: settings.slipOkBranchId }
   }
 
   async update(shopId: string, dto: UpdateSettingsDto, editorAuth0Sub: string) {

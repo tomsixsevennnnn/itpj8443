@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
-import { BookingStatus, Prisma } from '@prisma/client'
+import { BookingStatus, Prisma, SlipVerifyStatus } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { Paginated, pageArgsFor } from '../common/pagination'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { SettingsService } from '../settings/settings.service'
+import { SlipVerifyService } from '../slip-verify/slip-verify.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { CreateBookingDto } from './dto/create-booking.dto'
 import { UpdateBookingDto } from './dto/update-booking.dto'
@@ -27,6 +28,7 @@ export class BookingsService {
     private audit: AuditService,
     private uploads: UploadsService,
     private realtime: RealtimeService,
+    private slipVerify: SlipVerifyService,
   ) {}
 
   /** เจ้าของร้านต้องเห็นข้อมูลบัญชีลูกค้าปัจจุบัน (ชื่อ/นามสกุล/อีเมล/LINE ID) ไม่ใช่แค่ snapshot ตอนจอง — join จาก User ที่ผูกไว้
@@ -229,9 +231,38 @@ export class BookingsService {
   async updatePaymentSlipAsCustomer(id: string, customerId: string, paymentSlipUrl: string) {
     const booking = await this.assertExists(id)
     if (booking.customerId !== customerId) throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขใบจองนี้')
+
+    // ตรวจสอบสลิปกับ SlipOK ก่อนบันทึก (ถ้าร้านนี้ตั้งค่าไว้) — ทำก่อน update ให้เสร็จในคำขอเดียว ลูกค้าเห็นผล
+    // ตรวจทันทีตอนอัปโหลดเลย ไม่ต้องรอ poll/refresh แยกรอบ อัปโหลดไฟล์เองไม่มีวันล้มเหลวเพราะ SlipOK (ดู
+    // slip-verify.service.ts — เรียกไม่สำเร็จก็แค่ได้สถานะ UNAVAILABLE กลับมา ไม่ throw)
+    const slipOk = await this.settingsService.getSlipOkConfig(booking.shopId)
+    let verify: { status: SlipVerifyStatus; message: string; transRef: string | null } | null = null
+    if (slipOk) {
+      const file = await this.uploads.readManagedFile(paymentSlipUrl)
+      if (file) {
+        verify = await this.slipVerify.checkSlip({
+          apiKey: slipOk.apiKey,
+          branchId: slipOk.branchId,
+          fileBuffer: file.buffer,
+          filename: file.filename,
+          mimeType: file.mimeType,
+          expectedAmount: booking.totalPrice,
+        })
+      }
+    }
+
     const after = await this.prisma.booking.update({
       where: { id },
-      data: { paymentSlipUrl, paymentSlipUploadedAt: new Date() },
+      data: {
+        paymentSlipUrl,
+        paymentSlipUploadedAt: new Date(),
+        // เคลียร์ผลตรวจของสลิปเก่าทิ้งเสมอตอนอัปโหลดใหม่ทับ — ไม่งั้นสลิปใหม่ที่ยังไม่ผ่านตรวจ (หรือร้านเพิ่งปิด
+        // SlipOK ไป) จะโชว์ผลตรวจของสลิปเก่าค้างอยู่ ทำให้ owner เข้าใจผิดว่าใบนี้ตรวจสอบแล้ว
+        paymentSlipVerifyStatus: verify?.status ?? null,
+        paymentSlipVerifyMessage: verify?.message ?? null,
+        paymentSlipTransRef: verify?.transRef ?? null,
+        paymentSlipVerifiedAt: verify ? new Date() : null,
+      },
     })
     // แนบสลิปใหม่ทับของเดิม (เช่นโอนผิดแล้วอัปโหลดใหม่) — ลบไฟล์เก่าทิ้งกัน orphan สะสมบน disk
     if (booking.paymentSlipUrl && booking.paymentSlipUrl !== after.paymentSlipUrl) {

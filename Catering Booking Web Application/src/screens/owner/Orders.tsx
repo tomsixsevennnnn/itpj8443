@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, ChevronLeft, ChevronRight, Loader2, MapPin, Minus, Navigation, Plus, RotateCcw, Save, Search, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
+import SlipVerifyBadge from '../../components/SlipVerifyBadge'
 import type { AppSettings, Booking, MenuItem, StaffPlan } from '../../types'
 import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
@@ -510,6 +511,7 @@ export default function Orders({
                         })}
                       </p>
                     )}
+                    <SlipVerifyBadge status={selected.paymentSlipVerifyStatus} message={selected.paymentSlipVerifyMessage} />
                     <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
                       ตรวจสอบยอดเงินเข้าบัญชีร้านให้ตรงกับสลิปก่อนกดเปลี่ยนสถานะเป็น "ยืนยันแล้ว"
                     </p>

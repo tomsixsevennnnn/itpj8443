@@ -191,6 +191,8 @@ const initialSettings: AppSettings = {
   shopLocation: DEFAULT_SHOP_LOCATION,
   fuelCostPerKm: DEFAULT_FUEL_COST_PER_KM,
   homeContent: DEFAULT_HOME_CONTENT,
+  slipOkApiKey: '',
+  slipOkBranchId: '',
 }
 
 /** ทางหลักที่ทำให้ settings/เมนู-แพ็กเกจ-คิวช่วงเวลา/bookings เห็นการเปลี่ยนแปลงแบบ realtime คือ SSE

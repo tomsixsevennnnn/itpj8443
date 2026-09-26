@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Loader2, MapPin, Navigation, Users, X } from 'lucide-react'
 import LocationMap from '../../components/LocationMap'
 import ImageLightbox from '../../components/ImageLightbox'
+import SlipVerifyBadge from '../../components/SlipVerifyBadge'
 import type { Booking } from '../../types'
 import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
@@ -369,13 +370,16 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                 </div>
               )}
               {popup.paymentSlip && slipObjectUrl && (
-                <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
-                  <img
-                    src={slipObjectUrl}
-                    alt="สลิปโอนเงิน"
-                    className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
-                  />
-                </button>
+                <div className="space-y-2">
+                  <button type="button" onClick={() => setSlipZoom(slipObjectUrl)} className="block w-full">
+                    <img
+                      src={slipObjectUrl}
+                      alt="สลิปโอนเงิน"
+                      className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
+                    />
+                  </button>
+                  <SlipVerifyBadge status={popup.paymentSlipVerifyStatus} message={popup.paymentSlipVerifyMessage} />
+                </div>
               )}
 
               {/* เปลี่ยนสถานะได้จากปฏิทินเลย */}

@@ -28,17 +28,19 @@ const makeService = () => {
     bookingCounter: { upsert: jest.fn() },
     $transaction: jest.fn((fn: any) => fn(prisma)),
   } as any
-  const settingsService = { get: jest.fn().mockResolvedValue(SETTINGS) } as any
+  const settingsService = { get: jest.fn().mockResolvedValue(SETTINGS), getSlipOkConfig: jest.fn().mockResolvedValue(null) } as any
   const audit = { log: jest.fn() } as any
   const uploads = { deleteManagedFile: jest.fn() } as any
   const realtime = { emitBookingsChanged: jest.fn() } as any
+  const slipVerify = { checkSlip: jest.fn() } as any
   return {
-    service: new BookingsService(prisma, settingsService, audit, uploads, realtime),
+    service: new BookingsService(prisma, settingsService, audit, uploads, realtime, slipVerify),
     prisma,
     settingsService,
     audit,
     uploads,
     realtime,
+    slipVerify,
   }
 }
 
@@ -255,6 +257,43 @@ describe('BookingsService.updatePaymentSlipAsCustomer', () => {
     await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
 
     expect(realtime.emitBookingsChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('ร้านตั้งค่า SlipOK ไว้ — ยิงไปตรวจสอบสลิปแล้วบันทึกผลลง booking', async () => {
+    const { service, prisma, settingsService, uploads, slipVerify } = makeService()
+    settingsService.getSlipOkConfig.mockResolvedValue({ apiKey: 'key1', branchId: 'branch1' })
+    uploads.readManagedFile = jest.fn().mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg', filename: 'new.jpg' })
+    slipVerify.checkSlip.mockResolvedValue({ status: 'VERIFIED', message: 'ตรวจสอบสลิปสำเร็จ', transRef: 'ref-123' })
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', shopId: 'shop1', totalPrice: 5000, paymentSlipUrl: null })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', paymentSlipUrl: '/uploads/slips/new.jpg' })
+
+    await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(slipVerify.checkSlip).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'key1', branchId: 'branch1', expectedAmount: 5000 }),
+    )
+    expect(prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentSlipVerifyStatus: 'VERIFIED',
+          paymentSlipVerifyMessage: 'ตรวจสอบสลิปสำเร็จ',
+          paymentSlipTransRef: 'ref-123',
+        }),
+      }),
+    )
+  })
+
+  it('ร้านไม่ได้ตั้งค่า SlipOK — ไม่เรียกตรวจสอบเลย บันทึกสลิปตามปกติ', async () => {
+    const { service, prisma, slipVerify } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', shopId: 'shop1', totalPrice: 5000, paymentSlipUrl: null })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', paymentSlipUrl: '/uploads/slips/new.jpg' })
+
+    await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(slipVerify.checkSlip).not.toHaveBeenCalled()
+    expect(prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentSlipVerifyStatus: null }) }),
+    )
   })
 })
 

@@ -60,15 +60,19 @@ async function request<T>(token: string, path: string, init: RequestInit = {}): 
 
 type BackendStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
 
-interface BackendBooking extends Omit<Booking, 'status' | 'paymentSlip'> {
+interface BackendBooking extends Omit<Booking, 'status' | 'paymentSlip' | 'paymentSlipVerifyStatus' | 'paymentSlipVerifyMessage'> {
   status: BackendStatus
   paymentSlipUrl?: string | null
+  paymentSlipVerifyStatus?: Booking['paymentSlipVerifyStatus'] | null
+  paymentSlipVerifyMessage?: string | null
 }
 
 const toFrontendBooking = (b: BackendBooking): Booking => ({
   ...b,
   status: b.status.toLowerCase() as Booking['status'],
   paymentSlip: b.paymentSlipUrl ?? undefined,
+  paymentSlipVerifyStatus: b.paymentSlipVerifyStatus ?? undefined,
+  paymentSlipVerifyMessage: b.paymentSlipVerifyMessage ?? undefined,
 })
 
 const toBackendStatus = (status: Booking['status']): BackendStatus => status.toUpperCase() as BackendStatus
@@ -125,6 +129,8 @@ interface BackendSettings {
   shopLocationLng: number
   fuelCostPerKm: number
   homeContent: HomeContent | null
+  slipOkApiKey?: string
+  slipOkBranchId?: string
 }
 
 const toFrontendSettings = (s: BackendSettings): AppSettings => ({
@@ -178,6 +184,9 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   fuelCostPerKm: s.fuelCostPerKm,
   // ยังไม่เคย customize (หรือ backend เก่ายังไม่มีคอลัมน์นี้) — ใช้เนื้อหาเริ่มต้นเดิมของหน้าแรก
   homeContent: s.homeContent ?? DEFAULT_HOME_CONTENT,
+  // ลูกค้าไม่เห็นสองฟิลด์นี้เลย (owner-only ฝั่ง backend) — ว่างไว้เฉยๆ ไม่มีผลอะไรฝั่ง customer
+  slipOkApiKey: s.slipOkApiKey ?? '',
+  slipOkBranchId: s.slipOkBranchId ?? '',
 })
 
 const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unknown> => {
@@ -229,6 +238,8 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (patch.shopLocation?.lng !== undefined) out.shopLocationLng = patch.shopLocation.lng
   if (patch.fuelCostPerKm !== undefined) out.fuelCostPerKm = patch.fuelCostPerKm
   if (patch.homeContent !== undefined) out.homeContent = patch.homeContent
+  if (patch.slipOkApiKey !== undefined) out.slipOkApiKey = patch.slipOkApiKey
+  if (patch.slipOkBranchId !== undefined) out.slipOkBranchId = patch.slipOkBranchId
   return out
 }
 

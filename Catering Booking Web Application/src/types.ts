@@ -184,6 +184,10 @@ export interface Booking {
   paymentSlip?: string
   /** เวลาที่แนบสลิปล่าสุด */
   paymentSlipUploadedAt?: string
+  /** ผลตรวจสอบสลิปอัตโนมัติผ่าน SlipOK — undefined = ร้านนี้ยังไม่ได้ตั้งค่า SlipOK หรือยังไม่มีสลิป */
+  paymentSlipVerifyStatus?: 'VERIFIED' | 'DUPLICATE' | 'AMOUNT_MISMATCH' | 'ACCOUNT_MISMATCH' | 'REJECTED' | 'UNAVAILABLE'
+  /** ข้อความรายละเอียดผลตรวจสอบจาก SlipOK — โชว์ให้ owner เห็นเหตุผลตรงๆ */
+  paymentSlipVerifyMessage?: string
 }
 
 /**
@@ -284,4 +288,8 @@ export interface AppSettings {
   fuelCostPerKm: number
   /** เนื้อหาหน้าแรก (Hero/การ์ดจุดเด่น/ขั้นตอน/แกลเลอรี/CTA) — แก้ได้จากหน้า "แก้ไขหน้าเว็บ" */
   homeContent: HomeContent
+  /** API key จากบัญชี SlipOK ของร้าน (slipok.com) — ว่าง = ยังไม่เปิดใช้การตรวจสอบสลิปอัตโนมัติ owner เท่านั้นที่เห็น */
+  slipOkApiKey: string
+  /** Branch ID จากบัญชี SlipOK ของร้าน — คู่กับ slipOkApiKey */
+  slipOkBranchId: string
 }

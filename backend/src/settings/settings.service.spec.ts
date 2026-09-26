@@ -25,6 +25,30 @@ describe('SettingsService', () => {
     expect(result).not.toHaveProperty('wageChef')
   })
 
+  it('get: isOwner=false ตัด SlipOK api key/branch id ออกด้วย (เป็นความลับของร้าน)', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, slipOkApiKey: 'secret', slipOkBranchId: 'b1' })
+
+    const result = await service.get('shop1', false)
+
+    expect(result).not.toHaveProperty('slipOkApiKey')
+    expect(result).not.toHaveProperty('slipOkBranchId')
+  })
+
+  it('getSlipOkConfig: ยังไม่ได้ตั้งค่า — คืน null', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, slipOkApiKey: '', slipOkBranchId: '' })
+
+    await expect(service.getSlipOkConfig('shop1')).resolves.toBeNull()
+  })
+
+  it('getSlipOkConfig: ตั้งค่าครบ — คืน apiKey/branchId', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, slipOkApiKey: 'key1', slipOkBranchId: 'branch1' })
+
+    await expect(service.getSlipOkConfig('shop1')).resolves.toEqual({ apiKey: 'key1', branchId: 'branch1' })
+  })
+
   it('get: isOwner=true คืนทุกฟิลด์รวมค่าแรง', async () => {
     const { service, prisma } = makeService()
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW })

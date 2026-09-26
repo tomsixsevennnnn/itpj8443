@@ -1,4 +1,4 @@
-import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator'
+import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator'
 
 export class UpdateSettingsDto {
   /** version ของ settings ที่ client โหลดมาตอนเปิดหน้า — กันสองแท็บ/สองคนแก้ทับกันเงียบๆ (ดู settings.service.ts) */
@@ -23,6 +23,10 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString() @Matches(/^[0-9-]*$/, { message: 'promptPayId ต้องเป็นตัวเลข (และขีดคั่นได้)' }) promptPayId?: string
   @IsOptional() @IsString() promptPayFirstName?: string
   @IsOptional() @IsString() promptPayLastName?: string
+
+  /** API key + Branch ID จากบัญชี SlipOK ของร้าน (slipok.com) — ว่างทั้งคู่ = ปิดการตรวจสอบสลิปอัตโนมัติ */
+  @IsOptional() @IsString() @MaxLength(200) slipOkApiKey?: string
+  @IsOptional() @IsString() @MaxLength(100) slipOkBranchId?: string
 
   @IsOptional() @IsNumber() @Min(0) @Max(1) depositRate?: number
   @IsOptional() @IsInt() @Min(0) deliveryFee?: number
