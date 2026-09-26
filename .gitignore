@@ -21,5 +21,9 @@ Catering Booking Web Application.zip
 *.log
 npm-debug.log*
 
+# coverage report (ใช้ป้อนให้ SonarQube วิเคราะห์ — ดู SONARQUBE.md) generate ใหม่ได้ทุกครั้งจาก test:cov ไม่ต้อง commit
+coverage/
+.scannerwork/
+
 # ไฟล์ที่อัปโหลด (รูปเมนู/โลโก้/QR/สลิป) — เก็บบน disk ของ server จริง ไม่ commit เข้า repo
 backend/uploads/

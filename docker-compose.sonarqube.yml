@@ -1,0 +1,21 @@
+# SonarQube (self-hosted, Community Edition) รันแยกจาก docker-compose.yml ของ backend (คนละวัตถุประสงค์:
+# นี่คือเครื่องมือ static analysis สำหรับ dev เท่านั้น ไม่ใช่ส่วนหนึ่งของแอปที่ deploy จริง) ดูวิธีใช้ใน SONARQUBE.md
+services:
+  sonarqube:
+    image: sonarqube:community
+    restart: unless-stopped
+    ports:
+      - '9000:9000'
+    environment:
+      # SonarQube ใช้ Elasticsearch ภายใน ซึ่งปกติต้องตั้ง vm.max_map_count ของเครื่อง host ให้ >= 262144
+      # ก่อนถึงจะ start ได้ — ปิดเช็คนี้แทนเพราะเป็นแค่เครื่องมือ dev บนเครื่องเดียว ไม่ใช่ production cluster
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: 'true'
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
