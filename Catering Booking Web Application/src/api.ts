@@ -197,12 +197,11 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   slipOkBranchId: s.slipOkBranchId ?? '',
 })
 
-const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unknown> => {
+/** ฟิลด์ shopInfo ทั้งหมด (ชื่อ/ที่อยู่/บัญชี/พร้อมเพย์) — แยกออกมาจาก toBackendSettingsPatch กันฟังก์ชัน
+ *  หลักซับซ้อนเกิน (เดิม if แบบนี้เรียงต่อกันเกือบ 50 บรรทัดในฟังก์ชันเดียว) แต่ละ if ยังคงเหมือนเดิมทุกตัว
+ *  แค่ย้ายที่อยู่ ไม่ได้เปลี่ยน logic เลย */
+const shopInfoPatchFields = (si: Partial<AppSettings['shopInfo']> | undefined): Record<string, unknown> => {
   const out: Record<string, unknown> = {}
-  // ต้องส่งเสมอ (ไม่ใช่ optional เหมือนฟิลด์อื่น) — backend ใช้เช็คว่ามีคนแก้ settings ไปก่อนหน้านี้หรือยัง
-  // (ดู settings.service.ts) ถ้าไม่ส่งมา validation ฝั่ง backend จะปฏิเสธ request ทันที
-  out.expectedVersion = patch.version ?? 0
-  const si = patch.shopInfo
   if (si?.name !== undefined) out.shopName = si.name
   if (si?.nameEn !== undefined) out.shopNameEn = si.nameEn
   if (si?.initials !== undefined) out.shopInitials = si.initials
@@ -220,6 +219,12 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (si?.promptPayLastName !== undefined) out.promptPayLastName = si.promptPayLastName
   if (si?.logo !== undefined) out.shopLogo = si.logo
   if (si?.loginTagline !== undefined) out.shopLoginTagline = si.loginTagline
+  return out
+}
+
+/** ค่าเงิน/ค่าแรง/กำลังคน — กลุ่มที่ 2 ของ toBackendSettingsPatch */
+const financeAndStaffPatchFields = (patch: Partial<AppSettings>): Record<string, unknown> => {
+  const out: Record<string, unknown> = {}
   if (patch.depositRate !== undefined) out.depositRate = patch.depositRate
   if (patch.deliveryFee !== undefined) out.deliveryFee = patch.deliveryFee
   if (patch.freeDeliveryMinTables !== undefined) out.freeDeliveryMinTables = patch.freeDeliveryMinTables
@@ -233,6 +238,12 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (patch.tablesPerServer !== undefined) out.tablesPerServer = patch.tablesPerServer
   if (patch.tablesPerSupport !== undefined) out.tablesPerSupport = patch.tablesPerSupport
   if (patch.staffRemainderThreshold !== undefined) out.staffRemainderThreshold = patch.staffRemainderThreshold
+  return out
+}
+
+/** เวลาจอง/เอกสาร/แคตตาล็อก/พิกัดร้าน/SlipOK — กลุ่มที่ 3 ของ toBackendSettingsPatch */
+const bookingAndCatalogPatchFields = (patch: Partial<AppSettings>): Record<string, unknown> => {
+  const out: Record<string, unknown> = {}
   if (patch.timeSlotHours?.morning !== undefined) out.slotMorningHours = patch.timeSlotHours.morning
   if (patch.timeSlotHours?.noon !== undefined) out.slotNoonHours = patch.timeSlotHours.noon
   if (patch.timeSlotHours?.evening !== undefined) out.slotEveningHours = patch.timeSlotHours.evening
@@ -250,6 +261,16 @@ const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unk
   if (patch.slipOkBranchId !== undefined) out.slipOkBranchId = patch.slipOkBranchId
   return out
 }
+
+/** export ไว้ให้ api.test.ts ทดสอบตรงๆ ได้ (ฟังก์ชันนี้แมปฟิลด์เยอะ เสี่ยงพิมพ์ชื่อฟิลด์ผิดง่าย) */
+export const toBackendSettingsPatch = (patch: Partial<AppSettings>): Record<string, unknown> => ({
+  // ต้องส่งเสมอ (ไม่ใช่ optional เหมือนฟิลด์อื่น) — backend ใช้เช็คว่ามีคนแก้ settings ไปก่อนหน้านี้หรือยัง
+  // (ดู settings.service.ts) ถ้าไม่ส่งมา validation ฝั่ง backend จะปฏิเสธ request ทันที
+  expectedVersion: patch.version ?? 0,
+  ...shopInfoPatchFields(patch.shopInfo),
+  ...financeAndStaffPatchFields(patch),
+  ...bookingAndCatalogPatchFields(patch),
+})
 
 export interface AuditLogEntry {
   id: string
