@@ -1,24 +1,38 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChefHat, ChevronRight, Loader2, Store } from 'lucide-react'
 import { api } from '../api'
+import { usePolling } from '../usePolling'
 import type { ShopPublic } from '../types'
+
+const SHOP_LIST_POLL_MS = 20_000
 
 interface ShopSelectProps {
   onSelect: (shop: ShopPublic) => void
 }
 
 /** หน้าแรกสุดของแอป (multi-tenant) — ลูกค้าต้องเลือกร้านก่อนเสมอ ถึงจะเห็นหน้า login/เริ่มจองของร้านนั้นได้
- *  ไม่ต้อง login (ดู GET /shops/public ฝั่ง backend) */
+ *  ไม่ต้อง login (ดู GET /shops/public ฝั่ง backend) หน้านี้ยังไม่ login เลยต่อ SSE (useAppStream) ไม่ได้ —
+ *  poll ทุก 20 วิแทน กันรายชื่อร้านค้าง (ร้านใหม่ที่ superadmin เพิ่งสร้าง/ระงับ/ลบ ไม่โผล่จนกว่าจะ reload เอง) */
 export default function ShopSelect({ onSelect }: ShopSelectProps) {
   const [shops, setShops] = useState<ShopPublic[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const loadedOnceRef = useRef(false)
 
-  useEffect(() => {
+  usePolling(() => {
     api
       .shopsPublic()
-      .then(setShops)
-      .catch(err => setError(err instanceof Error ? err.message : 'โหลดรายชื่อร้านไม่สำเร็จ'))
-  }, [])
+      .then(list => {
+        loadedOnceRef.current = true
+        setShops(list)
+        setError(null)
+      })
+      .catch(err => {
+        // โหลดสำเร็จมาแล้วอย่างน้อยครั้งนึง — พลาดรอบนี้เพราะเน็ตสะดุดชั่วคราว ไม่ต้องเด้ง error ทับรายชื่อเดิม
+        if (!loadedOnceRef.current) {
+          setError(err instanceof Error ? err.message : 'โหลดรายชื่อร้านไม่สำเร็จ')
+        }
+      })
+  }, SHOP_LIST_POLL_MS)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex flex-col items-center justify-center p-4">
@@ -48,7 +62,10 @@ export default function ShopSelect({ onSelect }: ShopSelectProps) {
                   setShops(null)
                   api
                     .shopsPublic()
-                    .then(setShops)
+                    .then(list => {
+                      loadedOnceRef.current = true
+                      setShops(list)
+                    })
                     .catch(err => setError(err instanceof Error ? err.message : 'โหลดรายชื่อร้านไม่สำเร็จ'))
                 }}
                 className="text-sm text-orange-600 hover:text-orange-700 font-medium underline"
