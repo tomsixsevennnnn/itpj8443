@@ -313,24 +313,28 @@ export default function Packages({
                     { key: 'badge' as const, label: 'ป้ายกำกับ', placeholder: 'เช่น แนะนำ (ไม่บังคับ)' },
                   ].map(({ key, label, placeholder }) => (
                     <div key={key}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
-                      <input
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            {label}
+            <input
                         type="text"
                         placeholder={placeholder}
                         value={form[key]}
                         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                         className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                       />
+          </label>
                     </div>
                   ))}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">ราคา/โต๊ะ (฿)</label>
-                    <input
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            ราคา/โต๊ะ (฿)
+            <input
                       type="number"
                       value={form.pricePerTable}
                       onChange={e => setForm(f => ({ ...f, pricePerTable: Number(e.target.value) }))}
                       className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                     />
+          </label>
                   </div>
 
                   <div className="bg-gray-50 rounded-xl p-3.5 space-y-1.5">
@@ -423,43 +427,49 @@ export default function Packages({
                             <div className="px-3.5 pb-3.5 border-t border-gray-100 pt-3 space-y-3">
                               {/* ตั้งค่าข้อ */}
                               <div>
-                                <label className="block text-[10px] text-gray-400 mb-1">ประเภทอาหาร</label>
-                                <select
-                                  value={course.category}
-                                  onChange={e => {
-                                    const id = e.target.value
-                                    patchCourse(index, {
-                                      category: id,
-                                      title: categoryMap[id]?.label ?? course.title,
-                                      icon: categoryMap[id]?.icon ?? course.icon,
-                                    })
-                                  }}
-                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-                                >
-                                  {categories.map(c => (
-                                    <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
-                                  ))}
-                                </select>
+                                <label className="block text-[10px] text-gray-400 mb-1">
+                                  ประเภทอาหาร
+                                  <select
+                                    value={course.category}
+                                    onChange={e => {
+                                      const id = e.target.value
+                                      patchCourse(index, {
+                                        category: id,
+                                        title: categoryMap[id]?.label ?? course.title,
+                                        icon: categoryMap[id]?.icon ?? course.icon,
+                                      })
+                                    }}
+                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 mt-1"
+                                  >
+                                    {categories.map(c => (
+                                      <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                                    ))}
+                                  </select>
+                                </label>
                               </div>
                               <div className="grid grid-cols-[3.5rem_1fr] gap-2">
                                 <div>
-                                  <label className="block text-[10px] text-gray-400 mb-1">ไอคอน</label>
-                                  <input
+                                  <label className="block text-[10px] text-gray-400 mb-1">
+            ไอคอน
+            <input
                                     type="text"
                                     value={course.icon ?? ''}
                                     placeholder={cat?.icon ?? '🍽️'}
                                     onChange={e => patchCourse(index, { icon: e.target.value })}
                                     className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
                                   />
+          </label>
                                 </div>
                                 <div>
-                                  <label className="block text-[10px] text-gray-400 mb-1">ชื่อข้อที่แสดง</label>
-                                  <input
+                                  <label className="block text-[10px] text-gray-400 mb-1">
+            ชื่อข้อที่แสดง
+            <input
                                     type="text"
                                     value={course.title}
                                     onChange={e => patchCourse(index, { title: e.target.value })}
                                     className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"
                                   />
+          </label>
                                 </div>
                               </div>
 

@@ -381,14 +381,16 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         <p className="text-xs text-gray-400 mb-4">แสดงบนหัวใบเสนอราคาและใบจองทุกใบ</p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">โลโก้ร้าน</label>
-          <input
-            ref={logoInputRef}
-            type="file"
-            accept="image/*"
-            onChange={e => handlePickLogo(e.target.files?.[0])}
-            className="hidden"
-          />
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            โลโก้ร้าน
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={e => handlePickLogo(e.target.files?.[0])}
+              className="hidden"
+            />
+          </label>
           <div className="flex items-center gap-4">
             {form.shopInfo.logo ? (
               <img
@@ -429,38 +431,44 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         <div className="grid sm:grid-cols-2 gap-4">
           {SHOP_FIELDS.map(({ key, label, placeholder }) => (
             <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            {label}
+            <input
                 type="text"
                 value={form.shopInfo[key]}
                 placeholder={placeholder}
                 onChange={e => setShopField(key, e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
+          </label>
             </div>
           ))}
         </div>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">ที่อยู่ร้าน</label>
-          <textarea
-            value={form.shopInfo.address}
-            placeholder="เช่น อ.เมืองนครปฐม จ.นครปฐม 73000"
-            rows={2}
-            onChange={e => setShopField('address', e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-          />
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            ที่อยู่ร้าน
+            <textarea
+              value={form.shopInfo.address}
+              placeholder="เช่น อ.เมืองนครปฐม จ.นครปฐม 73000"
+              rows={2}
+              onChange={e => setShopField('address', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all mt-1.5"
+            />
+          </label>
         </div>
 
         <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">คำโปรยหน้า Login</label>
-          <input
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            คำโปรยหน้า Login
+            <input
             type="text"
             value={form.shopInfo.loginTagline}
             placeholder="เช่น ระบบจองจัดเลี้ยงนอกสถานที่"
             onChange={e => setShopField('loginTagline', e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
           />
+          </label>
         </div>
       </div>
 
@@ -536,25 +544,28 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         <div className="grid sm:grid-cols-2 gap-4">
           {BANK_FIELDS.map(({ key, label, placeholder }) => (
             <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            {label}
+            <input
                 type="text"
                 value={form.shopInfo[key]}
                 placeholder={placeholder}
                 onChange={e => setShopField(key, e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
+          </label>
             </div>
           ))}
         </div>
 
         <div className="mt-4 pt-4 border-t border-gray-100">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">เลขพร้อมเพย์ (เบอร์โทร / เลขบัตร ปชช. / เลขวอลเล็ต)</label>
+          <label htmlFor="promptPayId" className="block text-sm font-medium text-gray-700 mb-1.5">เลขพร้อมเพย์ (เบอร์โทร / เลขบัตร ปชช. / เลขวอลเล็ต)</label>
           <p className="text-xs text-gray-400 mb-2">
             กรอกแล้วระบบจะสร้าง QR ใหม่ให้อัตโนมัติทุกใบจอง พร้อมฝังยอดมัดจำที่ถูกต้องไว้ในตัว QR เลย
             (ลูกค้าสแกนแล้วยอดขึ้นเอง ไม่ต้องพิมพ์) ไม่ต้องอัปโหลดรูป QR ด้านล่างอีก
           </p>
           <input
+            id="promptPayId"
             type="text"
             value={form.shopInfo.promptPayId}
             placeholder="เช่น 0812345678"
@@ -563,24 +574,28 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           />
           <div className="grid sm:grid-cols-2 gap-4 mt-3 max-w-md">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">ชื่อ</label>
-              <input
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+            ชื่อ
+            <input
                 type="text"
                 value={form.shopInfo.promptPayFirstName}
                 placeholder="เช่น พิพัฒน์"
                 onChange={e => setShopField('promptPayFirstName', e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
+          </label>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">นามสกุล</label>
-              <input
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+            นามสกุล
+            <input
                 type="text"
                 value={form.shopInfo.promptPayLastName}
                 placeholder="เช่น โภชนา"
                 onChange={e => setShopField('promptPayLastName', e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
+          </label>
             </div>
           </div>
           {form.shopInfo.promptPayId && (
@@ -602,24 +617,28 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </label>
           <div className="grid sm:grid-cols-2 gap-4 mb-3 max-w-md">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">ชื่อ</label>
-              <input
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+            ชื่อ
+            <input
                 type="text"
                 value={form.shopInfo.promptPayQrFirstName}
                 placeholder="เช่น พิพัฒน์"
                 onChange={e => setShopField('promptPayQrFirstName', e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
+          </label>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">นามสกุล</label>
-              <input
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+            นามสกุล
+            <input
                 type="text"
                 value={form.shopInfo.promptPayQrLastName}
                 placeholder="เช่น โภชนา"
                 onChange={e => setShopField('promptPayQrLastName', e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
+          </label>
             </div>
           </div>
           <input
@@ -711,9 +730,10 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK API key</label>
+            <label htmlFor="slipOkApiKey" className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK API key</label>
             <div className="relative">
               <input
+                id="slipOkApiKey"
                 type={showSlipOkKey ? 'text' : 'password'}
                 value={form.slipOkApiKey}
                 placeholder="เช่น SLIPOKXXXXXXXXXXXX"
@@ -731,7 +751,8 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">SlipOK Branch ID</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            SlipOK Branch ID
             <input
               type="text"
               value={form.slipOkBranchId}
@@ -739,6 +760,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
               onChange={e => setForm(f => ({ ...f, slipOkBranchId: e.target.value }))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
+          </label>
           </div>
         </div>
 
@@ -786,8 +808,9 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         </p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)</label>
-          <input
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)
+            <input
             type="text"
             value={form.homeProvince}
             placeholder="เช่น นครปฐม"
@@ -797,11 +820,13 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
             }}
             className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
+          </label>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">ค่าขนส่ง (บาท)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            ค่าขนส่ง (บาท)
             <input
               type="number"
               min={0}
@@ -809,9 +834,11 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
               onChange={e => setNumberField('deliveryFee', Math.max(0, Math.floor(Number(e.target.value) || 0)))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
+          </label>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">จำนวนโต๊ะขั้นต่ำนอกพื้นที่ร้าน</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            จำนวนโต๊ะขั้นต่ำนอกพื้นที่ร้าน
             <input
               type="number"
               min={1}
@@ -819,6 +846,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
               onChange={e => setNumberField('freeDeliveryMinTables', Math.max(1, Math.floor(Number(e.target.value) || 1)))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
+          </label>
           </div>
         </div>
 
@@ -891,7 +919,8 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
 
         <div className="mb-4">
           <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-sm font-medium text-gray-700">ตำแหน่งที่ตั้งร้าน</label>
+            {/* หัวข้อของแผนที่ด้านล่าง ไม่ใช่ label ของ input เดียวเจาะจง (แผนที่ไม่ใช่ form control ที่ label ผูกได้) */}
+            <p className="text-sm font-medium text-gray-700">ตำแหน่งที่ตั้งร้าน</p>
             <button
               type="button"
               onClick={handleLocateShop}
@@ -931,8 +960,9 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         </div>
 
         <div className="max-w-[220px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">ค่าน้ำมัน (บาท/กิโลเมตร)</label>
-          <input
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            ค่าน้ำมัน (บาท/กิโลเมตร)
+            <input
             type="number"
             min={0}
             step="0.5"
@@ -940,6 +970,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
             onChange={e => setNumberField('fuelCostPerKm', Math.max(0, Number(e.target.value) || 0))}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
+          </label>
           <p className="text-[11px] text-gray-400 mt-1.5">
             ตัวอย่าง: ระยะทาง 50 กม. (ไป-กลับ 100 กม.) × {form.fuelCostPerKm} บาท/กม. ={' '}
             {Math.round(100 * form.fuelCostPerKm).toLocaleString()} บาท
@@ -963,9 +994,10 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         <div className="grid sm:grid-cols-2 gap-4">
           {WAGE_FIELDS.map(({ key, label, unit }) => (
             <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+              <label htmlFor={`wage-${key}`} className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
               <div className="flex items-center gap-2">
                 <input
+                  id={`wage-${key}`}
                   type="number"
                   min={0}
                   value={form[key]}
@@ -984,9 +1016,10 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           <div className="grid sm:grid-cols-3 gap-4">
             {STAFF_RATIO_FIELDS.map(({ key, label, unit, min }) => (
               <div key={key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+                <label htmlFor={`staff-ratio-${key}`} className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
                 <div className="flex items-center gap-2">
                   <input
+                    id={`staff-ratio-${key}`}
                     type="number"
                     min={min}
                     value={form[key]}
@@ -1023,14 +1056,16 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
             ] as const
           ).map(({ key, label }) => (
             <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
-              <input
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            {label}
+            <input
                 type="text"
                 value={form.timeSlotHours[key]}
                 placeholder="เช่น 08:00 - 12:00"
                 onChange={e => setSlotHours(key, e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
+          </label>
             </div>
           ))}
         </div>
@@ -1098,9 +1133,10 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         </p>
 
         <div className="mb-5 max-w-[220px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">ใบเสนอราคายืนราคากี่วัน</label>
+          <label htmlFor="quotationValidDays" className="block text-sm font-medium text-gray-700 mb-1.5">ใบเสนอราคายืนราคากี่วัน</label>
           <div className="flex items-center gap-2">
             <input
+              id="quotationValidDays"
               type="number"
               min={1}
               value={form.quotationValidDays}
@@ -1118,9 +1154,10 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           ]
         ).map(({ field, label, value, setValue }) => (
           <div key={field} className="mb-5 last:mb-0">
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+            <label htmlFor={`term-${field}`} className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
             <div className="flex gap-2 mb-2">
               <input
+                id={`term-${field}`}
                 type="text"
                 value={value}
                 onChange={e => setValue(e.target.value)}

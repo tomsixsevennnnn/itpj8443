@@ -415,14 +415,14 @@ export default function Orders({
                     <div className="mt-3">
                       <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
                         หมายเหตุ
+                        <textarea
+                          value={noteDraft}
+                          onChange={e => setNoteDraft(e.target.value)}
+                          rows={2}
+                          placeholder="เช่น งาน VIP, งานนอกสถานที่, ข้อกำหนดพิเศษของลูกค้า"
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 placeholder:text-gray-300 mt-1.5"
+                        />
                       </label>
-                      <textarea
-                        value={noteDraft}
-                        onChange={e => setNoteDraft(e.target.value)}
-                        rows={2}
-                        placeholder="เช่น งาน VIP, งานนอกสถานที่, ข้อกำหนดพิเศษของลูกค้า"
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 placeholder:text-gray-300"
-                      />
                     </div>
 
                     <button

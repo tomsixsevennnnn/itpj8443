@@ -163,13 +163,14 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
 
         <input
           ref={heroInputRef}
+          id="hero-image-input"
           type="file"
           accept="image/*"
           onChange={e => handlePickHeroImage(e.target.files?.[0])}
           className="hidden"
         />
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">รูปพื้นหลัง</label>
+          <label htmlFor="hero-image-input" className="block text-sm font-medium text-gray-700 mb-1.5">รูปพื้นหลัง</label>
           <div className="relative aspect-[16/7] rounded-xl overflow-hidden bg-gray-100 border border-gray-200">
             <img src={resolveImageUrl(form.homeContent.heroImage)} alt="ตัวอย่างรูป Hero" className="w-full h-full object-cover" />
             <button
@@ -186,44 +187,52 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">ป้ายข้อความเล็ก (เหนือหัวข้อ)</label>
-          <input
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            ป้ายข้อความเล็ก (เหนือหัวข้อ)
+            <input
             type="text"
             value={form.homeContent.heroBadge}
             onChange={e => setHomeField('heroBadge', e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
+          </label>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">หัวข้อหลัก</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            หัวข้อหลัก
             <input
               type="text"
               value={form.homeContent.heroTitle}
               onChange={e => setHomeField('heroTitle', e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
+          </label>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">หัวข้อ (สีส้ม บรรทัดที่ 2)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            หัวข้อ (สีส้ม บรรทัดที่ 2)
             <input
               type="text"
               value={form.homeContent.heroTitleHighlight}
               onChange={e => setHomeField('heroTitleHighlight', e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
+          </label>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">คำโปรย</label>
-          <textarea
-            value={form.homeContent.heroDescription}
-            rows={2}
-            onChange={e => setHomeField('heroDescription', e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            คำโปรย
+            <textarea
+              value={form.homeContent.heroDescription}
+              rows={2}
+              onChange={e => setHomeField('heroDescription', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 mt-1.5"
+            />
+          </label>
         </div>
       </div>
 
@@ -360,22 +369,26 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
         </div>
         <p className="text-xs text-gray-400 mb-4">แถบชวนจองสีส้มท้ายหน้าแรก ก่อนถึง footer</p>
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">หัวข้อ</label>
-          <input
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            หัวข้อ
+            <input
             type="text"
             value={form.homeContent.ctaTitle}
             onChange={e => setHomeField('ctaTitle', e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
+          </label>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">คำโปรย</label>
-          <textarea
-            value={form.homeContent.ctaDescription}
-            rows={2}
-            onChange={e => setHomeField('ctaDescription', e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            คำโปรย
+            <textarea
+              value={form.homeContent.ctaDescription}
+              rows={2}
+              onChange={e => setHomeField('ctaDescription', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 mt-1.5"
+            />
+          </label>
         </div>
       </div>
         </>

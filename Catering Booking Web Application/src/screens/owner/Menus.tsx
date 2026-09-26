@@ -349,50 +349,58 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">ประเภทอาหาร</label>
-                <select
-                  value={form.category}
-                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-                >
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  ประเภทอาหาร
+                  <select
+                    value={form.category}
+                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-400 mt-1.5"
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">คำอธิบาย</label>
-                <textarea
-                  rows={2}
-                  value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="เช่น ปลากะพงนึ่งราดน้ำมะนาวพริกสด"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  คำอธิบาย
+                  <textarea
+                    rows={2}
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="เช่น ปลากะพงนึ่งราดน้ำมะนาวพริกสด"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 mt-1.5"
+                  />
+                </label>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">ราคาทุนต่อจาน (฿)</label>
-                <input
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            ราคาทุนต่อจาน (฿)
+            <input
                   type="number"
                   min="0"
                   value={form.costPrice}
                   onChange={e => setForm(f => ({ ...f, costPrice: Math.max(0, Number(e.target.value) || 0) }))}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                 />
+          </label>
               </div>
 
               {/* รูปภาพเมนู — เลือกไฟล์จากเครื่อง */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">รูปภาพเมนู</label>
-                <input
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            รูปภาพเมนู
+            <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   onChange={e => handlePickImage(e.target.files?.[0])}
                   className="hidden"
                 />
+          </label>
 
                 {form.image ? (
                   <div className="space-y-2">
