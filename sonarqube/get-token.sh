@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# สร้าง SonarQube user token อัตโนมัติผ่าน REST API แทนการกดผ่านหน้าเว็บเอง (ดูขั้นตอน manual ใน SONARQUBE.md)
-# ต้องรัน `docker compose -f docker-compose.sonarqube.yml up -d` ให้ SonarQube server ขึ้นก่อนเสมอ — สคริปต์นี้
-# รอ health check ให้เองถ้ายังไม่พร้อม
+# สร้าง SonarQube user token อัตโนมัติผ่าน REST API แทนการกดผ่านหน้าเว็บเอง (ดูขั้นตอน manual ใน README.md)
+# ต้องรัน `docker compose -f sonarqube/docker-compose.yml up -d` (จาก root โปรเจกต์) ให้ SonarQube server
+# ขึ้นก่อนเสมอ — สคริปต์นี้รอ health check ให้เองถ้ายังไม่พร้อม
 #
-# ใช้งาน:
-#   ./scripts/sonar-get-token.sh [ชื่อ token]
+# ใช้งาน (รันจาก root โปรเจกต์):
+#   ./sonarqube/get-token.sh [ชื่อ token]
 #
 # รันครั้งแรก (รหัสผ่าน admin ยังเป็นค่าเริ่มต้น admin/admin) — สคริปต์จะเปลี่ยนรหัสผ่านให้อัตโนมัติแล้วพิมพ์
 # รหัสใหม่ออกมาให้เก็บไว้ (ต้องใช้ login หน้าเว็บครั้งต่อไปด้วย ไม่มีวิธีดูซ้ำ)
 # รันครั้งต่อไป (รหัสผ่านไม่ใช่ค่าเริ่มต้นแล้ว) — ต้องส่งรหัสผ่านปัจจุบันผ่าน SONAR_ADMIN_PASSWORD:
-#   SONAR_ADMIN_PASSWORD='รหัสที่ตั้งไว้' ./scripts/sonar-get-token.sh
+#   SONAR_ADMIN_PASSWORD='รหัสที่ตั้งไว้' ./sonarqube/get-token.sh
 set -euo pipefail
 
 SONAR_URL="${SONAR_URL:-http://localhost:9000}"

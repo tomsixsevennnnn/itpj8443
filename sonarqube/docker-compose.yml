@@ -1,5 +1,10 @@
 # SonarQube (self-hosted, Community Edition) รันแยกจาก docker-compose.yml ของ backend (คนละวัตถุประสงค์:
-# นี่คือเครื่องมือ static analysis สำหรับ dev เท่านั้น ไม่ใช่ส่วนหนึ่งของแอปที่ deploy จริง) ดูวิธีใช้ใน SONARQUBE.md
+# นี่คือเครื่องมือ static analysis สำหรับ dev เท่านั้น ไม่ใช่ส่วนหนึ่งของแอปที่ deploy จริง) ดูวิธีใช้ใน README.md
+#
+# ตั้ง project name ไว้ตรงๆ (name:) กัน docker compose เดาชื่อ network จากชื่อโฟลเดอร์ที่ไฟล์นี้อยู่เอง
+# (ปกติจะได้ "sonarqube") ให้ network ชื่อ catering-sonarqube_default แน่นอนไม่ว่าจะรันจากไดเรกทอรีไหน
+name: catering-sonarqube
+
 services:
   sonarqube:
     image: sonarqube:community
