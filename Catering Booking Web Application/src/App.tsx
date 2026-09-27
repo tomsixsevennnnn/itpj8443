@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useAuth0 } from '@auth0/auth0-react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useAuth0, type User as Auth0User } from '@auth0/auth0-react'
 import { LayoutDashboard } from 'lucide-react'
 import type { AppSettings, BookingData, Screen, UserProfile, Booking, EventLocation, MenuItem, Package, QueueBooking, ShopPublic } from './types'
 import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_ORDER, categoryMapOf, includedItems, orderedCategories } from './data'
@@ -251,6 +251,466 @@ const initialBooking: BookingData = {
   selectedMenus: [],
 }
 
+interface LoadAppDataDeps {
+  auth0User: Auth0User | undefined
+  getAccessTokenSilently: () => Promise<string>
+  selectedShopSlug: string | null
+  selectedShopId: string | null
+  initialScreenResolvedRef: RefObject<boolean>
+  isCancelled: () => boolean
+  setBackendUser: Dispatch<SetStateAction<BackendUser | null>>
+  setScreen: Dispatch<SetStateAction<Screen>>
+  setShopsAdmin: Dispatch<SetStateAction<ShopAdmin[]>>
+  setOwnersAdmin: Dispatch<SetStateAction<BackendUser[]>>
+  setDataLoaded: Dispatch<SetStateAction<boolean>>
+  setBookings: Dispatch<SetStateAction<Booking[]>>
+  setAvailability: Dispatch<SetStateAction<QueueBooking[]>>
+  setPackages: Dispatch<SetStateAction<Package[]>>
+  setMenus: Dispatch<SetStateAction<MenuItem[]>>
+  setSettings: Dispatch<SetStateAction<AppSettings>>
+  setLoadError: Dispatch<SetStateAction<string | null>>
+  applySelectedShop: (shop: ShopPublic | null) => void
+  forceLogout: () => void
+}
+
+/** โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน
+ *  (คัดลอกตรรกะเดิมมาตรงๆ ไม่เปลี่ยนพฤติกรรม) ดู useEffect ที่เรียกใช้ใน App สำหรับคำอธิบายเงื่อนไข role ต่างๆ */
+async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
+  const {
+    auth0User, getAccessTokenSilently, selectedShopSlug, selectedShopId, initialScreenResolvedRef, isCancelled,
+    setBackendUser, setScreen, setShopsAdmin, setOwnersAdmin, setDataLoaded, setBookings, setAvailability,
+    setPackages, setMenus, setSettings, setLoadError, applySelectedShop, forceLogout,
+  } = deps
+
+  setLoadError(null)
+  // true เฉพาะตอนกำลังดึงข้อมูลของ "ร้านที่ลูกค้าเลือกไว้เอง" (ไม่ใช่ร้านของ owner จาก JWT) — เผื่อร้านนั้น
+  // ถูกลบไปแล้วระหว่างที่ค้างอยู่ (super admin ลบทิ้งจากอีกเครื่อง) จะได้ดักแยก 404 นี้จากปัญหาโหลดข้อมูลอื่นๆ
+  // ที่ยังต้องโชว์จอ error+ลองใหม่ตามปกติ
+  let fetchingSelectedCustomerShop = false
+  try {
+    const token = await getAccessTokenSilently()
+    // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
+    const me = await api.syncProfile(token, {
+      name: auth0User?.given_name || auth0User?.name?.split(' ')[0] || 'ผู้ใช้',
+      surname: auth0User?.family_name || auth0User?.name?.split(' ').slice(1).join(' ') || '',
+      email: auth0User?.email ?? '',
+      avatar: auth0User?.picture ?? '',
+    })
+    if (isCancelled()) return
+    setBackendUser(me)
+
+    const roleForPath: AppRoleForPath = roleForPathFrom(me.role)
+    // sync หน้าเริ่มต้น + URL ให้ตรงกับ role/ร้านของ session ปัจจุบันเสมอ (ครั้งแรกที่ login สำเร็จเท่านั้น
+    // ดู initialScreenResolvedRef) resolve จาก URL ปัจจุบันก่อน (รองรับ deep-link/reload กลางทาง) ถ้าไม่ตรง
+    // หน้าไหนของ role นี้เลย ค่อย fallback ไปหน้า default — กันเคส login ค้างอยู่แล้วมีใครพิมพ์ path ร้าน/
+    // หน้าอื่นเข้ามาเอง ให้ดีดกลับมาร้าน/หน้าที่ถูกต้องของ session นี้เสมอ ไม่ใช่ปล่อยให้ URL ค้างผิดไว้
+    if (!initialScreenResolvedRef.current) {
+      initialScreenResolvedRef.current = true
+      const shopSlugForPath = roleForPath === 'owner' ? (me.shop?.slug ?? null) : selectedShopSlug
+      const resolved = screenFromPath(window.location.pathname, roleForPath)
+      const targetScreen = resolved ?? defaultScreenFor(roleForPath)
+      setScreen(targetScreen)
+      try {
+        window.history.replaceState(null, '', pathForScreen(targetScreen, shopSlugForPath))
+      } catch {
+        // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+      }
+    }
+
+    if (me.role === 'SUPER_ADMIN') {
+      const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
+      if (isCancelled()) return
+      setShopsAdmin(shops)
+      setOwnersAdmin(owners)
+      setDataLoaded(true)
+      return
+    }
+
+    const shopId = me.role === 'OWNER' ? me.shopId : selectedShopId
+    if (!shopId) {
+      // ลูกค้าที่มี session ค้างอยู่ (Auth0 SSO) แต่ยังไม่ได้เลือกร้านในเครื่อง/เบราว์เซอร์นี้ (เช่นล้าง
+      // localStorage ไปแล้ว) — ปล่อยให้ effectiveScreen ด้านล่างเด้งไปหน้าเลือกร้านแทน ไม่ fetch อะไรต่อ
+      setDataLoaded(true)
+      return
+    }
+    fetchingSelectedCustomerShop = me.role !== 'OWNER'
+
+    const [bks, avail, pkgs, mns, sttgs] = await Promise.all([
+      api.bookings(token),
+      api.bookingsAvailability(token, shopId),
+      api.packages(token, shopId),
+      api.menus(token, shopId),
+      api.settings(token, shopId),
+    ])
+    if (isCancelled()) return
+    setBookings(bks)
+    setAvailability(avail)
+    setPackages(pkgs)
+    setMenus(mns)
+    setSettings(sttgs)
+    setDataLoaded(true)
+  } catch (err) {
+    if (isCancelled()) return
+    // session/token หมดอายุ — เด้งกลับหน้า login แทนที่จะโชว์หน้า error ให้กด "ลองใหม่" วนไม่รู้จบ
+    if (isSessionExpiredError(err)) {
+      forceLogout()
+      return
+    }
+    // ร้านที่ลูกค้าเลือกไว้ถูกลบไปแล้วระหว่างที่ค้างอยู่หน้านี้พอดี (settings.getRaw() โยน 404 ตอนนี้ ดู
+    // backend/src/settings/settings.service.ts) — เด้งกลับไปหน้าเลือกร้านใหม่เนียนๆ แทนที่จะโชว์จอ error
+    // ค้างให้กด "ลองใหม่" วนไม่รู้จบ (owner ไม่มีวันเจอ 404 นี้เพราะถูกลดสิทธิ์เป็น customer ไปตั้งแต่ตอน
+    // syncProfile ข้างบนแล้วถ้าร้านตัวเองถูกลบ — ไม่มีทางไหลมาถึงจุดนี้ได้)
+    if (fetchingSelectedCustomerShop && /-> 404/.test(err instanceof Error ? err.message : '')) {
+      applySelectedShop(null)
+      try {
+        window.history.pushState(null, '', '/')
+      } catch {
+        // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+      }
+      setDataLoaded(true)
+      return
+    }
+    setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
+  }
+}
+
+interface SuperAdminScreenProps {
+  navContext: NavContextValue
+  actionError: string | null
+  setActionError: Dispatch<SetStateAction<string | null>>
+  shopsAdmin: ShopAdmin[]
+  ownersAdmin: BackendUser[]
+  setShopsAdmin: Dispatch<SetStateAction<ShopAdmin[]>>
+  setOwnersAdmin: Dispatch<SetStateAction<BackendUser[]>>
+  runAction: (fn: () => Promise<void>) => Promise<void>
+  withToken: () => Promise<string>
+  auditRefreshSignal: number
+}
+
+/** หน้าจอ super admin — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน (คัดลอก JSX เดิมมาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function SuperAdminScreen({
+  navContext, actionError, setActionError, shopsAdmin, ownersAdmin, setShopsAdmin, setOwnersAdmin, runAction, withToken, auditRefreshSignal,
+}: Readonly<SuperAdminScreenProps>) {
+  return (
+    <NavProvider value={navContext}>
+      {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
+      <SuperAdmin
+        shops={shopsAdmin}
+        owners={ownersAdmin}
+        onCreateShop={(input) =>
+          runAction(async () => {
+            const token = await withToken()
+            await api.createShop(token, input)
+            // createShop คืนแค่แถว Shop ดิบ (ไม่มี _count/totalRevenue เหมือน shopsList) — ถ้าเอามาต่อ state
+            // ตรงๆ การ์ดร้านใหม่จะโชว์ 0 owner/0 การจอง ค้างจนกว่าจะ refresh หน้า ดึงชุดที่มี _count มาแทนเลย
+            const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
+            setShopsAdmin(shops)
+            setOwnersAdmin(owners)
+          })
+        }
+        onSetShopStatus={(id, status) =>
+          runAction(async () => {
+            const token = await withToken()
+            const updated = await api.setShopStatus(token, id, status)
+            // setShopStatus คืนแค่แถว Shop ดิบเหมือน createShop/updateShop (ไม่มี _count/totalRevenue) —
+            // merge แทนที่ทั้งก้อน กัน owner/จำนวนจองที่โชว์อยู่หายไปตอนกดระงับ/เปิดใช้งาน
+            setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
+          })
+        }
+        onAddOwner={(id, email) =>
+          runAction(async () => {
+            const token = await withToken()
+            await api.addShopOwner(token, id, email)
+            const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
+            setShopsAdmin(shops)
+            setOwnersAdmin(owners)
+          })
+        }
+        onRemoveOwner={(shopId, userId) =>
+          runAction(async () => {
+            const token = await withToken()
+            await api.removeShopOwner(token, shopId, userId)
+            const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
+            setShopsAdmin(shops)
+            setOwnersAdmin(owners)
+          })
+        }
+        onUpdateShop={(id, input) =>
+          runAction(async () => {
+            const token = await withToken()
+            const updated = await api.updateShop(token, id, input)
+            setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
+          })
+        }
+        onDeleteShop={(id, confirmName) =>
+          runAction(async () => {
+            const token = await withToken()
+            await api.deleteShop(token, id, confirmName)
+            setShopsAdmin(prev => prev.filter(s => s.id !== id))
+            setOwnersAdmin(await api.listOwners(token))
+          })
+        }
+        onSearchUser={(email) => withToken().then(token => api.searchUsers(token, email))}
+        onSetSuperAdmin={(userId, isSuperAdmin) =>
+          runAction(async () => {
+            const token = await withToken()
+            await api.setUserRole(token, userId, isSuperAdmin ? 'SUPER_ADMIN' : 'CUSTOMER')
+          })
+        }
+        onFetchAuditPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))}
+        auditRefreshSignal={auditRefreshSignal}
+      />
+    </NavProvider>
+  )
+}
+
+interface OwnerScreensProps {
+  navContext: NavContextValue
+  effectiveScreen: Screen
+  actionError: string | null
+  setActionError: Dispatch<SetStateAction<string | null>>
+  bookings: Booking[]
+  menus: MenuItem[]
+  settings: AppSettings
+  packages: Package[]
+  handleUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
+  handleFetchPaymentSlip: (bookingId: string) => Promise<string>
+  pendingNotifBookingId: string | null
+  setPendingNotifBookingId: Dispatch<SetStateAction<string | null>>
+  handleCreatePackage: (input: CreatePackageInput) => Promise<void>
+  handleUpdatePackage: (id: string, input: UpdatePackageInput) => Promise<void>
+  handleDeletePackage: (id: string) => Promise<void>
+  handleReorderPackages: (ids: string[]) => Promise<void>
+  handleSaveMenu: (item: MenuItem) => Promise<void>
+  handleDeleteMenu: (id: string) => Promise<void>
+  handleUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
+  handleUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
+  withToken: () => Promise<string>
+  auth0UserSub: string | undefined
+  usersRefreshSignal: number
+  auditRefreshSignal: number
+}
+
+/** หน้าจอฝั่งเจ้าของร้าน (สลับตาม effectiveScreen) — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน
+ *  (คัดลอก JSX เดิมมาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function OwnerScreens({
+  navContext, effectiveScreen, actionError, setActionError, bookings, menus, settings, packages,
+  handleUpdateBooking, handleFetchPaymentSlip, pendingNotifBookingId, setPendingNotifBookingId,
+  handleCreatePackage, handleUpdatePackage, handleDeletePackage, handleReorderPackages,
+  handleSaveMenu, handleDeleteMenu, handleUploadImage, handleUpdateSettings, withToken,
+  auth0UserSub, usersRefreshSignal, auditRefreshSignal,
+}: Readonly<OwnerScreensProps>) {
+  return (
+    <NavProvider value={navContext}>
+      <OwnerLayout currentScreen={effectiveScreen} bookings={bookings}>
+        {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
+        {effectiveScreen === 'owner-dashboard' && (
+          <Dashboard bookings={bookings} menus={menus} settings={settings} />
+        )}
+        {effectiveScreen === 'owner-orders' && (
+          <Orders
+            bookings={bookings}
+            menus={menus}
+            settings={settings}
+            onUpdateBooking={handleUpdateBooking}
+            onFetchPaymentSlip={handleFetchPaymentSlip}
+            openBookingId={pendingNotifBookingId}
+            onOpenBookingIdHandled={() => setPendingNotifBookingId(null)}
+          />
+        )}
+        {effectiveScreen === 'owner-calendar' && (
+          <CalendarView
+            bookings={bookings}
+            onUpdateBooking={handleUpdateBooking}
+            onFetchPaymentSlip={handleFetchPaymentSlip}
+          />
+        )}
+        {effectiveScreen === 'owner-packages' && (
+          <Packages
+            packages={packages}
+            menus={menus}
+            settings={settings}
+            onCreatePackage={handleCreatePackage}
+            onUpdatePackage={handleUpdatePackage}
+            onDeletePackage={handleDeletePackage}
+            onReorderPackages={handleReorderPackages}
+          />
+        )}
+        {effectiveScreen === 'owner-menus' && (
+          <Menus
+            menus={menus}
+            packages={packages}
+            settings={settings}
+            onSaveMenu={handleSaveMenu}
+            onDeleteMenu={handleDeleteMenu}
+            onUploadImage={handleUploadImage}
+          />
+        )}
+        {effectiveScreen === 'owner-documents' && (
+          <Documents bookings={bookings} menus={menus} settings={settings} />
+        )}
+        {effectiveScreen === 'owner-reports' && (
+          <Reports bookings={bookings} menus={menus} settings={settings} />
+        )}
+        {effectiveScreen === 'owner-settings' && (
+          <Settings
+            settings={settings}
+            onUpdateSettings={handleUpdateSettings}
+            onUploadImage={handleUploadImage}
+            onTestSlipOk={(apiKey, branchId) => withToken().then(token => api.testSlipOk(token, apiKey, branchId))}
+          />
+        )}
+        {effectiveScreen === 'owner-page-content' && (
+          <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} onUploadImage={handleUploadImage} />
+        )}
+        {effectiveScreen === 'owner-users' && (
+          <UserRoles
+            onSearchUser={(email) => withToken().then(token => api.searchUsers(token, email))}
+            onSetRole={(userId, role) =>
+              withToken()
+                .then(token => api.setUserRole(token, userId, role))
+                .then(() => {})
+            }
+            onListOwners={() => withToken().then(token => api.listOwners(token))}
+            currentAuth0Sub={auth0UserSub}
+            refreshSignal={usersRefreshSignal}
+          />
+        )}
+        {effectiveScreen === 'owner-audit-log' && (
+          <AuditLog
+            onFetchPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))}
+            refreshSignal={auditRefreshSignal}
+          />
+        )}
+      </OwnerLayout>
+    </NavProvider>
+  )
+}
+
+interface CustomerScreensProps {
+  navContext: NavContextValue
+  actionError: string | null
+  setActionError: Dispatch<SetStateAction<string | null>>
+  role: AppRoleForPath
+  navigate: (s: Screen) => void
+  effectiveScreen: Screen
+  availability: QueueBooking[]
+  handleSelectDateTime: (date: string, timeSlot: string) => void
+  settings: AppSettings
+  booking: BookingData
+  handleSetTables: (n: number) => void
+  handleSetLocation: (loc: EventLocation) => void
+  handleResolveMapsLink: (url: string) => Promise<string>
+  packages: Package[]
+  handleSelectPackage: (pkg: Package) => void
+  handleSetMenus: (menus: MenuItem[]) => void
+  handleConfirm: () => Promise<void>
+  bookings: Booking[]
+  handleUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
+  handleFetchPaymentSlip: (bookingId: string) => Promise<string>
+  pendingNotifBookingId: string | null
+  setPendingNotifBookingId: Dispatch<SetStateAction<string | null>>
+  notifPageSeenAt: string
+}
+
+/** หน้าจอฝั่งลูกค้า (สลับตาม effectiveScreen) — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน
+ *  (คัดลอก JSX เดิมมาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function CustomerScreens({
+  navContext, actionError, setActionError, role, navigate, effectiveScreen, availability, handleSelectDateTime,
+  settings, booking, handleSetTables, handleSetLocation, handleResolveMapsLink, packages, handleSelectPackage,
+  handleSetMenus, handleConfirm, bookings, handleUpdateBooking, handleFetchPaymentSlip, pendingNotifBookingId,
+  setPendingNotifBookingId, notifPageSeenAt,
+}: Readonly<CustomerScreensProps>) {
+  return (
+    <NavProvider value={navContext}>
+      {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
+      {/* เจ้าของร้านกำลังดูมุมมองลูกค้าอยู่ (กดปุ่ม "มุมมองลูกค้า" ใน OwnerLayout) — มีทางกลับเสมอ ไม่ว่าจะอยู่หน้าไหน */}
+      {role === 'owner' && (
+        <button
+          onClick={() => navigate('owner-dashboard')}
+          className="fixed top-3 right-4 sm:right-6 lg:right-8 z-[60] flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white px-3 py-2 rounded-xl shadow-lg text-sm font-medium transition-colors"
+        >
+          <LayoutDashboard size={16} />
+          กลับสู่แดชบอร์ด
+        </button>
+      )}
+      {effectiveScreen === 'home' && <Home homeContent={settings.homeContent} />}
+      {effectiveScreen === 'booking-calendar' && (
+        <BookingCalendar
+          bookings={availability}
+          onSelectDateTime={handleSelectDateTime}
+          slotHours={settings.timeSlotHours}
+          closedDates={settings.closedDates}
+        />
+      )}
+      {effectiveScreen === 'select-table' && (
+        <SelectTable
+          tables={booking.tables}
+          onSetTables={handleSetTables}
+          date={booking.date}
+          timeSlot={booking.timeSlot}
+          deliveryFee={settings.deliveryFee}
+          freeDeliveryMinTables={settings.freeDeliveryMinTables}
+          homeProvince={settings.homeProvince}
+        />
+      )}
+      {effectiveScreen === 'select-location' && (
+        <SelectLocation
+          tables={booking.tables}
+          location={booking.location}
+          onSetLocation={handleSetLocation}
+          onResolveMapsLink={handleResolveMapsLink}
+          deliveryFee={settings.deliveryFee}
+          freeDeliveryMinTables={settings.freeDeliveryMinTables}
+          shopLocation={settings.shopLocation}
+          fuelCostPerKm={settings.fuelCostPerKm}
+          metroProvinces={settings.metroProvinces}
+          homeProvince={settings.homeProvince}
+        />
+      )}
+      {effectiveScreen === 'select-package' && (
+        <SelectPackage
+          packages={packages}
+          tables={booking.tables}
+          selectedPackageId={booking.packageId}
+          onSelectPackage={handleSelectPackage}
+        />
+      )}
+      {effectiveScreen === 'select-menu' && (
+        <SelectMenu
+          packages={packages}
+          packageId={booking.packageId}
+          selectedMenus={booking.selectedMenus}
+          onSetMenus={handleSetMenus}
+        />
+      )}
+      {effectiveScreen === 'cart' && (
+        <Cart
+          role={role}
+          packages={packages}
+          booking={booking}
+          onConfirm={handleConfirm}
+          deliveryFee={settings.deliveryFee}
+          freeDeliveryMinTables={settings.freeDeliveryMinTables}
+          fuelCostPerKm={settings.fuelCostPerKm}
+          homeProvince={settings.homeProvince}
+        />
+      )}
+      {effectiveScreen === 'history' && (
+        <BookingHistory
+          bookings={bookings}
+          onUpdateBooking={handleUpdateBooking}
+          settings={settings}
+          onFetchPaymentSlip={handleFetchPaymentSlip}
+          openBookingId={pendingNotifBookingId}
+          onOpenBookingIdHandled={() => setPendingNotifBookingId(null)}
+        />
+      )}
+      {effectiveScreen === 'notifications' && <Notifications bookings={bookings} notifSeenAt={notifPageSeenAt} />}
+    </NavProvider>
+  )
+}
+
 export default function App() {
   const { isAuthenticated, isLoading, user: auth0User, logout, getAccessTokenSilently } = useAuth0()
   const [screen, setScreen] = useState<Screen>('login')
@@ -456,100 +916,12 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated) return
     let cancelled = false
-
-    const load = async () => {
-      setLoadError(null)
-      // true เฉพาะตอนกำลังดึงข้อมูลของ "ร้านที่ลูกค้าเลือกไว้เอง" (ไม่ใช่ร้านของ owner จาก JWT) — เผื่อร้านนั้น
-      // ถูกลบไปแล้วระหว่างที่ค้างอยู่ (super admin ลบทิ้งจากอีกเครื่อง) จะได้ดักแยก 404 นี้จากปัญหาโหลดข้อมูลอื่นๆ
-      // ที่ยังต้องโชว์จอ error+ลองใหม่ตามปกติ
-      let fetchingSelectedCustomerShop = false
-      try {
-        const token = await getAccessTokenSilently()
-        // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
-        const me = await api.syncProfile(token, {
-          name: auth0User?.given_name || auth0User?.name?.split(' ')[0] || 'ผู้ใช้',
-          surname: auth0User?.family_name || auth0User?.name?.split(' ').slice(1).join(' ') || '',
-          email: auth0User?.email ?? '',
-          avatar: auth0User?.picture ?? '',
-        })
-        if (cancelled) return
-        setBackendUser(me)
-
-        const roleForPath: AppRoleForPath = roleForPathFrom(me.role)
-        // sync หน้าเริ่มต้น + URL ให้ตรงกับ role/ร้านของ session ปัจจุบันเสมอ (ครั้งแรกที่ login สำเร็จเท่านั้น
-        // ดู initialScreenResolvedRef) resolve จาก URL ปัจจุบันก่อน (รองรับ deep-link/reload กลางทาง) ถ้าไม่ตรง
-        // หน้าไหนของ role นี้เลย ค่อย fallback ไปหน้า default — กันเคส login ค้างอยู่แล้วมีใครพิมพ์ path ร้าน/
-        // หน้าอื่นเข้ามาเอง ให้ดีดกลับมาร้าน/หน้าที่ถูกต้องของ session นี้เสมอ ไม่ใช่ปล่อยให้ URL ค้างผิดไว้
-        if (!initialScreenResolvedRef.current) {
-          initialScreenResolvedRef.current = true
-          const shopSlugForPath = roleForPath === 'owner' ? (me.shop?.slug ?? null) : selectedShopSlug
-          const resolved = screenFromPath(window.location.pathname, roleForPath)
-          const targetScreen = resolved ?? defaultScreenFor(roleForPath)
-          setScreen(targetScreen)
-          try {
-            window.history.replaceState(null, '', pathForScreen(targetScreen, shopSlugForPath))
-          } catch {
-            // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
-          }
-        }
-
-        if (me.role === 'SUPER_ADMIN') {
-          const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
-          if (cancelled) return
-          setShopsAdmin(shops)
-          setOwnersAdmin(owners)
-          setDataLoaded(true)
-          return
-        }
-
-        const shopId = me.role === 'OWNER' ? me.shopId : selectedShopId
-        if (!shopId) {
-          // ลูกค้าที่มี session ค้างอยู่ (Auth0 SSO) แต่ยังไม่ได้เลือกร้านในเครื่อง/เบราว์เซอร์นี้ (เช่นล้าง
-          // localStorage ไปแล้ว) — ปล่อยให้ effectiveScreen ด้านล่างเด้งไปหน้าเลือกร้านแทน ไม่ fetch อะไรต่อ
-          setDataLoaded(true)
-          return
-        }
-        fetchingSelectedCustomerShop = me.role !== 'OWNER'
-
-        const [bks, avail, pkgs, mns, sttgs] = await Promise.all([
-          api.bookings(token),
-          api.bookingsAvailability(token, shopId),
-          api.packages(token, shopId),
-          api.menus(token, shopId),
-          api.settings(token, shopId),
-        ])
-        if (cancelled) return
-        setBookings(bks)
-        setAvailability(avail)
-        setPackages(pkgs)
-        setMenus(mns)
-        setSettings(sttgs)
-        setDataLoaded(true)
-      } catch (err) {
-        if (cancelled) return
-        // session/token หมดอายุ — เด้งกลับหน้า login แทนที่จะโชว์หน้า error ให้กด "ลองใหม่" วนไม่รู้จบ
-        if (isSessionExpiredError(err)) {
-          forceLogout()
-          return
-        }
-        // ร้านที่ลูกค้าเลือกไว้ถูกลบไปแล้วระหว่างที่ค้างอยู่หน้านี้พอดี (settings.getRaw() โยน 404 ตอนนี้ ดู
-        // backend/src/settings/settings.service.ts) — เด้งกลับไปหน้าเลือกร้านใหม่เนียนๆ แทนที่จะโชว์จอ error
-        // ค้างให้กด "ลองใหม่" วนไม่รู้จบ (owner ไม่มีวันเจอ 404 นี้เพราะถูกลดสิทธิ์เป็น customer ไปตั้งแต่ตอน
-        // syncProfile ข้างบนแล้วถ้าร้านตัวเองถูกลบ — ไม่มีทางไหลมาถึงจุดนี้ได้)
-        if (fetchingSelectedCustomerShop && /-> 404/.test(err instanceof Error ? err.message : '')) {
-          applySelectedShop(null)
-          try {
-            window.history.pushState(null, '', '/')
-          } catch {
-            // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
-          }
-          setDataLoaded(true)
-          return
-        }
-        setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
-      }
-    }
-    load()
+    loadAppData({
+      auth0User, getAccessTokenSilently, selectedShopSlug, selectedShopId, initialScreenResolvedRef,
+      isCancelled: () => cancelled,
+      setBackendUser, setScreen, setShopsAdmin, setOwnersAdmin, setDataLoaded, setBookings, setAvailability,
+      setPackages, setMenus, setSettings, setLoadError, applySelectedShop, forceLogout,
+    })
     return () => {
       cancelled = true
     }
@@ -1041,254 +1413,79 @@ export default function App() {
   // Super admin — จัดการร้านทั้งระบบ ไม่ผูกกับร้านไหนเลย ไม่ใช้ OwnerLayout/หน้าจอฝั่งร้าน
   if (role === 'super_admin') {
     return (
-      <NavProvider value={navContext}>
-        {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
-        <SuperAdmin
-          shops={shopsAdmin}
-          owners={ownersAdmin}
-          onCreateShop={(input) =>
-            runAction(async () => {
-              const token = await withToken()
-              await api.createShop(token, input)
-              // createShop คืนแค่แถว Shop ดิบ (ไม่มี _count/totalRevenue เหมือน shopsList) — ถ้าเอามาต่อ state
-              // ตรงๆ การ์ดร้านใหม่จะโชว์ 0 owner/0 การจอง ค้างจนกว่าจะ refresh หน้า ดึงชุดที่มี _count มาแทนเลย
-              const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
-              setShopsAdmin(shops)
-              setOwnersAdmin(owners)
-            })
-          }
-          onSetShopStatus={(id, status) =>
-            runAction(async () => {
-              const token = await withToken()
-              const updated = await api.setShopStatus(token, id, status)
-              // setShopStatus คืนแค่แถว Shop ดิบเหมือน createShop/updateShop (ไม่มี _count/totalRevenue) —
-              // merge แทนที่ทั้งก้อน กัน owner/จำนวนจองที่โชว์อยู่หายไปตอนกดระงับ/เปิดใช้งาน
-              setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
-            })
-          }
-          onAddOwner={(id, email) =>
-            runAction(async () => {
-              const token = await withToken()
-              await api.addShopOwner(token, id, email)
-              const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
-              setShopsAdmin(shops)
-              setOwnersAdmin(owners)
-            })
-          }
-          onRemoveOwner={(shopId, userId) =>
-            runAction(async () => {
-              const token = await withToken()
-              await api.removeShopOwner(token, shopId, userId)
-              const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
-              setShopsAdmin(shops)
-              setOwnersAdmin(owners)
-            })
-          }
-          onUpdateShop={(id, input) =>
-            runAction(async () => {
-              const token = await withToken()
-              const updated = await api.updateShop(token, id, input)
-              setShopsAdmin(prev => prev.map(s => (s.id === id ? { ...s, ...updated } : s)))
-            })
-          }
-          onDeleteShop={(id, confirmName) =>
-            runAction(async () => {
-              const token = await withToken()
-              await api.deleteShop(token, id, confirmName)
-              setShopsAdmin(prev => prev.filter(s => s.id !== id))
-              setOwnersAdmin(await api.listOwners(token))
-            })
-          }
-          onSearchUser={(email) => withToken().then(token => api.searchUsers(token, email))}
-          onSetSuperAdmin={(userId, isSuperAdmin) =>
-            runAction(async () => {
-              const token = await withToken()
-              await api.setUserRole(token, userId, isSuperAdmin ? 'SUPER_ADMIN' : 'CUSTOMER')
-            })
-          }
-          onFetchAuditPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))}
-          auditRefreshSignal={auditRefreshSignal}
-        />
-      </NavProvider>
+      <SuperAdminScreen
+        navContext={navContext}
+        actionError={actionError}
+        setActionError={setActionError}
+        shopsAdmin={shopsAdmin}
+        ownersAdmin={ownersAdmin}
+        setShopsAdmin={setShopsAdmin}
+        setOwnersAdmin={setOwnersAdmin}
+        runAction={runAction}
+        withToken={withToken}
+        auditRefreshSignal={auditRefreshSignal}
+      />
     )
   }
 
   // Owner screens
   if (role === 'owner' && OWNER_SCREENS.has(effectiveScreen)) {
     return (
-      <NavProvider value={navContext}>
-        <OwnerLayout currentScreen={effectiveScreen} bookings={bookings}>
-          {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
-          {effectiveScreen === 'owner-dashboard' && (
-            <Dashboard bookings={bookings} menus={menus} settings={settings} />
-          )}
-          {effectiveScreen === 'owner-orders' && (
-            <Orders
-              bookings={bookings}
-              menus={menus}
-              settings={settings}
-              onUpdateBooking={handleUpdateBooking}
-              onFetchPaymentSlip={handleFetchPaymentSlip}
-              openBookingId={pendingNotifBookingId}
-              onOpenBookingIdHandled={() => setPendingNotifBookingId(null)}
-            />
-          )}
-          {effectiveScreen === 'owner-calendar' && (
-            <CalendarView
-              bookings={bookings}
-              onUpdateBooking={handleUpdateBooking}
-              onFetchPaymentSlip={handleFetchPaymentSlip}
-            />
-          )}
-          {effectiveScreen === 'owner-packages' && (
-            <Packages
-              packages={packages}
-              menus={menus}
-              settings={settings}
-              onCreatePackage={handleCreatePackage}
-              onUpdatePackage={handleUpdatePackage}
-              onDeletePackage={handleDeletePackage}
-              onReorderPackages={handleReorderPackages}
-            />
-          )}
-          {effectiveScreen === 'owner-menus' && (
-            <Menus
-              menus={menus}
-              packages={packages}
-              settings={settings}
-              onSaveMenu={handleSaveMenu}
-              onDeleteMenu={handleDeleteMenu}
-              onUploadImage={handleUploadImage}
-            />
-          )}
-          {effectiveScreen === 'owner-documents' && (
-            <Documents bookings={bookings} menus={menus} settings={settings} />
-          )}
-          {effectiveScreen === 'owner-reports' && (
-            <Reports bookings={bookings} menus={menus} settings={settings} />
-          )}
-          {effectiveScreen === 'owner-settings' && (
-            <Settings
-              settings={settings}
-              onUpdateSettings={handleUpdateSettings}
-              onUploadImage={handleUploadImage}
-              onTestSlipOk={(apiKey, branchId) => withToken().then(token => api.testSlipOk(token, apiKey, branchId))}
-            />
-          )}
-          {effectiveScreen === 'owner-page-content' && (
-            <PageContent settings={settings} onUpdateSettings={handleUpdateSettings} onUploadImage={handleUploadImage} />
-          )}
-          {effectiveScreen === 'owner-users' && (
-            <UserRoles
-              onSearchUser={(email) => withToken().then(token => api.searchUsers(token, email))}
-              onSetRole={(userId, role) =>
-                withToken()
-                  .then(token => api.setUserRole(token, userId, role))
-                  .then(() => {})
-              }
-              onListOwners={() => withToken().then(token => api.listOwners(token))}
-              currentAuth0Sub={auth0User?.sub}
-              refreshSignal={usersRefreshSignal}
-            />
-          )}
-          {effectiveScreen === 'owner-audit-log' && (
-            <AuditLog
-              onFetchPage={(page, pageSize) => withToken().then(token => api.auditLog(token, page, pageSize))}
-              refreshSignal={auditRefreshSignal}
-            />
-          )}
-        </OwnerLayout>
-      </NavProvider>
+      <OwnerScreens
+        navContext={navContext}
+        effectiveScreen={effectiveScreen}
+        actionError={actionError}
+        setActionError={setActionError}
+        bookings={bookings}
+        menus={menus}
+        settings={settings}
+        packages={packages}
+        handleUpdateBooking={handleUpdateBooking}
+        handleFetchPaymentSlip={handleFetchPaymentSlip}
+        pendingNotifBookingId={pendingNotifBookingId}
+        setPendingNotifBookingId={setPendingNotifBookingId}
+        handleCreatePackage={handleCreatePackage}
+        handleUpdatePackage={handleUpdatePackage}
+        handleDeletePackage={handleDeletePackage}
+        handleReorderPackages={handleReorderPackages}
+        handleSaveMenu={handleSaveMenu}
+        handleDeleteMenu={handleDeleteMenu}
+        handleUploadImage={handleUploadImage}
+        handleUpdateSettings={handleUpdateSettings}
+        withToken={withToken}
+        auth0UserSub={auth0User?.sub}
+        usersRefreshSignal={usersRefreshSignal}
+        auditRefreshSignal={auditRefreshSignal}
+      />
     )
   }
 
   // Customer screens
   return (
-    <NavProvider value={navContext}>
-      {actionError && <ErrorBanner message={actionError} onDismiss={() => setActionError(null)} />}
-      {/* เจ้าของร้านกำลังดูมุมมองลูกค้าอยู่ (กดปุ่ม "มุมมองลูกค้า" ใน OwnerLayout) — มีทางกลับเสมอ ไม่ว่าจะอยู่หน้าไหน */}
-      {role === 'owner' && (
-        <button
-          onClick={() => navigate('owner-dashboard')}
-          className="fixed top-3 right-4 sm:right-6 lg:right-8 z-[60] flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white px-3 py-2 rounded-xl shadow-lg text-sm font-medium transition-colors"
-        >
-          <LayoutDashboard size={16} />
-          กลับสู่แดชบอร์ด
-        </button>
-      )}
-      {effectiveScreen === 'home' && <Home homeContent={settings.homeContent} />}
-      {effectiveScreen === 'booking-calendar' && (
-        <BookingCalendar
-          bookings={availability}
-          onSelectDateTime={handleSelectDateTime}
-          slotHours={settings.timeSlotHours}
-          closedDates={settings.closedDates}
-        />
-      )}
-      {effectiveScreen === 'select-table' && (
-        <SelectTable
-          tables={booking.tables}
-          onSetTables={handleSetTables}
-          date={booking.date}
-          timeSlot={booking.timeSlot}
-          deliveryFee={settings.deliveryFee}
-          freeDeliveryMinTables={settings.freeDeliveryMinTables}
-          homeProvince={settings.homeProvince}
-        />
-      )}
-      {effectiveScreen === 'select-location' && (
-        <SelectLocation
-          tables={booking.tables}
-          location={booking.location}
-          onSetLocation={handleSetLocation}
-          onResolveMapsLink={handleResolveMapsLink}
-          deliveryFee={settings.deliveryFee}
-          freeDeliveryMinTables={settings.freeDeliveryMinTables}
-          shopLocation={settings.shopLocation}
-          fuelCostPerKm={settings.fuelCostPerKm}
-          metroProvinces={settings.metroProvinces}
-          homeProvince={settings.homeProvince}
-        />
-      )}
-      {effectiveScreen === 'select-package' && (
-        <SelectPackage
-          packages={packages}
-          tables={booking.tables}
-          selectedPackageId={booking.packageId}
-          onSelectPackage={handleSelectPackage}
-        />
-      )}
-      {effectiveScreen === 'select-menu' && (
-        <SelectMenu
-          packages={packages}
-          packageId={booking.packageId}
-          selectedMenus={booking.selectedMenus}
-          onSetMenus={handleSetMenus}
-        />
-      )}
-      {effectiveScreen === 'cart' && (
-        <Cart
-          role={role}
-          packages={packages}
-          booking={booking}
-          onConfirm={handleConfirm}
-          deliveryFee={settings.deliveryFee}
-          freeDeliveryMinTables={settings.freeDeliveryMinTables}
-          fuelCostPerKm={settings.fuelCostPerKm}
-          homeProvince={settings.homeProvince}
-        />
-      )}
-      {effectiveScreen === 'history' && (
-        <BookingHistory
-          bookings={bookings}
-          onUpdateBooking={handleUpdateBooking}
-          settings={settings}
-          onFetchPaymentSlip={handleFetchPaymentSlip}
-          openBookingId={pendingNotifBookingId}
-          onOpenBookingIdHandled={() => setPendingNotifBookingId(null)}
-        />
-      )}
-      {effectiveScreen === 'notifications' && <Notifications bookings={bookings} notifSeenAt={notifPageSeenAt} />}
-    </NavProvider>
+    <CustomerScreens
+      navContext={navContext}
+      actionError={actionError}
+      setActionError={setActionError}
+      role={role}
+      navigate={navigate}
+      effectiveScreen={effectiveScreen}
+      availability={availability}
+      handleSelectDateTime={handleSelectDateTime}
+      settings={settings}
+      booking={booking}
+      handleSetTables={handleSetTables}
+      handleSetLocation={handleSetLocation}
+      handleResolveMapsLink={handleResolveMapsLink}
+      packages={packages}
+      handleSelectPackage={handleSelectPackage}
+      handleSetMenus={handleSetMenus}
+      handleConfirm={handleConfirm}
+      bookings={bookings}
+      handleUpdateBooking={handleUpdateBooking}
+      handleFetchPaymentSlip={handleFetchPaymentSlip}
+      pendingNotifBookingId={pendingNotifBookingId}
+      setPendingNotifBookingId={setPendingNotifBookingId}
+      notifPageSeenAt={notifPageSeenAt}
+    />
   )
 }
