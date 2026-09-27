@@ -197,28 +197,37 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   slipOkBranchId: s.slipOkBranchId ?? '',
 })
 
+/** ชื่อ field ฝั่ง frontend (shopInfo) -> ชื่อ field ฝั่ง backend — ใช้เป็น lookup ตรงๆ แทน if เรียงต่อกัน 17 ตัว
+ *  (ของเดิม cognitive complexity เกิน 15 เพราะนับ if แต่ละบรรทัด) ผลลัพธ์เหมือนเดิมทุก field */
+const SHOP_INFO_PATCH_FIELD_MAP: Record<keyof AppSettings['shopInfo'], string> = {
+  name: 'shopName',
+  nameEn: 'shopNameEn',
+  initials: 'shopInitials',
+  address: 'shopAddress',
+  phone: 'shopPhone',
+  line: 'shopLine',
+  bankName: 'bankName',
+  bankAccountNumber: 'bankAccountNumber',
+  bankAccountName: 'bankAccountName',
+  promptPayQr: 'promptPayQr',
+  promptPayQrFirstName: 'promptPayQrFirstName',
+  promptPayQrLastName: 'promptPayQrLastName',
+  promptPayId: 'promptPayId',
+  promptPayFirstName: 'promptPayFirstName',
+  promptPayLastName: 'promptPayLastName',
+  logo: 'shopLogo',
+  loginTagline: 'shopLoginTagline',
+}
+
 /** ฟิลด์ shopInfo ทั้งหมด (ชื่อ/ที่อยู่/บัญชี/พร้อมเพย์) — แยกออกมาจาก toBackendSettingsPatch กันฟังก์ชัน
- *  หลักซับซ้อนเกิน (เดิม if แบบนี้เรียงต่อกันเกือบ 50 บรรทัดในฟังก์ชันเดียว) แต่ละ if ยังคงเหมือนเดิมทุกตัว
- *  แค่ย้ายที่อยู่ ไม่ได้เปลี่ยน logic เลย */
+ *  หลักซับซ้อนเกิน */
 const shopInfoPatchFields = (si: Partial<AppSettings['shopInfo']> | undefined): Record<string, unknown> => {
   const out: Record<string, unknown> = {}
-  if (si?.name !== undefined) out.shopName = si.name
-  if (si?.nameEn !== undefined) out.shopNameEn = si.nameEn
-  if (si?.initials !== undefined) out.shopInitials = si.initials
-  if (si?.address !== undefined) out.shopAddress = si.address
-  if (si?.phone !== undefined) out.shopPhone = si.phone
-  if (si?.line !== undefined) out.shopLine = si.line
-  if (si?.bankName !== undefined) out.bankName = si.bankName
-  if (si?.bankAccountNumber !== undefined) out.bankAccountNumber = si.bankAccountNumber
-  if (si?.bankAccountName !== undefined) out.bankAccountName = si.bankAccountName
-  if (si?.promptPayQr !== undefined) out.promptPayQr = si.promptPayQr
-  if (si?.promptPayQrFirstName !== undefined) out.promptPayQrFirstName = si.promptPayQrFirstName
-  if (si?.promptPayQrLastName !== undefined) out.promptPayQrLastName = si.promptPayQrLastName
-  if (si?.promptPayId !== undefined) out.promptPayId = si.promptPayId
-  if (si?.promptPayFirstName !== undefined) out.promptPayFirstName = si.promptPayFirstName
-  if (si?.promptPayLastName !== undefined) out.promptPayLastName = si.promptPayLastName
-  if (si?.logo !== undefined) out.shopLogo = si.logo
-  if (si?.loginTagline !== undefined) out.shopLoginTagline = si.loginTagline
+  if (!si) return out
+  for (const [key, backendKey] of Object.entries(SHOP_INFO_PATCH_FIELD_MAP)) {
+    const value = si[key as keyof AppSettings['shopInfo']]
+    if (value !== undefined) out[backendKey] = value
+  }
   return out
 }
 

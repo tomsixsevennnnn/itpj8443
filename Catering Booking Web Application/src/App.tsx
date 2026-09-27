@@ -273,6 +273,60 @@ interface LoadAppDataDeps {
   forceLogout: () => void
 }
 
+/** sync หน้าเริ่มต้น + URL ให้ตรงกับ role/ร้านของ session ปัจจุบันเสมอ (ครั้งแรกที่ login สำเร็จเท่านั้น ดู
+ *  initialScreenResolvedRef) resolve จาก URL ปัจจุบันก่อน (รองรับ deep-link/reload กลางทาง) ถ้าไม่ตรงหน้าไหนของ
+ *  role นี้เลย ค่อย fallback ไปหน้า default — แยกออกจาก loadAppData กันฟังก์ชันหลักซับซ้อนเกิน */
+function resolveInitialScreen(
+  me: BackendUser,
+  selectedShopSlug: string | null,
+  initialScreenResolvedRef: RefObject<boolean>,
+  setScreen: Dispatch<SetStateAction<Screen>>,
+): void {
+  if (initialScreenResolvedRef.current) return
+  initialScreenResolvedRef.current = true
+  const roleForPath: AppRoleForPath = roleForPathFrom(me.role)
+  const shopSlugForPath = roleForPath === 'owner' ? (me.shop?.slug ?? null) : selectedShopSlug
+  const resolved = screenFromPath(window.location.pathname, roleForPath)
+  const targetScreen = resolved ?? defaultScreenFor(roleForPath)
+  setScreen(targetScreen)
+  try {
+    window.history.replaceState(null, '', pathForScreen(targetScreen, shopSlugForPath))
+  } catch {
+    // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+  }
+}
+
+/** จัดการ error จาก loadAppData — session หมดอายุ/ร้านถูกลบ/error ทั่วไป แยกออกจาก loadAppData กันฟังก์ชันหลักซับซ้อนเกิน */
+function handleLoadAppDataError(
+  err: unknown,
+  fetchingSelectedCustomerShop: boolean,
+  applySelectedShop: (shop: ShopPublic | null) => void,
+  setDataLoaded: Dispatch<SetStateAction<boolean>>,
+  setLoadError: Dispatch<SetStateAction<string | null>>,
+  forceLogout: () => void,
+): void {
+  // session/token หมดอายุ — เด้งกลับหน้า login แทนที่จะโชว์หน้า error ให้กด "ลองใหม่" วนไม่รู้จบ
+  if (isSessionExpiredError(err)) {
+    forceLogout()
+    return
+  }
+  // ร้านที่ลูกค้าเลือกไว้ถูกลบไปแล้วระหว่างที่ค้างอยู่หน้านี้พอดี (settings.getRaw() โยน 404 ตอนนี้ ดู
+  // backend/src/settings/settings.service.ts) — เด้งกลับไปหน้าเลือกร้านใหม่เนียนๆ แทนที่จะโชว์จอ error
+  // ค้างให้กด "ลองใหม่" วนไม่รู้จบ (owner ไม่มีวันเจอ 404 นี้เพราะถูกลดสิทธิ์เป็น customer ไปตั้งแต่ตอน
+  // syncProfile ข้างบนแล้วถ้าร้านตัวเองถูกลบ — ไม่มีทางไหลมาถึงจุดนี้ได้)
+  if (fetchingSelectedCustomerShop && /-> 404/.test(err instanceof Error ? err.message : '')) {
+    applySelectedShop(null)
+    try {
+      window.history.pushState(null, '', '/')
+    } catch {
+      // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+    }
+    setDataLoaded(true)
+    return
+  }
+  setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
+}
+
 /** โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน
  *  (คัดลอกตรรกะเดิมมาตรงๆ ไม่เปลี่ยนพฤติกรรม) ดู useEffect ที่เรียกใช้ใน App สำหรับคำอธิบายเงื่อนไข role ต่างๆ */
 async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
@@ -299,23 +353,7 @@ async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
     if (isCancelled()) return
     setBackendUser(me)
 
-    const roleForPath: AppRoleForPath = roleForPathFrom(me.role)
-    // sync หน้าเริ่มต้น + URL ให้ตรงกับ role/ร้านของ session ปัจจุบันเสมอ (ครั้งแรกที่ login สำเร็จเท่านั้น
-    // ดู initialScreenResolvedRef) resolve จาก URL ปัจจุบันก่อน (รองรับ deep-link/reload กลางทาง) ถ้าไม่ตรง
-    // หน้าไหนของ role นี้เลย ค่อย fallback ไปหน้า default — กันเคส login ค้างอยู่แล้วมีใครพิมพ์ path ร้าน/
-    // หน้าอื่นเข้ามาเอง ให้ดีดกลับมาร้าน/หน้าที่ถูกต้องของ session นี้เสมอ ไม่ใช่ปล่อยให้ URL ค้างผิดไว้
-    if (!initialScreenResolvedRef.current) {
-      initialScreenResolvedRef.current = true
-      const shopSlugForPath = roleForPath === 'owner' ? (me.shop?.slug ?? null) : selectedShopSlug
-      const resolved = screenFromPath(window.location.pathname, roleForPath)
-      const targetScreen = resolved ?? defaultScreenFor(roleForPath)
-      setScreen(targetScreen)
-      try {
-        window.history.replaceState(null, '', pathForScreen(targetScreen, shopSlugForPath))
-      } catch {
-        // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
-      }
-    }
+    resolveInitialScreen(me, selectedShopSlug, initialScreenResolvedRef, setScreen)
 
     if (me.role === 'SUPER_ADMIN') {
       const [shops, owners] = await Promise.all([api.shopsList(token), api.listOwners(token)])
@@ -351,26 +389,7 @@ async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
     setDataLoaded(true)
   } catch (err) {
     if (isCancelled()) return
-    // session/token หมดอายุ — เด้งกลับหน้า login แทนที่จะโชว์หน้า error ให้กด "ลองใหม่" วนไม่รู้จบ
-    if (isSessionExpiredError(err)) {
-      forceLogout()
-      return
-    }
-    // ร้านที่ลูกค้าเลือกไว้ถูกลบไปแล้วระหว่างที่ค้างอยู่หน้านี้พอดี (settings.getRaw() โยน 404 ตอนนี้ ดู
-    // backend/src/settings/settings.service.ts) — เด้งกลับไปหน้าเลือกร้านใหม่เนียนๆ แทนที่จะโชว์จอ error
-    // ค้างให้กด "ลองใหม่" วนไม่รู้จบ (owner ไม่มีวันเจอ 404 นี้เพราะถูกลดสิทธิ์เป็น customer ไปตั้งแต่ตอน
-    // syncProfile ข้างบนแล้วถ้าร้านตัวเองถูกลบ — ไม่มีทางไหลมาถึงจุดนี้ได้)
-    if (fetchingSelectedCustomerShop && /-> 404/.test(err instanceof Error ? err.message : '')) {
-      applySelectedShop(null)
-      try {
-        window.history.pushState(null, '', '/')
-      } catch {
-        // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
-      }
-      setDataLoaded(true)
-      return
-    }
-    setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
+    handleLoadAppDataError(err, fetchingSelectedCustomerShop, applySelectedShop, setDataLoaded, setLoadError, forceLogout)
   }
 }
 
@@ -711,6 +730,107 @@ function CustomerScreens({
   )
 }
 
+interface HandlePopStateDeps {
+  isAuthenticated: boolean
+  backendUser: BackendUser | null
+  selectedShopSlug: string | null
+  screen: Screen
+  setBooking: Dispatch<SetStateAction<BookingData>>
+  setScreen: Dispatch<SetStateAction<Screen>>
+  applySelectedShop: (shop: ShopPublic | null) => void
+}
+
+/**
+ * แอปนี้ไม่มี router — ทุก pushState/replaceState ในไฟล์นี้แค่ทำให้ URL "ดูตรง" กับสถานะปัจจุบัน ไม่เคยมีอะไรฟัง
+ * popstate เลย กดปุ่ม back/forward ของเบราว์เซอร์เลยเห็น URL เปลี่ยนแต่หน้าจอไม่ขยับตาม (เพราะ React ไม่รู้ตัว)
+ * ฟังก์ชันนี้ตอบสนองปุ่ม back/forward เท่าที่แอประดับนี้ทำได้จริง — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน:
+ *  - login อยู่แล้ว (owner/customer/super admin) → ร้านผูกกับ account/session ตายตัว ไม่ใช่ URL ไม่ยอมให้
+ *    back/forward เปลี่ยนร้านได้ แต่ "หน้าจอ" (screen) ภายในร้าน/ระบบของตัวเองสลับได้ตาม URL จริง — resolve ผ่าน
+ *    screenFromPath (role-aware) เจอ path ที่ไม่มีจริงสำหรับ role นี้ (พิมพ์เอง/ค้างจาก session อื่น) ก็แก้ URL
+ *    กลับไปที่ path ของหน้าปัจจุบันแทนที่จะปล่อยค้างผิด
+ *  - ยังไม่ login → ให้ back/forward สลับ "หน้าเลือกร้าน" กับ "หน้า login ของร้านที่เคยเลือก" ได้จริง
+ *    (อ่าน URL ใหม่แล้ว resolve ร้านใหม่ตามนั้น โดยไม่ push ซ้ำ เพราะเบราว์เซอร์เปลี่ยน URL ให้เองแล้ว)
+ */
+function handlePopState(deps: HandlePopStateDeps): void {
+  const { isAuthenticated, backendUser, selectedShopSlug, screen, setBooking, setScreen, applySelectedShop } = deps
+
+  if (isAuthenticated) {
+    const roleForPath: AppRoleForPath = roleForPathFrom(backendUser?.role)
+    const shopSlug = roleForPath === 'owner' ? (backendUser?.shop?.slug ?? null) : selectedShopSlug
+
+    const resolved = screenFromPath(window.location.pathname, roleForPath)
+    if (resolved) {
+      if (BOOKING_FLOW_SCREENS.has(screen) && !BOOKING_FLOW_SCREENS.has(resolved)) {
+        setBooking(initialBooking)
+      }
+      setScreen(resolved)
+      return
+    }
+    // path นี้ไม่มีจริงสำหรับ role นี้ — คงหน้าปัจจุบันไว้ แค่แก้ URL ให้ตรงกับหน้าที่ยังแสดงอยู่จริง
+    try {
+      window.history.replaceState(null, '', pathForScreen(screen, shopSlug))
+    } catch {
+      // เพิกเฉยได้
+    }
+    return
+  }
+
+  const slug = trimSlashes(window.location.pathname)
+  if (!slug) {
+    applySelectedShop(null)
+    return
+  }
+  api.shopBySlugPublic(slug).then(applySelectedShop).catch(() => {
+    try {
+      window.history.replaceState(null, '', '/')
+    } catch {
+      // เพิกเฉยได้
+    }
+    applySelectedShop(null)
+  })
+}
+
+/** ร้านที่เกี่ยวข้องกับผู้ใช้ปัจจุบัน — owner = ร้านตัวเอง, customer = ร้านที่เลือกไว้, super admin ไม่มี (null)
+ *  แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน */
+function activeShopIdFor(backendUser: BackendUser | null, selectedShopId: string | null): string | null {
+  if (backendUser?.role === 'OWNER') return backendUser.shopId
+  if (backendUser?.role === 'CUSTOMER') return selectedShopId
+  return null
+}
+
+/** เบอร์โทร/ชื่อ/นามสกุล เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ขาดตัวไหนก็ถือว่ายังกรอกไม่ครบ ต้องเด้งไปกรอกใหม่
+ *  ทุกครั้งที่ login จนกว่าจะครบ — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน */
+function computeNeedsProfile(isAuthenticated: boolean, role: AppRoleForPath, backendUser: BackendUser | null): boolean {
+  return (
+    isAuthenticated &&
+    role === 'customer' &&
+    backendUser !== null &&
+    (!backendUser.name || !backendUser.surname || !backendUser.phone)
+  )
+}
+
+/** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที — แยกออกจาก App component
+ *  กันฟังก์ชันหลักซับซ้อนเกิน */
+function computeEffectiveScreen(screen: Screen, isAuthenticated: boolean, needsProfile: boolean, role: AppRoleForPath): Screen {
+  return screen === 'login' && isAuthenticated && !needsProfile ? defaultScreenFor(role) : screen
+}
+
+/** owner กำลังอยู่ในหน้าจอฝั่งเจ้าของร้านหรือไม่ — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน */
+function isOwnerScreensRoute(role: AppRoleForPath, effectiveScreen: Screen): boolean {
+  return role === 'owner' && OWNER_SCREENS.has(effectiveScreen)
+}
+
+/** หน้าจอตอนยังไม่ login — เลือกร้านก่อนเสมอ (multi-tenant) ถึงจะเห็นหน้า login ที่ตรงกับร้านนั้น แยกออกจาก
+ *  App component กันฟังก์ชันหลักซับซ้อนเกิน */
+function renderUnauthenticatedScreen(
+  selectedShopId: string | null,
+  handleSelectShop: (shop: ShopPublic) => void,
+  handleChangeShop: () => void,
+) {
+  if (!selectedShopId) return <ShopSelect onSelect={handleSelectShop} />
+  return <Login shopId={selectedShopId} onChangeShop={handleChangeShop} />
+}
+
 export default function App() {
   const { isAuthenticated, isLoading, user: auth0User, logout, getAccessTokenSilently } = useAuth0()
   const [screen, setScreen] = useState<Screen>('login')
@@ -859,42 +979,8 @@ export default function App() {
    *    (อ่าน URL ใหม่แล้ว resolve ร้านใหม่ตามนั้น โดยไม่ push ซ้ำ เพราะเบราว์เซอร์เปลี่ยน URL ให้เองแล้ว)
    */
   useEffect(() => {
-    const onPopState = () => {
-      if (isAuthenticated) {
-        const roleForPath: AppRoleForPath = roleForPathFrom(backendUser?.role)
-        const shopSlug = roleForPath === 'owner' ? (backendUser?.shop?.slug ?? null) : selectedShopSlug
-
-        const resolved = screenFromPath(window.location.pathname, roleForPath)
-        if (resolved) {
-          if (BOOKING_FLOW_SCREENS.has(screen) && !BOOKING_FLOW_SCREENS.has(resolved)) {
-            setBooking(initialBooking)
-          }
-          setScreen(resolved)
-          return
-        }
-        // path นี้ไม่มีจริงสำหรับ role นี้ — คงหน้าปัจจุบันไว้ แค่แก้ URL ให้ตรงกับหน้าที่ยังแสดงอยู่จริง
-        try {
-          window.history.replaceState(null, '', pathForScreen(screen, shopSlug))
-        } catch {
-          // เพิกเฉยได้
-        }
-        return
-      }
-
-      const slug = trimSlashes(window.location.pathname)
-      if (!slug) {
-        applySelectedShop(null)
-        return
-      }
-      api.shopBySlugPublic(slug).then(applySelectedShop).catch(() => {
-        try {
-          window.history.replaceState(null, '', '/')
-        } catch {
-          // เพิกเฉยได้
-        }
-        applySelectedShop(null)
-      })
-    }
+    const onPopState = () =>
+      handlePopState({ isAuthenticated, backendUser, selectedShopSlug, screen, setBooking, setScreen, applySelectedShop })
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [isAuthenticated, backendUser, selectedShopSlug, screen])
@@ -966,9 +1052,7 @@ export default function App() {
       })
 
   // ร้านที่เกี่ยวข้องกับผู้ใช้ปัจจุบัน — owner = ร้านตัวเอง, customer = ร้านที่เลือกไว้, super admin ไม่มี (null)
-  let activeShopId: string | null = null
-  if (backendUser?.role === 'OWNER') activeShopId = backendUser.shopId
-  else if (backendUser?.role === 'CUSTOMER') activeShopId = selectedShopId
+  const activeShopId = activeShopIdFor(backendUser, selectedShopId)
 
   const refetchSettings = () => {
     if (!activeShopId) return
@@ -1151,11 +1235,7 @@ export default function App() {
     ? roleForPathFrom(backendUser.role)
     : roleFromAuth0User(auth0User as Record<string, unknown> | undefined)
   /** เบอร์โทร/ชื่อ/นามสกุล เก็บที่ backend แล้ว (ผูกกับ Auth0 sub) — ขาดตัวไหนก็ถือว่ายังกรอกไม่ครบ ต้องเด้งไปกรอกใหม่ทุกครั้งที่ login จนกว่าจะครบ */
-  const needsProfile =
-    isAuthenticated &&
-    role === 'customer' &&
-    backendUser !== null &&
-    (!backendUser.name || !backendUser.surname || !backendUser.phone)
+  const needsProfile = computeNeedsProfile(isAuthenticated, role, backendUser)
 
   const user: UserProfile | null = backendUser
     ? {
@@ -1223,8 +1303,7 @@ export default function App() {
   }, [navigate, user, settings.shopInfo, notifCount, settings.categoryOrder, settings.categories, openNotificationBooking])
 
   /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที */
-  const effectiveScreen: Screen =
-    screen === 'login' && isAuthenticated && !needsProfile ? defaultScreenFor(role) : screen
+  const effectiveScreen: Screen = computeEffectiveScreen(screen, isAuthenticated, needsProfile, role)
 
   /** ตาข่ายสำรอง — เผื่อ role เปลี่ยนกลางเซสชัน (เช่นถูกถอดสิทธิ์ owner จากอีกแท็บ ระหว่างที่ค้างอยู่หน้า owner-*)
    *  แล้ว screen ที่ค้างอยู่ไม่ตรงกับ role ใหม่แล้ว ดีดกลับไปหน้า default ของ role ปัจจุบันแทนที่จะโชว์จอว่างเปล่า
@@ -1354,10 +1433,7 @@ export default function App() {
   }
 
   // ยังไม่ login — ต้องเลือกร้านก่อนเสมอ (multi-tenant) ถึงจะเห็นหน้า login ที่ตรงกับร้านนั้น
-  if (!isAuthenticated) {
-    if (!selectedShopId) return <ShopSelect onSelect={handleSelectShop} />
-    return <Login shopId={selectedShopId} onChangeShop={handleChangeShop} />
-  }
+  if (!isAuthenticated) return renderUnauthenticatedScreen(selectedShopId, handleSelectShop, handleChangeShop)
 
   // โหลดข้อมูลจาก backend ไม่สำเร็จ (เช่น server ไม่ทำงาน, token audience ไม่ตรง)
   if (loadError) {
@@ -1429,7 +1505,7 @@ export default function App() {
   }
 
   // Owner screens
-  if (role === 'owner' && OWNER_SCREENS.has(effectiveScreen)) {
+  if (isOwnerScreensRoute(role, effectiveScreen)) {
     return (
       <OwnerScreens
         navContext={navContext}
