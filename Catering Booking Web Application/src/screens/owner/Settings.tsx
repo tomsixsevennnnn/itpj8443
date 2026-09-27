@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -88,290 +88,21 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; icon: typeof Building2 }[
   { id: 'categories', label: 'ประเภทอาหาร', icon: ListOrdered },
 ]
 
-export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: Readonly<SettingsProps>) {
-  const [form, setForm] = useState<AppSettings>(settings)
-  const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
-  const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [newMetroProvince, setNewMetroProvince] = useState('')
-  const [newClosedDate, setNewClosedDate] = useState('')
-  const [newQuotationTerm, setNewQuotationTerm] = useState('')
-  const [newBookingTerm, setNewBookingTerm] = useState('')
-  const [newCategoryLabel, setNewCategoryLabel] = useState('')
-  const [newCategoryIcon, setNewCategoryIcon] = useState('')
-  const [locating, setLocating] = useState(false)
-  const [locateError, setLocateError] = useState<string | null>(null)
-  const [qrUploading, setQrUploading] = useState(false)
-  const [qrError, setQrError] = useState<string | null>(null)
-  const qrInputRef = useRef<HTMLInputElement>(null)
-  const [logoUploading, setLogoUploading] = useState(false)
-  const [logoError, setLogoError] = useState<string | null>(null)
-  const logoInputRef = useRef<HTMLInputElement>(null)
-  const [testingSlipOk, setTestingSlipOk] = useState(false)
-  const [slipOkTestResult, setSlipOkTestResult] = useState<{ ok: boolean; quota?: number; message?: string } | null>(null)
-  const [showSlipOkKey, setShowSlipOkKey] = useState(false)
+interface ShopTabProps {
+  form: AppSettings
+  setShopField: (key: keyof AppSettings['shopInfo'], value: string) => void
+  setBrandColor: (hex: string) => void
+  logoInputRef: RefObject<HTMLInputElement | null>
+  handlePickLogo: (file: File | undefined) => void
+  logoUploading: boolean
+  logoError: string | null
+  logoButtonLabel: string
+}
 
-  // settings prop เปลี่ยนได้เองจาก polling (คนอื่นแก้ที่เครื่องอื่น) — sync form ตามให้ถ้ายังไม่ได้แก้อะไรค้างไว้
-  // (เทียบกับค่า settings "ก่อนหน้า" ไม่ใช่ค่าล่าสุด กัน false positive ตอนกำลังจะเปลี่ยนพอดี)
-  const prevSettingsRef = useRef(settings)
-  useEffect(() => {
-    const prevSettings = prevSettingsRef.current
-    prevSettingsRef.current = settings
-    setForm(f => (JSON.stringify(f) === JSON.stringify(prevSettings) ? settings : f))
-  }, [settings])
-
-  // เทียบด้วยค่าที่ trim whitespace หน้า/หลังแล้ว — กันเผลอเพิ่มช่องว่างท้ายข้อความแล้วนับเป็น "แก้ไข" ทั้งที่เนื้อหา
-  // จริงเหมือนเดิม (ไม่งั้นปุ่มติด dirty ทั้งที่ไม่มีอะไรเปลี่ยน แถมขึ้นในประวัติการแก้ไขเป็นการแก้ไขปลอม)
-  const dirty = JSON.stringify(deepTrim(form)) !== JSON.stringify(settings)
-
-  const setShopField = (key: keyof AppSettings['shopInfo'], value: string) => {
-    setForm(f => ({ ...f, shopInfo: { ...f.shopInfo, [key]: value } }))
-    setSavedAt(null)
-  }
-
-  /** เลือกรูป QR พร้อมเพย์จากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูปเมนู */
-  const handlePickQr = async (file: File | undefined) => {
-    if (!file) return
-    setQrUploading(true)
-    setQrError(null)
-    try {
-      const dataUrl = await pickImageAsDataUrl(file)
-      const url = await onUploadImage('promptpay-qr', dataUrl)
-      setShopField('promptPayQr', url)
-    } catch (err) {
-      setQrError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
-    } finally {
-      setQrUploading(false)
-      if (qrInputRef.current) qrInputRef.current.value = ''
-    }
-  }
-
-  /** เลือกรูปโลโก้ร้านจากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูป QR/เมนู */
-  const handlePickLogo = async (file: File | undefined) => {
-    if (!file) return
-    setLogoUploading(true)
-    setLogoError(null)
-    try {
-      const dataUrl = await pickImageAsDataUrl(file)
-      const url = await onUploadImage('shop-logo', dataUrl)
-      setShopField('logo', url)
-    } catch (err) {
-      setLogoError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
-    } finally {
-      setLogoUploading(false)
-      if (logoInputRef.current) logoInputRef.current.value = ''
-    }
-  }
-
-  const setNumberField = (
-    key:
-      | 'depositRate'
-      | 'deliveryFee'
-      | 'freeDeliveryMinTables'
-      | 'wageChef'
-      | 'wageAssistant'
-      | 'wageServerPerTable'
-      | 'wageDishwasher'
-      | 'fuelCostPerKm'
-      | 'tablesPerServer'
-      | 'tablesPerSupport'
-      | 'staffRemainderThreshold'
-      | 'quotationValidDays',
-    value: number,
-  ) => {
-    setForm(f => ({ ...f, [key]: value }))
-    setSavedAt(null)
-  }
-
-  /** เพิ่มจังหวัด/คำที่นับเป็นโซน metro — พิมพ์แล้วกด Enter หรือปุ่ม "เพิ่ม" */
-  const addMetroProvince = () => {
-    const name = newMetroProvince.trim()
-    if (!name || form.metroProvinces.includes(name)) {
-      setNewMetroProvince('')
-      return
-    }
-    setForm(f => ({ ...f, metroProvinces: [...f.metroProvinces, name] }))
-    setNewMetroProvince('')
-    setSavedAt(null)
-  }
-
-  const removeMetroProvince = (name: string) => {
-    setForm(f => ({ ...f, metroProvinces: f.metroProvinces.filter(p => p !== name) }))
-    setSavedAt(null)
-  }
-
-  /** เพิ่มวันหยุดร้าน (ปิด ไม่รับจอง) — เรียงวันที่จากใกล้ไปไกลให้ดูง่าย */
-  const addClosedDate = () => {
-    if (!newClosedDate || form.closedDates.includes(newClosedDate)) {
-      setNewClosedDate('')
-      return
-    }
-    // รูปแบบ "YYYY-MM-DD" เรียง lexicographic ตรงกับเรียงตามเวลาจริงพอดีอยู่แล้ว แต่ระบุ compare function ตรงๆ
-    // กันเข้าใจผิดว่าเรียงตาม locale ของเครื่องผู้ใช้ (sort() เปล่าๆ ใช้ default string compare ไม่ใช่ locale-aware)
-    setForm(f => ({ ...f, closedDates: [...f.closedDates, newClosedDate].sort((a, b) => a.localeCompare(b)) }))
-    setNewClosedDate('')
-    setSavedAt(null)
-  }
-
-  const removeClosedDate = (date: string) => {
-    setForm(f => ({ ...f, closedDates: f.closedDates.filter(d => d !== date) }))
-    setSavedAt(null)
-  }
-
-  /** เพิ่ม/ลบข้อความเงื่อนไขทีละบรรทัด — ใช้ร่วมกันทั้งใบเสนอราคาและใบจอง */
-  const addTerm = (field: 'quotationTerms' | 'bookingTerms', text: string, clear: () => void) => {
-    const line = text.trim()
-    if (!line) return
-    setForm(f => ({ ...f, [field]: [...f[field], line] }))
-    clear()
-    setSavedAt(null)
-  }
-
-  const removeTerm = (field: 'quotationTerms' | 'bookingTerms', index: number) => {
-    setForm(f => ({ ...f, [field]: f[field].filter((_, i) => i !== index) }))
-    setSavedAt(null)
-  }
-
-  const setSlotHours = (key: keyof AppSettings['timeSlotHours'], value: string) => {
-    setForm(f => ({ ...f, timeSlotHours: { ...f.timeSlotHours, [key]: value } }))
-    setSavedAt(null)
-  }
-
-  const setShopLocation = (lat: number, lng: number) => {
-    setForm(f => ({ ...f, shopLocation: { lat, lng } }))
-    setSavedAt(null)
-  }
-
-  /** ใช้ตำแหน่งปัจจุบันจาก GPS เป็นตำแหน่งร้าน — สะดวกเวลาตั้งค่าจากหน้าร้านจริง */
-  const handleLocateShop = () => {
-    if (!navigator.geolocation) {
-      setLocateError('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง')
-      return
-    }
-    setLocating(true)
-    setLocateError(null)
-    navigator.geolocation.getCurrentPosition(
-      p => {
-        setLocating(false)
-        setShopLocation(p.coords.latitude, p.coords.longitude)
-      },
-      err => {
-        setLocating(false)
-        setLocateError(
-          err.code === err.PERMISSION_DENIED
-            ? 'ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง — กรุณาเปิดสิทธิ์ในเบราว์เซอร์'
-            : 'ระบุตำแหน่งปัจจุบันไม่สำเร็จ กรุณาปักหมุดบนแผนที่แทน'
-        )
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    )
-  }
-
-  /** เปลี่ยนสีแบรนด์ — พรีวิวทันทีด้วย applyBrandTheme (ยังไม่บันทึกจนกว่าจะกด "บันทึกการตั้งค่า") */
-  const setBrandColor = (hex: string) => {
-    setForm(f => ({ ...f, brandColor: hex }))
-    applyBrandTheme(hex)
-    setSavedAt(null)
-  }
-
-  const handleSave = async () => {
-    if (saving) return
-    setSaving(true)
-    try {
-      await onUpdateSettings(deepTrim(form))
-      setSavedAt(Date.now())
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  /** สลับลำดับประเภทอาหารกับตัวก่อนหน้า/ถัดไป */
-  const moveCategory = (index: number, direction: -1 | 1) => {
-    setForm(f => {
-      const order = orderedCategories(f.categoryOrder, f.categories).map(c => c.id)
-      const target = index + direction
-      if (target < 0 || target >= order.length) return f
-      const next = [...order]
-      ;[next[index], next[target]] = [next[target], next[index]]
-      return { ...f, categoryOrder: next }
-    })
-    setSavedAt(null)
-  }
-
-  const updateCategoryField = (id: string, field: 'label' | 'labelEn' | 'icon', value: string) => {
-    setForm(f => ({ ...f, categories: f.categories.map(c => (c.id === id ? { ...c, [field]: value } : c)) }))
-    setSavedAt(null)
-  }
-
-  /** ลบประเภทอาหาร — เมนู/ข้อในแพ็กเกจที่ยังอ้างถึงหมวดนี้อยู่จะไม่หาย แค่โชว์ไอคอน/สีเริ่มต้นแทนหมวดที่หายไป */
-  const removeCategory = (id: string) => {
-    setForm(f => ({
-      ...f,
-      categories: f.categories.filter(c => c.id !== id),
-      categoryOrder: f.categoryOrder.filter(cid => cid !== id),
-    }))
-    setSavedAt(null)
-  }
-
-  const slugifyCategoryLabel = (text: string): string => {
-    const base = text
-      .trim()
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, '-')
-      .replace(/^-+/, '')
-      .replace(/-+$/, '')
-    return base || `category-${Date.now()}`
-  }
-
-  /** เพิ่มประเภทอาหารใหม่ — id สร้างอัตโนมัติจากชื่อ (กันชนกับ id เดิมด้วยเลขต่อท้าย) */
-  const addCategory = () => {
-    const label = newCategoryLabel.trim()
-    if (!label) return
-    const existingIds = new Set(form.categories.map(c => c.id))
-    const base = slugifyCategoryLabel(label)
-    let id = base
-    let suffix = 1
-    while (existingIds.has(id)) id = `${base}-${suffix++}`
-    const category: Category = {
-      id,
-      label,
-      labelEn: label,
-      icon: newCategoryIcon.trim() || '🍽️',
-      gradient: 'from-orange-100 to-amber-200',
-    }
-    setForm(f => ({ ...f, categories: [...f.categories, category], categoryOrder: [...f.categoryOrder, id] }))
-    setNewCategoryLabel('')
-    setNewCategoryIcon('')
-    setSavedAt(null)
-  }
-
-  let logoButtonLabel = 'อัปโหลดโลโก้'
-  if (logoUploading) logoButtonLabel = 'กำลังอัปโหลด...'
-  else if (form.shopInfo.logo) logoButtonLabel = 'เปลี่ยนโลโก้'
-
+/** แท็บ "ข้อมูลร้าน" — แยกออกจาก Settings กันฟังก์ชันหลักซับซ้อนเกิน (คัดลอก JSX มาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function ShopTab({ form, setShopField, setBrandColor, logoInputRef, handlePickLogo, logoUploading, logoError, logoButtonLabel }: Readonly<ShopTabProps>) {
   return (
-    <div className="max-w-2xl space-y-5 pb-24">
-      {/* แท็บย่อย */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
-        {SETTINGS_TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-1.5 whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0 ${
-              activeTab === id
-                ? 'bg-orange-500 text-white shadow-sm'
-                : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50'
-            }`}
-          >
-            <Icon size={15} />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'shop' && (
-        <>
+    <>
       {/* ข้อมูลร้าน */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -501,11 +232,63 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </div>
         </div>
       </div>
-        </>
-      )}
+    </>
+  )
+}
 
-      {activeTab === 'finance' && (
-        <>
+interface FinanceTabProps {
+  form: AppSettings
+  setForm: Dispatch<SetStateAction<AppSettings>>
+  setShopField: (key: keyof AppSettings['shopInfo'], value: string) => void
+  setNumberField: (
+    key:
+      | 'depositRate'
+      | 'deliveryFee'
+      | 'freeDeliveryMinTables'
+      | 'wageChef'
+      | 'wageAssistant'
+      | 'wageServerPerTable'
+      | 'wageDishwasher'
+      | 'fuelCostPerKm'
+      | 'tablesPerServer'
+      | 'tablesPerSupport'
+      | 'staffRemainderThreshold'
+      | 'quotationValidDays',
+    value: number,
+  ) => void
+  qrInputRef: RefObject<HTMLInputElement | null>
+  handlePickQr: (file: File | undefined) => void
+  qrUploading: boolean
+  qrError: string | null
+  showSlipOkKey: boolean
+  setShowSlipOkKey: Dispatch<SetStateAction<boolean>>
+  testingSlipOk: boolean
+  setTestingSlipOk: Dispatch<SetStateAction<boolean>>
+  slipOkTestResult: { ok: boolean; quota?: number; message?: string } | null
+  setSlipOkTestResult: Dispatch<SetStateAction<{ ok: boolean; quota?: number; message?: string } | null>>
+  onTestSlipOk: (apiKey: string, branchId: string) => Promise<{ ok: boolean; quota?: number; message?: string }>
+}
+
+/** แท็บ "การเงิน" — แยกออกจาก Settings กันฟังก์ชันหลักซับซ้อนเกิน (คัดลอก JSX มาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function FinanceTab({
+  form,
+  setForm,
+  setShopField,
+  setNumberField,
+  qrInputRef,
+  handlePickQr,
+  qrUploading,
+  qrError,
+  showSlipOkKey,
+  setShowSlipOkKey,
+  testingSlipOk,
+  setTestingSlipOk,
+  slipOkTestResult,
+  setSlipOkTestResult,
+  onTestSlipOk,
+}: Readonly<FinanceTabProps>) {
+  return (
+    <>
       {/* มัดจำ */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -792,11 +575,57 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           )}
         </div>
       </div>
-        </>
-      )}
+    </>
+  )
+}
 
-      {activeTab === 'delivery' && (
-        <>
+interface DeliveryTabProps {
+  form: AppSettings
+  setForm: Dispatch<SetStateAction<AppSettings>>
+  setSavedAt: Dispatch<SetStateAction<number | null>>
+  setNumberField: (
+    key:
+      | 'depositRate'
+      | 'deliveryFee'
+      | 'freeDeliveryMinTables'
+      | 'wageChef'
+      | 'wageAssistant'
+      | 'wageServerPerTable'
+      | 'wageDishwasher'
+      | 'fuelCostPerKm'
+      | 'tablesPerServer'
+      | 'tablesPerSupport'
+      | 'staffRemainderThreshold'
+      | 'quotationValidDays',
+    value: number,
+  ) => void
+  newMetroProvince: string
+  setNewMetroProvince: Dispatch<SetStateAction<string>>
+  addMetroProvince: () => void
+  removeMetroProvince: (name: string) => void
+  handleLocateShop: () => void
+  locating: boolean
+  locateError: string | null
+  setShopLocation: (lat: number, lng: number) => void
+}
+
+/** แท็บ "ค่าขนส่ง" — แยกออกจาก Settings กันฟังก์ชันหลักซับซ้อนเกิน (คัดลอก JSX มาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function DeliveryTab({
+  form,
+  setForm,
+  setSavedAt,
+  setNumberField,
+  newMetroProvince,
+  setNewMetroProvince,
+  addMetroProvince,
+  removeMetroProvince,
+  handleLocateShop,
+  locating,
+  locateError,
+  setShopLocation,
+}: Readonly<DeliveryTabProps>) {
+  return (
+    <>
       {/* ค่าขนส่ง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -979,11 +808,34 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </p>
         </div>
       </div>
-        </>
-      )}
+    </>
+  )
+}
 
-      {activeTab === 'staff' && (
-        <>
+interface StaffTabProps {
+  form: AppSettings
+  setNumberField: (
+    key:
+      | 'depositRate'
+      | 'deliveryFee'
+      | 'freeDeliveryMinTables'
+      | 'wageChef'
+      | 'wageAssistant'
+      | 'wageServerPerTable'
+      | 'wageDishwasher'
+      | 'fuelCostPerKm'
+      | 'tablesPerServer'
+      | 'tablesPerSupport'
+      | 'staffRemainderThreshold'
+      | 'quotationValidDays',
+    value: number,
+  ) => void
+}
+
+/** แท็บ "กำลังคน" — แยกออกจาก Settings กันฟังก์ชันหลักซับซ้อนเกิน (คัดลอก JSX มาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function StaffTab({ form, setNumberField }: Readonly<StaffTabProps>) {
+  return (
+    <>
       {/* อัตราค่าแรง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -1035,11 +887,59 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </div>
         </div>
       </div>
-        </>
-      )}
+    </>
+  )
+}
 
-      {activeTab === 'booking' && (
-        <>
+interface BookingTabProps {
+  form: AppSettings
+  setSlotHours: (key: keyof AppSettings['timeSlotHours'], value: string) => void
+  newClosedDate: string
+  setNewClosedDate: Dispatch<SetStateAction<string>>
+  addClosedDate: () => void
+  removeClosedDate: (date: string) => void
+  setNumberField: (
+    key:
+      | 'depositRate'
+      | 'deliveryFee'
+      | 'freeDeliveryMinTables'
+      | 'wageChef'
+      | 'wageAssistant'
+      | 'wageServerPerTable'
+      | 'wageDishwasher'
+      | 'fuelCostPerKm'
+      | 'tablesPerServer'
+      | 'tablesPerSupport'
+      | 'staffRemainderThreshold'
+      | 'quotationValidDays',
+    value: number,
+  ) => void
+  newQuotationTerm: string
+  setNewQuotationTerm: Dispatch<SetStateAction<string>>
+  newBookingTerm: string
+  setNewBookingTerm: Dispatch<SetStateAction<string>>
+  addTerm: (field: 'quotationTerms' | 'bookingTerms', text: string, clear: () => void) => void
+  removeTerm: (field: 'quotationTerms' | 'bookingTerms', index: number) => void
+}
+
+/** แท็บ "การจอง & เอกสาร" — แยกออกจาก Settings กันฟังก์ชันหลักซับซ้อนเกิน (คัดลอก JSX มาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function BookingTab({
+  form,
+  setSlotHours,
+  newClosedDate,
+  setNewClosedDate,
+  addClosedDate,
+  removeClosedDate,
+  setNumberField,
+  newQuotationTerm,
+  setNewQuotationTerm,
+  newBookingTerm,
+  setNewBookingTerm,
+  addTerm,
+  removeTerm,
+}: Readonly<BookingTabProps>) {
+  return (
+    <>
       {/* ช่วงเวลาจอง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -1201,11 +1101,36 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </div>
         ))}
       </div>
-        </>
-      )}
+    </>
+  )
+}
 
-      {activeTab === 'categories' && (
-        <>
+interface CategoriesTabProps {
+  form: AppSettings
+  updateCategoryField: (id: string, field: 'label' | 'labelEn' | 'icon', value: string) => void
+  moveCategory: (index: number, direction: -1 | 1) => void
+  removeCategory: (id: string) => void
+  newCategoryIcon: string
+  setNewCategoryIcon: Dispatch<SetStateAction<string>>
+  newCategoryLabel: string
+  setNewCategoryLabel: Dispatch<SetStateAction<string>>
+  addCategory: () => void
+}
+
+/** แท็บ "ประเภทอาหาร" — แยกออกจาก Settings กันฟังก์ชันหลักซับซ้อนเกิน (คัดลอก JSX มาตรงๆ ไม่เปลี่ยนตรรกะ) */
+function CategoriesTab({
+  form,
+  updateCategoryField,
+  moveCategory,
+  removeCategory,
+  newCategoryIcon,
+  setNewCategoryIcon,
+  newCategoryLabel,
+  setNewCategoryLabel,
+  addCategory,
+}: Readonly<CategoriesTabProps>) {
+  return (
+    <>
       {/* ประเภทอาหาร */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -1301,7 +1226,374 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           </button>
         </div>
       </div>
-        </>
+    </>
+  )
+}
+
+export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: Readonly<SettingsProps>) {
+  const [form, setForm] = useState<AppSettings>(settings)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
+  const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [newMetroProvince, setNewMetroProvince] = useState('')
+  const [newClosedDate, setNewClosedDate] = useState('')
+  const [newQuotationTerm, setNewQuotationTerm] = useState('')
+  const [newBookingTerm, setNewBookingTerm] = useState('')
+  const [newCategoryLabel, setNewCategoryLabel] = useState('')
+  const [newCategoryIcon, setNewCategoryIcon] = useState('')
+  const [locating, setLocating] = useState(false)
+  const [locateError, setLocateError] = useState<string | null>(null)
+  const [qrUploading, setQrUploading] = useState(false)
+  const [qrError, setQrError] = useState<string | null>(null)
+  const qrInputRef = useRef<HTMLInputElement>(null)
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+  const [testingSlipOk, setTestingSlipOk] = useState(false)
+  const [slipOkTestResult, setSlipOkTestResult] = useState<{ ok: boolean; quota?: number; message?: string } | null>(null)
+  const [showSlipOkKey, setShowSlipOkKey] = useState(false)
+
+  // settings prop เปลี่ยนได้เองจาก polling (คนอื่นแก้ที่เครื่องอื่น) — sync form ตามให้ถ้ายังไม่ได้แก้อะไรค้างไว้
+  // (เทียบกับค่า settings "ก่อนหน้า" ไม่ใช่ค่าล่าสุด กัน false positive ตอนกำลังจะเปลี่ยนพอดี)
+  const prevSettingsRef = useRef(settings)
+  useEffect(() => {
+    const prevSettings = prevSettingsRef.current
+    prevSettingsRef.current = settings
+    setForm(f => (JSON.stringify(f) === JSON.stringify(prevSettings) ? settings : f))
+  }, [settings])
+
+  // เทียบด้วยค่าที่ trim whitespace หน้า/หลังแล้ว — กันเผลอเพิ่มช่องว่างท้ายข้อความแล้วนับเป็น "แก้ไข" ทั้งที่เนื้อหา
+  // จริงเหมือนเดิม (ไม่งั้นปุ่มติด dirty ทั้งที่ไม่มีอะไรเปลี่ยน แถมขึ้นในประวัติการแก้ไขเป็นการแก้ไขปลอม)
+  const dirty = JSON.stringify(deepTrim(form)) !== JSON.stringify(settings)
+
+  const setShopField = (key: keyof AppSettings['shopInfo'], value: string) => {
+    setForm(f => ({ ...f, shopInfo: { ...f.shopInfo, [key]: value } }))
+    setSavedAt(null)
+  }
+
+  /** เลือกรูป QR พร้อมเพย์จากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูปเมนู */
+  const handlePickQr = async (file: File | undefined) => {
+    if (!file) return
+    setQrUploading(true)
+    setQrError(null)
+    try {
+      const dataUrl = await pickImageAsDataUrl(file)
+      const url = await onUploadImage('promptpay-qr', dataUrl)
+      setShopField('promptPayQr', url)
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
+    } finally {
+      setQrUploading(false)
+      if (qrInputRef.current) qrInputRef.current.value = ''
+    }
+  }
+
+  /** เลือกรูปโลโก้ร้านจากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูป QR/เมนู */
+  const handlePickLogo = async (file: File | undefined) => {
+    if (!file) return
+    setLogoUploading(true)
+    setLogoError(null)
+    try {
+      const dataUrl = await pickImageAsDataUrl(file)
+      const url = await onUploadImage('shop-logo', dataUrl)
+      setShopField('logo', url)
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
+    } finally {
+      setLogoUploading(false)
+      if (logoInputRef.current) logoInputRef.current.value = ''
+    }
+  }
+
+  const setNumberField = (
+    key:
+      | 'depositRate'
+      | 'deliveryFee'
+      | 'freeDeliveryMinTables'
+      | 'wageChef'
+      | 'wageAssistant'
+      | 'wageServerPerTable'
+      | 'wageDishwasher'
+      | 'fuelCostPerKm'
+      | 'tablesPerServer'
+      | 'tablesPerSupport'
+      | 'staffRemainderThreshold'
+      | 'quotationValidDays',
+    value: number,
+  ) => {
+    setForm(f => ({ ...f, [key]: value }))
+    setSavedAt(null)
+  }
+
+  /** เพิ่มจังหวัด/คำที่นับเป็นโซน metro — พิมพ์แล้วกด Enter หรือปุ่ม "เพิ่ม" */
+  const addMetroProvince = () => {
+    const name = newMetroProvince.trim()
+    if (!name || form.metroProvinces.includes(name)) {
+      setNewMetroProvince('')
+      return
+    }
+    setForm(f => ({ ...f, metroProvinces: [...f.metroProvinces, name] }))
+    setNewMetroProvince('')
+    setSavedAt(null)
+  }
+
+  const removeMetroProvince = (name: string) => {
+    setForm(f => ({ ...f, metroProvinces: f.metroProvinces.filter(p => p !== name) }))
+    setSavedAt(null)
+  }
+
+  /** เพิ่มวันหยุดร้าน (ปิด ไม่รับจอง) — เรียงวันที่จากใกล้ไปไกลให้ดูง่าย */
+  const addClosedDate = () => {
+    if (!newClosedDate || form.closedDates.includes(newClosedDate)) {
+      setNewClosedDate('')
+      return
+    }
+    // รูปแบบ "YYYY-MM-DD" เรียง lexicographic ตรงกับเรียงตามเวลาจริงพอดีอยู่แล้ว แต่ระบุ compare function ตรงๆ
+    // กันเข้าใจผิดว่าเรียงตาม locale ของเครื่องผู้ใช้ (sort() เปล่าๆ ใช้ default string compare ไม่ใช่ locale-aware)
+    setForm(f => ({ ...f, closedDates: [...f.closedDates, newClosedDate].sort((a, b) => a.localeCompare(b)) }))
+    setNewClosedDate('')
+    setSavedAt(null)
+  }
+
+  const removeClosedDate = (date: string) => {
+    setForm(f => ({ ...f, closedDates: f.closedDates.filter(d => d !== date) }))
+    setSavedAt(null)
+  }
+
+  /** เพิ่ม/ลบข้อความเงื่อนไขทีละบรรทัด — ใช้ร่วมกันทั้งใบเสนอราคาและใบจอง */
+  const addTerm = (field: 'quotationTerms' | 'bookingTerms', text: string, clear: () => void) => {
+    const line = text.trim()
+    if (!line) return
+    setForm(f => ({ ...f, [field]: [...f[field], line] }))
+    clear()
+    setSavedAt(null)
+  }
+
+  const removeTerm = (field: 'quotationTerms' | 'bookingTerms', index: number) => {
+    setForm(f => ({ ...f, [field]: f[field].filter((_, i) => i !== index) }))
+    setSavedAt(null)
+  }
+
+  const setSlotHours = (key: keyof AppSettings['timeSlotHours'], value: string) => {
+    setForm(f => ({ ...f, timeSlotHours: { ...f.timeSlotHours, [key]: value } }))
+    setSavedAt(null)
+  }
+
+  const setShopLocation = (lat: number, lng: number) => {
+    setForm(f => ({ ...f, shopLocation: { lat, lng } }))
+    setSavedAt(null)
+  }
+
+  /** ใช้ตำแหน่งปัจจุบันจาก GPS เป็นตำแหน่งร้าน — สะดวกเวลาตั้งค่าจากหน้าร้านจริง */
+  const handleLocateShop = () => {
+    if (!navigator.geolocation) {
+      setLocateError('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง')
+      return
+    }
+    setLocating(true)
+    setLocateError(null)
+    navigator.geolocation.getCurrentPosition(
+      p => {
+        setLocating(false)
+        setShopLocation(p.coords.latitude, p.coords.longitude)
+      },
+      err => {
+        setLocating(false)
+        setLocateError(
+          err.code === err.PERMISSION_DENIED
+            ? 'ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง — กรุณาเปิดสิทธิ์ในเบราว์เซอร์'
+            : 'ระบุตำแหน่งปัจจุบันไม่สำเร็จ กรุณาปักหมุดบนแผนที่แทน'
+        )
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
+  /** เปลี่ยนสีแบรนด์ — พรีวิวทันทีด้วย applyBrandTheme (ยังไม่บันทึกจนกว่าจะกด "บันทึกการตั้งค่า") */
+  const setBrandColor = (hex: string) => {
+    setForm(f => ({ ...f, brandColor: hex }))
+    applyBrandTheme(hex)
+    setSavedAt(null)
+  }
+
+  const handleSave = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await onUpdateSettings(deepTrim(form))
+      setSavedAt(Date.now())
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** สลับลำดับประเภทอาหารกับตัวก่อนหน้า/ถัดไป */
+  const moveCategory = (index: number, direction: -1 | 1) => {
+    setForm(f => {
+      const order = orderedCategories(f.categoryOrder, f.categories).map(c => c.id)
+      const target = index + direction
+      if (target < 0 || target >= order.length) return f
+      const next = [...order]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return { ...f, categoryOrder: next }
+    })
+    setSavedAt(null)
+  }
+
+  const updateCategoryField = (id: string, field: 'label' | 'labelEn' | 'icon', value: string) => {
+    setForm(f => ({ ...f, categories: f.categories.map(c => (c.id === id ? { ...c, [field]: value } : c)) }))
+    setSavedAt(null)
+  }
+
+  /** ลบประเภทอาหาร — เมนู/ข้อในแพ็กเกจที่ยังอ้างถึงหมวดนี้อยู่จะไม่หาย แค่โชว์ไอคอน/สีเริ่มต้นแทนหมวดที่หายไป */
+  const removeCategory = (id: string) => {
+    setForm(f => ({
+      ...f,
+      categories: f.categories.filter(c => c.id !== id),
+      categoryOrder: f.categoryOrder.filter(cid => cid !== id),
+    }))
+    setSavedAt(null)
+  }
+
+  const slugifyCategoryLabel = (text: string): string => {
+    const base = text
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-+/, '')
+      .replace(/-+$/, '')
+    return base || `category-${Date.now()}`
+  }
+
+  /** เพิ่มประเภทอาหารใหม่ — id สร้างอัตโนมัติจากชื่อ (กันชนกับ id เดิมด้วยเลขต่อท้าย) */
+  const addCategory = () => {
+    const label = newCategoryLabel.trim()
+    if (!label) return
+    const existingIds = new Set(form.categories.map(c => c.id))
+    const base = slugifyCategoryLabel(label)
+    let id = base
+    let suffix = 1
+    while (existingIds.has(id)) id = `${base}-${suffix++}`
+    const category: Category = {
+      id,
+      label,
+      labelEn: label,
+      icon: newCategoryIcon.trim() || '🍽️',
+      gradient: 'from-orange-100 to-amber-200',
+    }
+    setForm(f => ({ ...f, categories: [...f.categories, category], categoryOrder: [...f.categoryOrder, id] }))
+    setNewCategoryLabel('')
+    setNewCategoryIcon('')
+    setSavedAt(null)
+  }
+
+  let logoButtonLabel = 'อัปโหลดโลโก้'
+  if (logoUploading) logoButtonLabel = 'กำลังอัปโหลด...'
+  else if (form.shopInfo.logo) logoButtonLabel = 'เปลี่ยนโลโก้'
+
+  return (
+    <div className="max-w-2xl space-y-5 pb-24">
+      {/* แท็บย่อย */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+        {SETTINGS_TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-1.5 whitespace-nowrap px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex-shrink-0 ${
+              activeTab === id
+                ? 'bg-orange-500 text-white shadow-sm'
+                : 'bg-white text-gray-500 border border-gray-100 hover:bg-gray-50'
+            }`}
+          >
+            <Icon size={15} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'shop' && (
+        <ShopTab
+          form={form}
+          setShopField={setShopField}
+          setBrandColor={setBrandColor}
+          logoInputRef={logoInputRef}
+          handlePickLogo={handlePickLogo}
+          logoUploading={logoUploading}
+          logoError={logoError}
+          logoButtonLabel={logoButtonLabel}
+        />
+      )}
+
+      {activeTab === 'finance' && (
+        <FinanceTab
+          form={form}
+          setForm={setForm}
+          setShopField={setShopField}
+          setNumberField={setNumberField}
+          qrInputRef={qrInputRef}
+          handlePickQr={handlePickQr}
+          qrUploading={qrUploading}
+          qrError={qrError}
+          showSlipOkKey={showSlipOkKey}
+          setShowSlipOkKey={setShowSlipOkKey}
+          testingSlipOk={testingSlipOk}
+          setTestingSlipOk={setTestingSlipOk}
+          slipOkTestResult={slipOkTestResult}
+          setSlipOkTestResult={setSlipOkTestResult}
+          onTestSlipOk={onTestSlipOk}
+        />
+      )}
+
+      {activeTab === 'delivery' && (
+        <DeliveryTab
+          form={form}
+          setForm={setForm}
+          setSavedAt={setSavedAt}
+          setNumberField={setNumberField}
+          newMetroProvince={newMetroProvince}
+          setNewMetroProvince={setNewMetroProvince}
+          addMetroProvince={addMetroProvince}
+          removeMetroProvince={removeMetroProvince}
+          handleLocateShop={handleLocateShop}
+          locating={locating}
+          locateError={locateError}
+          setShopLocation={setShopLocation}
+        />
+      )}
+
+      {activeTab === 'staff' && <StaffTab form={form} setNumberField={setNumberField} />}
+
+      {activeTab === 'booking' && (
+        <BookingTab
+          form={form}
+          setSlotHours={setSlotHours}
+          newClosedDate={newClosedDate}
+          setNewClosedDate={setNewClosedDate}
+          addClosedDate={addClosedDate}
+          removeClosedDate={removeClosedDate}
+          setNumberField={setNumberField}
+          newQuotationTerm={newQuotationTerm}
+          setNewQuotationTerm={setNewQuotationTerm}
+          newBookingTerm={newBookingTerm}
+          setNewBookingTerm={setNewBookingTerm}
+          addTerm={addTerm}
+          removeTerm={removeTerm}
+        />
+      )}
+
+      {activeTab === 'categories' && (
+        <CategoriesTab
+          form={form}
+          updateCategoryField={updateCategoryField}
+          moveCategory={moveCategory}
+          removeCategory={removeCategory}
+          newCategoryIcon={newCategoryIcon}
+          setNewCategoryIcon={setNewCategoryIcon}
+          newCategoryLabel={newCategoryLabel}
+          setNewCategoryLabel={setNewCategoryLabel}
+          addCategory={addCategory}
+        />
       )}
 
       {/* Save — ลอยมุมล่างขวาตลอด กันต้องเลื่อนจอลงมาสุดทุกครั้งที่จะบันทึก */}
