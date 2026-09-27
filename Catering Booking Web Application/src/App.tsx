@@ -810,9 +810,10 @@ function computeNeedsProfile(isAuthenticated: boolean, role: AppRoleForPath, bac
 }
 
 /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที — แยกออกจาก App component
- *  กันฟังก์ชันหลักซับซ้อนเกิน */
-function computeEffectiveScreen(screen: Screen, isAuthenticated: boolean, needsProfile: boolean, role: AppRoleForPath): Screen {
-  return screen === 'login' && isAuthenticated && !needsProfile ? defaultScreenFor(role) : screen
+ *  กันฟังก์ชันหลักซับซ้อนเกิน (รวม isAuthenticated/needsProfile เป็นพารามิเตอร์เดียวที่จุดเรียก กัน sonar ฟ้อง
+ *  boolean flag 2 ตัวปนกัน — ความหมายเดิมทุกจุดคือ "พร้อมเด้งไปหน้า default ของ role นี้แล้วหรือยัง") */
+function computeEffectiveScreen(screen: Screen, readyForDefaultScreen: boolean, role: AppRoleForPath): Screen {
+  return screen === 'login' && readyForDefaultScreen ? defaultScreenFor(role) : screen
 }
 
 /** owner กำลังอยู่ในหน้าจอฝั่งเจ้าของร้านหรือไม่ — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน */
@@ -1303,7 +1304,7 @@ export default function App() {
   }, [navigate, user, settings.shopInfo, notifCount, settings.categoryOrder, settings.categories, openNotificationBooking])
 
   /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที */
-  const effectiveScreen: Screen = computeEffectiveScreen(screen, isAuthenticated, needsProfile, role)
+  const effectiveScreen: Screen = computeEffectiveScreen(screen, isAuthenticated && !needsProfile, role)
 
   /** ตาข่ายสำรอง — เผื่อ role เปลี่ยนกลางเซสชัน (เช่นถูกถอดสิทธิ์ owner จากอีกแท็บ ระหว่างที่ค้างอยู่หน้า owner-*)
    *  แล้ว screen ที่ค้างอยู่ไม่ตรงกับ role ใหม่แล้ว ดีดกลับไปหน้า default ของ role ปัจจุบันแทนที่จะโชว์จอว่างเปล่า

@@ -275,7 +275,10 @@ function formatFieldValueByKey(key: string, value: unknown): string | null {
 /** ฟิลด์ตัวเลข (รวม boolean/depositRate/ราคา) — คืน null ถ้า value ไม่ใช่ number/boolean
  *  (แยกออกจาก formatFieldValue กันฟังก์ชันหลักซับซ้อนเกิน) */
 function formatNumericFieldValue(key: string, value: unknown): string | null {
-  if (typeof value === 'boolean') return key === 'active' ? (value ? 'เปิดขาย' : 'ปิดขาย') : (value ? 'ใช่' : 'ไม่ใช่')
+  if (typeof value === 'boolean') {
+    if (key === 'active') return value ? 'เปิดขาย' : 'ปิดขาย'
+    return value ? 'ใช่' : 'ไม่ใช่'
+  }
   if (typeof value !== 'number') return null
   if (key === 'depositRate') return `${Math.round(value * 100)}%`
   return PRICE_FIELDS.has(key) ? `${value.toLocaleString('th-TH')} บาท` : value.toLocaleString('th-TH')
@@ -294,7 +297,9 @@ export function formatFieldValue(key: string, value: unknown): string {
 
   if (isPlainStringArray(value)) return value.length > 0 ? value.join(', ') : '— (ว่าง)'
   if (typeof value === 'object') return 'มีการเปลี่ยนแปลง (รายละเอียดซับซ้อน)'
-  return String(value)
+  // ถึงจุดนี้เหลือแค่ string เท่านั้น (ทุก type อื่นถูกดักไปหมดแล้วข้างบน) — คืนตรงๆ ไม่ต้อง String() ซึ่งเสี่ยง
+  // ได้ "[object Object]" ถ้า value เป็น object ที่ SonarQube มองว่ายัง unreachable-check ไม่ชัดพอ
+  return typeof value === 'string' ? value : JSON.stringify(value)
 }
 
 type DiffEntry =
