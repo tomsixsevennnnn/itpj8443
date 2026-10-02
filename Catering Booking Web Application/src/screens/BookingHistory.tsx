@@ -7,7 +7,6 @@ import PromptPayQr from '../components/PromptPayQr'
 import type { AppSettings, Booking } from '../types'
 import { DOC_LABEL, bookingCustomerName, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
-import { resolveImageUrl } from '../api'
 import { useAuthedSlipUrl } from '../useAuthedSlipUrl'
 
 interface BookingHistoryProps {
@@ -57,7 +56,7 @@ export default function BookingHistory({
   const slipInputRef = useRef<HTMLInputElement>(null)
 
   const hasBankTransfer = !!settings.shopInfo.bankAccountNumber
-  const hasQr = !!(settings.shopInfo.promptPayId || settings.shopInfo.promptPayQr)
+  const hasQr = !!settings.shopInfo.promptPayId
   /** เลือกช่องทางที่มีให้ก่อน ถ้ามีทั้งคู่ให้ QR มาก่อน (สแกนแล้วยอดขึ้นเองสะดวกกว่า) */
   const [payMethod, setPayMethod] = useState<'bank' | 'qr'>(hasQr ? 'qr' : 'bank')
 
@@ -448,38 +447,21 @@ export default function BookingHistory({
                       </div>
                     )}
                     {(payMethod === 'qr' || !hasBankTransfer) && hasQr && (
-                      settings.shopInfo.promptPayId ? (
-                        <div className="flex items-center gap-3">
-                          <PromptPayQr
-                            promptPayId={settings.shopInfo.promptPayId}
-                            amount={bookingPricing(detailBooking, settings.depositRate).deposit}
-                            className="w-32 h-32 rounded-lg border border-gray-200 bg-white flex-shrink-0"
-                          />
-                          <div className="text-left space-y-1">
-                            {(settings.shopInfo.promptPayFirstName || settings.shopInfo.promptPayLastName) && (
-                              <p className="text-lg font-bold text-gray-900 leading-tight">
-                                {settings.shopInfo.promptPayFirstName} {settings.shopInfo.promptPayLastName}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-400">สแกนแล้วยอดขึ้นอัตโนมัติ</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={resolveImageUrl(settings.shopInfo.promptPayQr)}
-                            alt="QR พร้อมเพย์"
-                            className="w-32 h-32 rounded-lg border border-gray-200 object-contain bg-white flex-shrink-0"
-                          />
-                          {(settings.shopInfo.promptPayQrFirstName || settings.shopInfo.promptPayQrLastName) && (
-                            <div className="text-left">
-                              <p className="text-lg font-bold text-gray-900 leading-tight">
-                                {settings.shopInfo.promptPayQrFirstName} {settings.shopInfo.promptPayQrLastName}
-                              </p>
-                            </div>
+                      <div className="flex items-center gap-3">
+                        <PromptPayQr
+                          promptPayId={settings.shopInfo.promptPayId}
+                          amount={bookingPricing(detailBooking, settings.depositRate).deposit}
+                          className="w-32 h-32 rounded-lg border border-gray-200 bg-white flex-shrink-0"
+                        />
+                        <div className="text-left space-y-1">
+                          {(settings.shopInfo.promptPayFirstName || settings.shopInfo.promptPayLastName) && (
+                            <p className="text-lg font-bold text-gray-900 leading-tight">
+                              {settings.shopInfo.promptPayFirstName} {settings.shopInfo.promptPayLastName}
+                            </p>
                           )}
+                          <p className="text-xs text-gray-400">สแกนแล้วยอดขึ้นอัตโนมัติ</p>
                         </div>
-                      )
+                      </div>
                     )}
                   </div>
                 </div>

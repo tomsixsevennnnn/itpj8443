@@ -34,7 +34,15 @@ export const bookingsStreamUrl = (token: string): string =>
 export const appStreamUrl = (token: string): string =>
   `${API_BASE}/realtime/app?access_token=${encodeURIComponent(token)}`
 
-export type UploadImageKind = 'menu-image' | 'promptpay-qr' | 'shop-logo' | 'content-image' | 'payment-slip'
+export type UploadImageKind = 'menu-image' | 'shop-logo' | 'content-image' | 'payment-slip'
+
+/** owner ที่กำลังใช้งานร้านอื่นในฐานะลูกค้า — แนบ header X-Acting-As: customer ให้ backend ลดสิทธิ์ owner เป็นลูกค้า
+ *  ใน request นั้น (ดู backend jwt.strategy.ts) ตั้งค่าจาก App ทุกครั้งที่โหลดโปรไฟล์ */
+let actingAsCustomer = false
+export const setActingAsCustomer = (value: boolean): void => {
+  actingAsCustomer = value
+}
+const actingAsHeaders = (): Record<string, string> => (actingAsCustomer ? { 'X-Acting-As': 'customer' } : {})
 
 async function request<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -42,6 +50,7 @@ async function request<T>(token: string, path: string, init: RequestInit = {}): 
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
+      ...actingAsHeaders(),
       ...init.headers,
     },
   })
@@ -103,9 +112,6 @@ interface BackendSettings {
   bankName: string
   bankAccountNumber: string
   bankAccountName: string
-  promptPayQr: string
-  promptPayQrFirstName: string
-  promptPayQrLastName: string
   promptPayId: string
   promptPayFirstName: string
   promptPayLastName: string
@@ -153,9 +159,6 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
     bankName: s.bankName,
     bankAccountNumber: s.bankAccountNumber,
     bankAccountName: s.bankAccountName,
-    promptPayQr: s.promptPayQr,
-    promptPayQrFirstName: s.promptPayQrFirstName ?? '',
-    promptPayQrLastName: s.promptPayQrLastName ?? '',
     promptPayId: s.promptPayId ?? '',
     promptPayFirstName: s.promptPayFirstName ?? '',
     promptPayLastName: s.promptPayLastName ?? '',
@@ -209,9 +212,6 @@ const SHOP_INFO_PATCH_FIELD_MAP: Record<keyof AppSettings['shopInfo'], string> =
   bankName: 'bankName',
   bankAccountNumber: 'bankAccountNumber',
   bankAccountName: 'bankAccountName',
-  promptPayQr: 'promptPayQr',
-  promptPayQrFirstName: 'promptPayQrFirstName',
-  promptPayQrLastName: 'promptPayQrLastName',
   promptPayId: 'promptPayId',
   promptPayFirstName: 'promptPayFirstName',
   promptPayLastName: 'promptPayLastName',
@@ -498,9 +498,6 @@ export const api = {
       bankName: '',
       bankAccountNumber: '',
       bankAccountName: '',
-      promptPayQr: '',
-      promptPayQrFirstName: '',
-      promptPayQrLastName: '',
       promptPayId: '',
       promptPayFirstName: '',
       promptPayLastName: '',
@@ -519,7 +516,7 @@ export const api = {
   testSlipOk: (token: string, apiKey: string, branchId: string): Promise<{ ok: boolean; quota?: number; message?: string }> =>
     request(token, '/settings/slipok/test', { method: 'POST', body: JSON.stringify({ apiKey, branchId }) }),
 
-  /** อัปโหลด data URL ไปเก็บเป็นไฟล์บน backend แล้วคืน path สั้นๆ ให้เอาไปเก็บในฟิลด์ image/logo/qr/slip แทน data URL ดิบ */
+  /** อัปโหลด data URL ไปเก็บเป็นไฟล์บน backend แล้วคืน path สั้นๆ ให้เอาไปเก็บในฟิลด์ image/logo/slip แทน data URL ดิบ */
   uploadImage: async (token: string, kind: UploadImageKind, dataUrl: string): Promise<string> =>
     (await request<{ url: string }>(token, `/uploads/${kind}`, { method: 'POST', body: JSON.stringify({ dataUrl }) }))
       .url,
@@ -535,7 +532,7 @@ export const api = {
    */
   fetchPaymentSlip: async (token: string, bookingId: string): Promise<string> => {
     const res = await fetch(`${API_BASE}/bookings/${bookingId}/payment-slip`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...actingAsHeaders() },
     })
     if (!res.ok) throw new Error(`API GET /bookings/${bookingId}/payment-slip -> ${res.status}`)
     const blob = await res.blob()

@@ -77,9 +77,6 @@ const FIELD_LABELS: Record<string, string> = {
   bankName: 'ธนาคาร',
   bankAccountNumber: 'เลขบัญชี',
   bankAccountName: 'ชื่อบัญชี',
-  promptPayQr: 'รูป QR พร้อมเพย์',
-  promptPayQrFirstName: 'ชื่อเจ้าของ QR (สำรอง)',
-  promptPayQrLastName: 'นามสกุลเจ้าของ QR (สำรอง)',
   promptPayId: 'เลขพร้อมเพย์',
   promptPayFirstName: 'ชื่อเจ้าของพร้อมเพย์',
   promptPayLastName: 'นามสกุลเจ้าของพร้อมเพย์',
@@ -307,7 +304,7 @@ type DiffEntry =
   | { key: string; mode: 'changed'; before: unknown; after: unknown }
 
 /** ฟิลด์ที่เก็บ path รูปภาพ — โชว์ path พร้อมรูปตัวอย่างจริงคู่กัน ไม่ใช่แค่ข้อความ path เฉยๆ */
-const IMAGE_FIELDS = new Set(['image', 'shopLogo', 'promptPayQr'])
+const IMAGE_FIELDS = new Set(['image', 'shopLogo'])
 
 /** ค่าดิบของฝั่ง before/after ของ DiffEntry หนึ่งตัว — ใช้แยกจาก formatFieldValue (ที่คืนข้อความ) เพราะรูปภาพ
  *  ต้องเอาค่าดิบ (path จริง) ไป resolve เป็น URL render <img> ด้วย ไม่ใช่แค่เอาไปแสดงเป็นข้อความ */

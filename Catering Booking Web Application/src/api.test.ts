@@ -17,7 +17,6 @@ describe('toBackendSettingsPatch', () => {
     const shopInfo: AppSettings['shopInfo'] = {
       name: 'ร้าน A', nameEn: 'Shop A', initials: 'A', address: 'ที่อยู่', phone: '0812345678', line: '@a',
       bankName: 'ธนาคาร A', bankAccountNumber: '123', bankAccountName: 'นาย A',
-      promptPayQr: 'qr.png', promptPayQrFirstName: 'A', promptPayQrLastName: 'B',
       promptPayId: '0812345678', promptPayFirstName: 'C', promptPayLastName: 'D',
       logo: 'logo.png', loginTagline: 'ยินดีต้อนรับ',
     }
@@ -32,9 +31,6 @@ describe('toBackendSettingsPatch', () => {
       bankName: 'ธนาคาร A',
       bankAccountNumber: '123',
       bankAccountName: 'นาย A',
-      promptPayQr: 'qr.png',
-      promptPayQrFirstName: 'A',
-      promptPayQrLastName: 'B',
       promptPayId: '0812345678',
       promptPayFirstName: 'C',
       promptPayLastName: 'D',

@@ -19,6 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       audience: process.env.AUTH0_AUDIENCE,
       issuer: `https://${domain}/`,
       algorithms: ['RS256'],
+      passReqToCallback: true,
       secretOrKeyProvider: passportJwtSecret({
         cache: true,
         rateLimit: true,
@@ -28,7 +29,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     })
   }
 
-  validate(payload: Record<string, unknown>) {
-    return payload
+  /** header X-Acting-As: customer = owner ที่กำลังใช้งานในฐานะลูกค้าของร้านอื่น (ดู UsersService.shopContextFor)
+   *  ใช้ได้แค่ "ลดสิทธิ์" เป็น customer เท่านั้น ไม่มีทางยกสิทธิ์ ผู้ใช้ที่ไม่ใช่ owner ส่งมาก็ไม่มีผลอะไร */
+  validate(req: Request, payload: Record<string, unknown>) {
+    return { ...payload, actingAsCustomer: req.headers['x-acting-as'] === 'customer' }
   }
 }

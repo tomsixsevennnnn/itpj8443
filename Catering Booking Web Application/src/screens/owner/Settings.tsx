@@ -17,7 +17,6 @@ import {
   Palette,
   Percent,
   Plus,
-  QrCode,
   RotateCcw,
   Save,
   ShieldCheck,
@@ -256,10 +255,6 @@ interface FinanceTabProps {
       | 'quotationValidDays',
     value: number,
   ) => void
-  qrInputRef: RefObject<HTMLInputElement | null>
-  handlePickQr: (file: File | undefined) => void
-  qrUploading: boolean
-  qrError: string | null
   showSlipOkKey: boolean
   setShowSlipOkKey: Dispatch<SetStateAction<boolean>>
   testingSlipOk: boolean
@@ -275,10 +270,6 @@ function FinanceTab({
   setForm,
   setShopField,
   setNumberField,
-  qrInputRef,
-  handlePickQr,
-  qrUploading,
-  qrError,
   showSlipOkKey,
   setShowSlipOkKey,
   testingSlipOk,
@@ -392,93 +383,6 @@ function FinanceTab({
               <p className="text-[11px] text-gray-400 mt-1">ตัวอย่าง QR (ยอด 100 บาท) — ของจริงจะฝังยอดมัดจำตามใบจองแต่ละใบ</p>
             </div>
           )}
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <label htmlFor="promptpay-qr-input" className="block text-sm font-medium text-gray-700 mb-1.5">
-            QR พร้อมเพย์ (สำรอง — ใช้ถ้ายังไม่ได้กรอกเลขพร้อมเพย์ด้านบน)
-          </label>
-          <div className="grid sm:grid-cols-2 gap-4 mb-3 max-w-md">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-            <span>ชื่อ</span>
-            <input
-                type="text"
-                value={form.shopInfo.promptPayQrFirstName}
-                placeholder="เช่น พิพัฒน์"
-                onChange={e => setShopField('promptPayQrFirstName', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-              />
-          </label>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-            <span>นามสกุล</span>
-            <input
-                type="text"
-                value={form.shopInfo.promptPayQrLastName}
-                placeholder="เช่น โภชนา"
-                onChange={e => setShopField('promptPayQrLastName', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-              />
-          </label>
-            </div>
-          </div>
-          <input
-            ref={qrInputRef}
-            id="promptpay-qr-input"
-            type="file"
-            accept="image/*"
-            onChange={e => handlePickQr(e.target.files?.[0])}
-            className="hidden"
-          />
-
-          {form.shopInfo.promptPayQr ? (
-            <div className="flex items-center gap-4">
-              <div>
-                <img
-                  src={resolveImageUrl(form.shopInfo.promptPayQr)}
-                  alt="QR พร้อมเพย์"
-                  className="w-28 h-28 rounded-xl border border-gray-200 object-contain bg-white"
-                />
-                {(form.shopInfo.promptPayQrFirstName || form.shopInfo.promptPayQrLastName) && (
-                  <p className="text-sm text-gray-600 mt-1.5">
-                    {form.shopInfo.promptPayQrFirstName} {form.shopInfo.promptPayQrLastName}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => qrInputRef.current?.click()}
-                  disabled={qrUploading}
-                  className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors"
-                >
-                  {qrUploading ? <Loader2 size={12} className="animate-spin" /> : <QrCode size={12} />}
-                  เปลี่ยนรูป
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShopField('promptPayQr', '')}
-                  className="flex items-center gap-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded-full transition-colors"
-                >
-                  <Trash2 size={12} />
-                  ลบรูป
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => qrInputRef.current?.click()}
-              disabled={qrUploading}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-600 border border-dashed border-gray-300 hover:border-orange-300 rounded-xl px-4 py-6 w-full justify-center transition-colors"
-            >
-              {qrUploading ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />}
-              {qrUploading ? 'กำลังอัปโหลด...' : 'อัปโหลดรูป QR พร้อมเพย์'}
-            </button>
-          )}
-          {qrError && <p className="mt-2 text-xs text-red-500">{qrError}</p>}
         </div>
       </div>
 
@@ -1243,9 +1147,6 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
   const [newCategoryIcon, setNewCategoryIcon] = useState('')
   const [locating, setLocating] = useState(false)
   const [locateError, setLocateError] = useState<string | null>(null)
-  const [qrUploading, setQrUploading] = useState(false)
-  const [qrError, setQrError] = useState<string | null>(null)
-  const qrInputRef = useRef<HTMLInputElement>(null)
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
@@ -1271,24 +1172,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
     setSavedAt(null)
   }
 
-  /** เลือกรูป QR พร้อมเพย์จากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูปเมนู */
-  const handlePickQr = async (file: File | undefined) => {
-    if (!file) return
-    setQrUploading(true)
-    setQrError(null)
-    try {
-      const dataUrl = await pickImageAsDataUrl(file)
-      const url = await onUploadImage('promptpay-qr', dataUrl)
-      setShopField('promptPayQr', url)
-    } catch (err) {
-      setQrError(err instanceof Error ? err.message : 'อัปโหลดรูปไม่สำเร็จ')
-    } finally {
-      setQrUploading(false)
-      if (qrInputRef.current) qrInputRef.current.value = ''
-    }
-  }
-
-  /** เลือกรูปโลโก้ร้านจากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูป QR/เมนู */
+  /** เลือกรูปโลโก้ร้านจากเครื่อง — ย่อขนาดแล้วเก็บเป็น data URL เหมือนรูปเมนู */
   const handlePickLogo = async (file: File | undefined) => {
     if (!file) return
     setLogoUploading(true)
@@ -1531,10 +1415,6 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           setForm={setForm}
           setShopField={setShopField}
           setNumberField={setNumberField}
-          qrInputRef={qrInputRef}
-          handlePickQr={handlePickQr}
-          qrUploading={qrUploading}
-          qrError={qrError}
           showSlipOkKey={showSlipOkKey}
           setShowSlipOkKey={setShowSlipOkKey}
           testingSlipOk={testingSlipOk}

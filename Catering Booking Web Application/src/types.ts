@@ -216,11 +216,6 @@ export interface ShopInfo {
   bankName: string
   bankAccountNumber: string
   bankAccountName: string
-  /** รูป QR พร้อมเพย์ เก็บเป็น data URL (เหมือนรูปเมนู) — ใช้เป็น fallback ถ้ายังไม่ได้กรอก promptPayId */
-  promptPayQr: string
-  /** ชื่อ-นามสกุลเจ้าของ QR พร้อมเพย์สำรอง (รูปที่อัปโหลด) — แสดงกำกับใต้รูป QR ให้ลูกค้าเช็คก่อนโอนได้ */
-  promptPayQrFirstName: string
-  promptPayQrLastName: string
   /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ตที่ผูกกับพร้อมเพย์ — มีแล้วระบบสร้าง QR ฝังยอดเงินให้อัตโนมัติต่อใบจอง (ดู PromptPayQr.tsx) */
   promptPayId: string
   /** ชื่อ-นามสกุลเจ้าของเลขพร้อมเพย์ด้านบน — แสดงกำกับใต้ QR ที่ระบบสร้างอัตโนมัติ ให้ลูกค้าเช็คก่อนโอนได้ */

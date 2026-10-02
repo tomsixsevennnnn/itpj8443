@@ -115,8 +115,10 @@ export class UsersService {
 
   /** ตัวตน+ร้านของผู้เรียก resolve จาก DB ครั้งเดียว ใช้ต่อใน controller ทุกจุดที่ต้อง scope query ด้วย shopId
    *  (bookings/menus/packages/settings/audit) แทนการเชื่อ JWT claim ที่ไม่มี shopId อยู่แล้วด้วยซ้ำ */
-  async shopContextFor(auth0Sub: string): Promise<ShopContext | null> {
+  async shopContextFor(auth0Sub: string, actingAsCustomer = false): Promise<ShopContext | null> {
     const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { id: true, role: true, shopId: true } })
+    // owner ที่เข้าไปใช้ร้านอื่นในฐานะลูกค้า (header X-Acting-As: customer) — ตัดสิทธิ์/ร้านของ owner ออกทั้งหมดใน request นี้
+    if (user && actingAsCustomer && user.role === Role.OWNER) return { ...user, role: Role.CUSTOMER, shopId: null }
     return user
   }
 

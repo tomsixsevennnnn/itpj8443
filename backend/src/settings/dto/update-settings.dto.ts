@@ -16,9 +16,6 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString() bankName?: string
   @IsOptional() @IsString() bankAccountNumber?: string
   @IsOptional() @IsString() bankAccountName?: string
-  @IsOptional() @IsString() promptPayQr?: string
-  @IsOptional() @IsString() promptPayQrFirstName?: string
-  @IsOptional() @IsString() promptPayQrLastName?: string
   /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — เก็บได้ทั้งมีขีดคั่นหรือไม่มี (promptpay-qr ฝั่ง frontend จะตัดอักขระที่ไม่ใช่ตัวเลขออกเองตอนสร้าง QR) */
   @IsOptional() @IsString() @Matches(/^[0-9-]*$/, { message: 'promptPayId ต้องเป็นตัวเลข (และขีดคั่นได้)' }) promptPayId?: string
   @IsOptional() @IsString() promptPayFirstName?: string

@@ -14,7 +14,7 @@ async function bootstrap() {
   app.useBodyParser('urlencoded', { limit: '10mb', extended: true })
 
   // เสิร์ฟไฟล์รูปที่อัปโหลดผ่าน UploadsService เป็น static asset ตรงๆ เฉพาะประเภทที่ตั้งใจให้สาธารณะเห็นได้
-  // (เมนู/โลโก้/QR/เนื้อหาหน้าเว็บ) — "slips" (สลิปโอนเงิน) ไม่รวมอยู่ในนี้เพราะเป็นข้อมูลอ่อนไหวของลูกค้า
+  // (เมนู/โลโก้/เนื้อหาหน้าเว็บ) — "slips" (สลิปโอนเงิน) ไม่รวมอยู่ในนี้เพราะเป็นข้อมูลอ่อนไหวของลูกค้า
   // ต้อง auth + ตรวจสิทธิ์รายใบจองก่อน อ่านผ่าน GET /bookings/:id/payment-slip เท่านั้น (ดู bookings.controller.ts)
   for (const kind of UPLOAD_KINDS) {
     if (kind === 'slips') continue

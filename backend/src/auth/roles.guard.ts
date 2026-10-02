@@ -29,7 +29,8 @@ export class RolesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest()
     const sub = request.user?.sub as string | undefined
-    const role = await this.roleFor(sub)
+    const dbRole = await this.roleFor(sub)
+    const role: AppRole = dbRole === 'owner' && request.user?.actingAsCustomer === true ? 'customer' : dbRole
     if (!required.includes(role)) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลนี้')
     return true
   }

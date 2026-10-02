@@ -199,7 +199,7 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 | หมวด | ฟิลด์ | หมายเหตุ |
 |---|---|---|
 | ข้อมูลร้าน | `shopInfo.{name,nameEn,initials,address,phone,line,logo,loginTagline}` | `logo` เป็น data URL, ใช้แทนไอคอน ChefHat เริ่มต้นทุกจุด (Navbar, OwnerLayout, Login) |
-| การเงิน | `depositRate`, `bankName/bankAccountNumber/bankAccountName/promptPayQr` | |
+| การเงิน | `depositRate`, `bankName/bankAccountNumber/bankAccountName/promptPayId` | |
 | พื้นที่บริการ | `homeProvince`, `metroProvinces[]`, `deliveryFee`, `freeDeliveryMinTables`, `shopLocation`, `fuelCostPerKm` | ตัดสินโซน home/metro/outside จากคำที่อยู่ใน `homeProvince`/`metroProvinces` |
 | ธีม | `brandColor` (hex) | override CSS variable ของ Tailwind ทั้งแอปที่ runtime ไม่ต้องแก้โค้ด/rebuild |
 | ค่าแรง/กำลังคน (owner เท่านั้น) | `wageChef/wageAssistant/wageServerPerTable/wageDishwasher`, `tablesPerServer/tablesPerSupport/staffRemainderThreshold` | สูตรคำนวณพนักงานอิงค่าพวกนี้ |

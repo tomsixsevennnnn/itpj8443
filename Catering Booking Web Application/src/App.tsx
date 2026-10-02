@@ -32,6 +32,7 @@ import { DEFAULT_NOTIF_SEEN_AT, unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
 import {
   api,
+  setActingAsCustomer,
   type BackendUser,
   type CreatePackageInput,
   type ShopAdmin,
@@ -327,6 +328,16 @@ function handleLoadAppDataError(
   setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
 }
 
+/** owner ที่เลือก (เข้า URL/หน้า login) ร้านอื่นที่ไม่ใช่ร้านตัวเอง = ใช้งานร้านนั้นในฐานะลูกค้า ไม่ใช่ owner —
+ *  แปลง role/shop เป็น CUSTOMER ฝั่งนี้ทั้งหมด (หน้าจอ/ข้อมูลที่โหลดเดินตาม flow ลูกค้าปกติ) แล้วบอก backend ผ่าน header
+ *  X-Acting-As ให้ลดสิทธิ์ owner ใน request ด้วย (ดู api.setActingAsCustomer) owner ที่เลือกร้านตัวเอง/ยังไม่ได้เลือกร้านเลย
+ *  ยังเป็น owner ตามเดิม */
+function asCustomerOfOtherShop(me: BackendUser, selectedShopId: string | null): BackendUser {
+  const actingAsCustomer = me.role === 'OWNER' && selectedShopId !== null && selectedShopId !== me.shopId
+  setActingAsCustomer(actingAsCustomer)
+  return actingAsCustomer ? { ...me, role: 'CUSTOMER', shopId: null, shop: null } : me
+}
+
 /** โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน
  *  (คัดลอกตรรกะเดิมมาตรงๆ ไม่เปลี่ยนพฤติกรรม) ดู useEffect ที่เรียกใช้ใน App สำหรับคำอธิบายเงื่อนไข role ต่างๆ */
 async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
@@ -344,12 +355,13 @@ async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
   try {
     const token = await getAccessTokenSilently()
     // access token ไม่มี name/email/picture ให้ (มีแค่ role claim) — ส่งจาก ID token ฝั่งนี้แทน
-    const me = await api.syncProfile(token, {
+    const syncedUser = await api.syncProfile(token, {
       name: auth0User?.given_name || auth0User?.name?.split(' ')[0] || 'ผู้ใช้',
       surname: auth0User?.family_name || auth0User?.name?.split(' ').slice(1).join(' ') || '',
       email: auth0User?.email ?? '',
       avatar: auth0User?.picture ?? '',
     })
+    const me = asCustomerOfOtherShop(syncedUser, selectedShopId)
     if (isCancelled()) return
     setBackendUser(me)
 

@@ -1,5 +1,4 @@
 import type { Booking, ShopInfo } from '../types'
-import { resolveImageUrl } from '../api'
 import PromptPayQr from './PromptPayQr'
 import {
   DEFAULT_BOOKING_TERMS,
@@ -213,7 +212,7 @@ export default function BookingDocument({
       </div>
 
       {/* ข้อมูลการโอนเงิน */}
-      {(shopInfo.bankAccountNumber || shopInfo.promptPayQr || shopInfo.promptPayId) && (
+      {(shopInfo.bankAccountNumber || shopInfo.promptPayId) && (
         <div className="bg-gray-50 rounded-xl p-4 mb-5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">ช่องทางการโอนเงิน</p>
           <div className="flex flex-wrap items-center gap-4">
@@ -237,20 +236,6 @@ export default function BookingDocument({
                 {(shopInfo.promptPayFirstName || shopInfo.promptPayLastName) && (
                   <p className="text-xs text-gray-600 mt-1">
                     {shopInfo.promptPayFirstName} {shopInfo.promptPayLastName}
-                  </p>
-                )}
-              </div>
-            )}
-            {!shopInfo.promptPayId && shopInfo.promptPayQr && (
-              <div className="flex-shrink-0 text-center">
-                <img
-                  src={resolveImageUrl(shopInfo.promptPayQr)}
-                  alt="QR พร้อมเพย์"
-                  className="w-28 h-28 rounded-lg border border-gray-200 object-contain bg-white"
-                />
-                {(shopInfo.promptPayQrFirstName || shopInfo.promptPayQrLastName) && (
-                  <p className="text-xs text-gray-600 mt-1">
-                    {shopInfo.promptPayQrFirstName} {shopInfo.promptPayQrLastName}
                   </p>
                 )}
               </div>

@@ -7,7 +7,7 @@ import { UploadDataUrlDto } from './dto/upload-data-url.dto'
 import { UploadsService } from './uploads.service'
 
 /**
- * เก็บรูปเป็นไฟล์บน disk แทนการฝัง base64 ตรงใน MenuItem.image / Settings.shopLogo / Settings.promptPayQr /
+ * เก็บรูปเป็นไฟล์บน disk แทนการฝัง base64 ตรงใน MenuItem.image / Settings.shopLogo /
  * Booking.paymentSlipUrl — endpoint คืนแค่ path สั้นๆ ให้เอาไปเก็บในฟิลด์เหล่านั้นแทน
  *
  * จำกัด 10 ครั้ง/นาที/ผู้ใช้ ต่างหากจาก default 60 ของทั้งแอป — endpoint นี้เขียนไฟล์ลง disk จริง (ไม่ใช่แค่
@@ -23,12 +23,6 @@ export class UploadsController {
   @Roles('owner')
   async uploadMenuImage(@Body() dto: UploadDataUrlDto) {
     return { url: await this.uploads.saveDataUrl('menus', dto.dataUrl) }
-  }
-
-  @Post('promptpay-qr')
-  @Roles('owner')
-  async uploadPromptPayQr(@Body() dto: UploadDataUrlDto) {
-    return { url: await this.uploads.saveDataUrl('qr', dto.dataUrl) }
   }
 
   @Post('shop-logo')

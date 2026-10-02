@@ -15,7 +15,7 @@ const makeService = () => {
   return { service: new SettingsService(prisma, audit, uploads), prisma, audit, uploads }
 }
 
-const BASE_ROW = { id: 1, shopLogo: '', promptPayQr: '', wageChef: 1200, depositRate: 0.5 }
+const BASE_ROW = { id: 1, shopLogo: '', wageChef: 1200, depositRate: 0.5 }
 
 describe('SettingsService', () => {
   it('get: isOwner=false ตัดฟิลด์ต้นทุนภายใน (ค่าแรง) ออกจาก response', async () => {
@@ -135,7 +135,7 @@ describe('SettingsService', () => {
     expect(uploads.deleteManagedFile).toHaveBeenCalledWith('/uploads/logo/old.png')
   })
 
-  it('update: ไม่แตะโลโก้/QR เลย — ไม่ลบไฟล์ใดๆ', async () => {
+  it('update: ไม่แตะโลโก้เลย — ไม่ลบไฟล์ใดๆ', async () => {
     const { service, prisma, uploads } = makeService()
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, shopLogo: '/uploads/logo/old.png' })
     prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopLogo: '/uploads/logo/old.png', shopName: 'ใหม่' })

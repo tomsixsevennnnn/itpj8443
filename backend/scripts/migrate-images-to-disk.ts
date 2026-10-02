@@ -3,7 +3,7 @@
  * UploadsService แทน (ดู backend/src/uploads) แล้วเขียน path สั้นๆ กลับลง DB แทนค่า data URL เดิม
  *
  * รันครั้งเดียวตอน migrate ข้อมูลเก่าที่ยังฝัง base64 อยู่ใน MenuItem.image / Settings.shopLogo /
- * Settings.promptPayQr / Booking.paymentSlipUrl / Settings.homeContent (heroImage/gallery) — ข้อมูลที่สร้างใหม่
+ * Booking.paymentSlipUrl / Settings.homeContent (heroImage/gallery) — ข้อมูลที่สร้างใหม่
  * หลังจากนี้ผ่าน UploadsController อยู่แล้วจึงเป็นไฟล์ไม่ใช่ data URL ตั้งแต่ต้น ไม่ต้องรันซ้ำ
  *
  * รัน: pnpm --filter backend exec ts-node scripts/migrate-images-to-disk.ts
@@ -43,11 +43,6 @@ async function migrateSettings() {
     console.log('Settings.shopLogo: แปลง')
     data.shopLogo = await migrateField('logo', settings.shopLogo)
   }
-  if (isDataUrl(settings.promptPayQr)) {
-    console.log('Settings.promptPayQr: แปลง')
-    data.promptPayQr = await migrateField('qr', settings.promptPayQr)
-  }
-
   const homeContent = settings.homeContent as { heroImage?: string; gallery?: string[] } | null
   if (homeContent) {
     let changed = false

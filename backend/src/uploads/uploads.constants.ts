@@ -4,9 +4,9 @@ import { join } from 'node:path'
  * (ไม่งั้นไฟล์จะหายทุกครั้งที่ redeploy เพราะ container filesystem เป็น ephemeral) */
 export const UPLOADS_DIR = process.env.UPLOADS_DIR ?? join(process.cwd(), 'uploads')
 
-export type UploadKind = 'menus' | 'qr' | 'slips' | 'logo' | 'content'
+export type UploadKind = 'menus' | 'slips' | 'logo' | 'content'
 
-export const UPLOAD_KINDS: UploadKind[] = ['menus', 'qr', 'slips', 'logo', 'content']
+export const UPLOAD_KINDS: UploadKind[] = ['menus', 'slips', 'logo', 'content']
 
 /** ต้องตรงกับ MAX_UPLOAD_BYTES ฝั่ง frontend (src/imageUpload.ts) — กันไฟล์ที่ย่อแล้วยังใหญ่ผิดปกติหลุดมาถึง disk */
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024
