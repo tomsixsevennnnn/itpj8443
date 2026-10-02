@@ -6,14 +6,16 @@ const makeService = () => {
   const prisma = {
     settings: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     // ร้านมีอยู่จริงเป็นค่าเริ่มต้นในทุกเทส — เทสที่ต้องการเคส "ไม่พบร้าน" ค่อย mockResolvedValue(null) ทับเอง
-    shop: { findUnique: jest.fn().mockResolvedValue({ id: 'shop1' }) },
+    shop: { findUnique: jest.fn().mockResolvedValue({ id: 'shop1' }), update: jest.fn() },
+    // $transaction แบบ callback — เรียก callback ด้วย prisma ตัวเดียวกันเลย (ไม่ต้อง mock tx แยก)
+    $transaction: jest.fn((fn: any) => fn(prisma)),
   } as any
   const audit = { log: jest.fn() } as any
   const uploads = { deleteManagedFile: jest.fn(), makeThumbnailDataUrl: jest.fn().mockResolvedValue(null) } as any
   return { service: new SettingsService(prisma, audit, uploads), prisma, audit, uploads }
 }
 
-const BASE_ROW = { id: 1, shopLogo: '', promptPayQr: '', wageChef: 1200 }
+const BASE_ROW = { id: 1, shopLogo: '', promptPayQr: '', wageChef: 1200, depositRate: 0.5 }
 
 describe('SettingsService', () => {
   it('get: isOwner=false ตัดฟิลด์ต้นทุนภายใน (ค่าแรง) ออกจาก response', async () => {
@@ -46,7 +48,7 @@ describe('SettingsService', () => {
     const { service, prisma } = makeService()
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, slipOkApiKey: 'key1', slipOkBranchId: 'branch1' })
 
-    await expect(service.getSlipOkConfig('shop1')).resolves.toEqual({ apiKey: 'key1', branchId: 'branch1' })
+    await expect(service.getSlipOkConfig('shop1')).resolves.toEqual({ apiKey: 'key1', branchId: 'branch1', depositRate: 0.5 })
   })
 
   it('get: isOwner=true คืนทุกฟิลด์รวมค่าแรง', async () => {
@@ -207,5 +209,25 @@ describe('SettingsService', () => {
     await service.update('shop1', { shopName: 'ใหม่' } as any, 'auth0|owner')
 
     expect(uploads.deleteManagedFile).not.toHaveBeenCalled()
+  })
+
+  it('update: owner แก้ชื่อร้าน (shopName) — ซิงค์ไปที่ Shop.name ที่ super admin เห็นด้วย', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, shopName: 'เดิม' })
+    prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopName: 'ใหม่' })
+
+    await service.update('shop1', { shopName: 'ใหม่' } as any, 'auth0|owner')
+
+    expect(prisma.shop.update).toHaveBeenCalledWith({ where: { id: 'shop1' }, data: { name: 'ใหม่' } })
+  })
+
+  it('update: ไม่ได้แก้ชื่อร้าน — ไม่ไปแตะ Shop.name', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, shopName: 'เดิม' })
+    prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopLogo: '/x.png' })
+
+    await service.update('shop1', { shopLogo: '/x.png' } as any, 'auth0|owner')
+
+    expect(prisma.shop.update).not.toHaveBeenCalled()
   })
 })

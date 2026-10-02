@@ -246,7 +246,8 @@ export class BookingsService {
           fileBuffer: file.buffer,
           filename: file.filename,
           mimeType: file.mimeType,
-          expectedAmount: booking.totalPrice,
+          // ลูกค้าโอนแค่ค่ามัดจำ ไม่ใช่ totalPrice เต็มจำนวน (สูตรต้องตรงกับ bookingPricing() ฝั่ง frontend)
+          expectedAmount: Math.round(booking.totalPrice * slipOk.depositRate),
         })
       }
     }

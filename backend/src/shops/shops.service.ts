@@ -116,7 +116,14 @@ export class ShopsService {
       if (taken && taken.id !== id) throw new ConflictException(`path "/${slug}" มีร้านอื่นใช้อยู่แล้ว ลองตั้งชื่ออื่น`)
     }
 
-    const after = await this.prisma.shop.update({ where: { id }, data: { name: dto.name, slug } })
+    const after = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.shop.update({ where: { id }, data: { name: dto.name, slug } })
+      // ชื่อร้านที่ super admin แก้ ต้องซิงค์กับ Settings.shopName ที่ owner เห็น/แก้ในหน้าตั้งค่า กันสองหน้าโชว์ชื่อไม่ตรงกัน
+      if (dto.name !== undefined && dto.name !== before.name) {
+        await tx.settings.update({ where: { shopId: id }, data: { shopName: dto.name, version: { increment: 1 } } })
+      }
+      return updated
+    })
     await this.audit.log(editorAuth0Sub, 'shop.update', 'Shop', id, before, after, id)
     return after
   }

@@ -125,11 +125,12 @@ export class SettingsService {
     }
   }
 
-  /** ให้ BookingsService เรียกตอนลูกค้าอัปโหลดสลิป — คืน null ถ้าร้านนี้ยังไม่ได้ตั้งค่า SlipOK ไว้ (ไม่บังคับ) */
-  async getSlipOkConfig(shopId: string): Promise<{ apiKey: string; branchId: string } | null> {
+  /** ให้ BookingsService เรียกตอนลูกค้าอัปโหลดสลิป — คืน null ถ้าร้านนี้ยังไม่ได้ตั้งค่า SlipOK ไว้ (ไม่บังคับ)
+   *  แนบ depositRate มาด้วยเพื่อคำนวณยอดที่คาดว่าจะได้รับ — ลูกค้าโอนแค่ค่ามัดจำ ไม่ใช่ totalPrice เต็มจำนวน */
+  async getSlipOkConfig(shopId: string): Promise<{ apiKey: string; branchId: string; depositRate: number } | null> {
     const settings = await this.getRaw(shopId)
     if (!settings.slipOkApiKey || !settings.slipOkBranchId) return null
-    return { apiKey: settings.slipOkApiKey, branchId: settings.slipOkBranchId }
+    return { apiKey: settings.slipOkApiKey, branchId: settings.slipOkBranchId, depositRate: settings.depositRate }
   }
 
   /** เปลี่ยนโลโก้ร้าน/QR พร้อมเพย์ — ไฟล์เก่ากำลังจะถูกลบทิ้งกัน orphan สะสมบน disk แต่ประวัติการแก้ไข (audit log)
@@ -170,9 +171,16 @@ export class SettingsService {
 
     let after: Settings
     try {
-      after = await this.prisma.settings.update({
-        where: { id_version: { id: before.id, version: expectedVersion } },
-        data: { ...patch, version: { increment: 1 }, lastEditedBy: editorAuth0Sub } as any,
+      after = await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.settings.update({
+          where: { id_version: { id: before.id, version: expectedVersion } },
+          data: { ...patch, version: { increment: 1 }, lastEditedBy: editorAuth0Sub } as any,
+        })
+        // ชื่อร้านภาษาไทยที่ owner แก้ในหน้าตั้งค่า ต้องซิงค์กับ Shop.name ที่ super admin เห็น กันสองหน้าโชว์ชื่อไม่ตรงกัน
+        if (patch.shopName !== undefined && patch.shopName !== before.shopName) {
+          await tx.shop.update({ where: { id: shopId }, data: { name: patch.shopName } })
+        }
+        return updated
       })
     } catch (err) {
       // P2025 = ไม่พบแถวที่ตรงเงื่อนไข where (id, version) — แปลว่ามีคนแก้ไปแล้วก่อนหน้านี้ (version ไม่ตรงที่ client ถืออยู่)
