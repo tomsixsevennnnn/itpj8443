@@ -26,7 +26,7 @@ export default function SelectTable({ tables, onSetTables, date, timeSlot, deliv
     <div className="min-h-screen bg-gray-50">
       <Navbar currentScreen="select-table" />
 
-      <div className="pt-24 pb-12 max-w-2xl mx-auto px-4">
+      <div className="pt-[8.5rem] md:pt-24 pb-12 max-w-2xl mx-auto px-4">
         <div className="mb-8">
           <p className="text-orange-500 font-semibold text-sm mb-1">ขั้นตอนที่ 2</p>
           <h1 className="text-2xl font-bold text-gray-900">เลือกจำนวนโต๊ะ</h1>

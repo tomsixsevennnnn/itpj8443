@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { Role, type User } from '@prisma/client'
+import { Role, type Shop, type User } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
+import { resolveShopContext, type ShopContext } from '../auth/shop-context'
 import { PrismaService } from '../prisma/prisma.service'
 import { SyncProfileDto } from './dto/sync-profile.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
@@ -14,11 +15,27 @@ interface Auth0Profile {
   avatar?: string
 }
 
-/** ผู้ใช้ที่กำลังยิง request มา — ใช้ตัดสินว่าแก้/ดูข้อมูลร้านไหนได้บ้าง (ดู shopContextFor) */
-export interface ShopContext {
-  id: string
-  role: Role
-  shopId: string | null
+export type { ShopContext }
+
+/** ร้านที่เป็น owner อยู่ พร้อมข้อมูลร้านสั้นๆ — frontend ใช้เลือกว่าร้านที่เปิดอยู่เป็น owner หรือลูกค้า (ดู App.tsx) */
+const MEMBERSHIPS_INCLUDE = {
+  memberships: {
+    orderBy: { createdAt: 'asc' as const },
+    select: { shopId: true, shop: { select: { id: true, name: true, slug: true } } },
+  },
+}
+
+type UserWithMemberships = User & { memberships: { shopId: string; shop: Pick<Shop, 'id' | 'name' | 'slug'> }[] }
+
+/**
+ * มุมมองผู้ใช้สำหรับหน้า "สิทธิ์การเข้าถึง"/ค้นหา — role = OWNER ถ้าเป็น owner ของร้าน scopeShopId (ไม่ระบุ = ร้านไหนก็ได้)
+ * SUPER_ADMIN คงเดิม shopId/shop = ร้านที่ match (ถ้ามี) หน้าจอเดิมใช้ shape นี้อยู่แล้วจึงคงรูปเดิมไว้ ไม่ให้หน้าจอพัง
+ */
+function toRoleView(user: UserWithMemberships, scopeShopId?: string | null) {
+  const { memberships, ...rest } = user
+  const member = scopeShopId ? memberships.find((m) => m.shopId === scopeShopId) : memberships[0]
+  if (user.role === Role.SUPER_ADMIN || !member) return { ...rest, shopId: null, shop: null }
+  return { ...rest, role: Role.OWNER, shopId: member.shopId, shop: member.shop }
 }
 
 /** อีเมลที่กำหนดไว้ล่วงหน้าให้เป็น SUPER_ADMIN ทันทีที่ login/sync ครั้งแรก (bootstrap คนแรกของระบบ — หลังจากนั้น
@@ -65,8 +82,8 @@ export class UsersService {
    * หลักกว่าค่าจาก Google เดิม syncProfile เขียนทับ name/surname ทุกครั้งที่ login ทำให้ชื่อที่แก้ไว้หายกลับไปเป็น
    * ของ Google ทุกครั้ง — email/avatar ยังคง sync ทับได้ทุกครั้งเพราะไม่มีจุดให้ผู้ใช้แก้เอง (มาจาก Google อย่างเดียว)
    */
-  /** include shop เสมอ (แม้ role อื่นจะได้ null) — frontend ใช้ shop.slug ของ owner ปรับ URL ให้ตรงร้านหลัง login
-   *  (ดู App.tsx) ไม่ต้องยิง request แยกอีกรอบแค่เพื่อเอา slug */
+  /** include memberships (ร้านที่เป็น owner อยู่ พร้อม slug) เสมอ — frontend ใช้เลือกว่าร้านที่เปิดอยู่เป็น owner หรือลูกค้า
+   *  และปรับ URL ให้ตรงร้านหลัง login (ดู App.tsx) ไม่ต้องยิง request แยกอีกรอบ */
   async syncProfile(auth0Sub: string, role: Role, dto: SyncProfileDto) {
     const existing = await this.prisma.user.findUnique({ where: { auth0Sub } })
     if (!existing) {
@@ -83,7 +100,7 @@ export class UsersService {
           email: dto.email,
           avatar: dto.avatar ?? '',
         },
-        include: { shop: true },
+        include: MEMBERSHIPS_INCLUDE,
       })
     }
     return this.prisma.user.update({
@@ -94,100 +111,98 @@ export class UsersService {
         ...(existing.name ? {} : { name: dto.name }),
         ...(existing.surname ? {} : { surname: dto.surname ?? '' }),
       },
-      include: { shop: true },
+      include: MEMBERSHIPS_INCLUDE,
     })
   }
 
   updateProfile(auth0Sub: string, dto: UpdateProfileDto) {
-    return this.prisma.user.update({ where: { auth0Sub }, data: dto })
+    return this.prisma.user.update({ where: { auth0Sub }, data: dto, include: MEMBERSHIPS_INCLUDE })
   }
 
-  /** ตรวจ role จาก DB ล้วนๆ — ใช้แทนการเชื่อ JWT role claim ตรงๆ ในทุก controller (กัน token เก่า/ปลอมอ้าง role ผิด) */
-  async isOwner(auth0Sub: string): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { role: true } })
-    return user?.role === Role.OWNER
-  }
-
-  async isSuperAdmin(auth0Sub: string): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { role: true } })
-    return user?.role === Role.SUPER_ADMIN
-  }
-
-  /** ตัวตน+ร้านของผู้เรียก resolve จาก DB ครั้งเดียว ใช้ต่อใน controller ทุกจุดที่ต้อง scope query ด้วย shopId
-   *  (bookings/menus/packages/settings/audit) แทนการเชื่อ JWT claim ที่ไม่มี shopId อยู่แล้วด้วยซ้ำ */
-  async shopContextFor(auth0Sub: string, actingAsCustomer = false): Promise<ShopContext | null> {
-    const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { id: true, role: true, shopId: true } })
-    // owner ที่เข้าไปใช้ร้านอื่นในฐานะลูกค้า (header X-Acting-As: customer) — ตัดสิทธิ์/ร้านของ owner ออกทั้งหมดใน request นี้
-    if (user && actingAsCustomer && user.role === Role.OWNER) return { ...user, role: Role.CUSTOMER, shopId: null }
-    return user
+  /** ตัวตน+บทบาทในร้านที่ request นี้เปิดอยู่ (requestedShopId จาก header X-Shop-Id) resolve จาก DB ครั้งเดียว ใช้ต่อใน
+   *  controller ทุกจุดที่ต้อง scope query ด้วย shopId (bookings/menus/packages/settings/audit) — ดู resolveShopContext */
+  shopContextFor(auth0Sub: string, requestedShopId?: string | null): Promise<ShopContext | null> {
+    return resolveShopContext(this.prisma, auth0Sub, requestedShopId)
   }
 
   /** ค้นหา user ที่เคย login เข้าระบบมาแล้ว (มีแถวใน DB) ด้วยอีเมล ไม่ต้องพิมพ์ครบ — ใช้ทั้งหน้า "สิทธิ์การเข้าถึง"
-   *  ของ owner (หา staff มาเชิญเข้าร้านตัวเอง) และหน้า super admin (หา owner คนแรกตอนสร้างร้านใหม่) */
-  searchByEmail(email: string) {
-    return this.prisma.user.findMany({
+   *  ของ owner (หา staff มาเชิญเข้าร้านตัวเอง — scopeShopId = ร้านของ owner คนนั้น) และหน้า super admin
+   *  (หา owner คนแรกตอนสร้างร้านใหม่ — ไม่ส่ง scopeShopId) */
+  async searchByEmail(email: string, scopeShopId?: string | null) {
+    const users = await this.prisma.user.findMany({
       where: { email: { contains: email, mode: 'insensitive' } },
       orderBy: { createdAt: 'desc' },
       take: 20,
+      include: MEMBERSHIPS_INCLUDE,
     })
+    return users.map((u) => toRoleView(u, scopeShopId))
   }
 
   /** owner ทั้งหมดของร้านเดียว — ใช้ในหน้า "สิทธิ์การเข้าถึง" ของ owner (เห็นแค่ร้านตัวเอง) */
-  listOwnersForShop(shopId: string) {
-    return this.prisma.user.findMany({ where: { role: Role.OWNER, shopId }, orderBy: { createdAt: 'asc' } })
+  async listOwnersForShop(shopId: string) {
+    const members = await this.prisma.shopMember.findMany({
+      where: { shopId },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { include: MEMBERSHIPS_INCLUDE } },
+    })
+    return members.map((m) => toRoleView(m.user, shopId))
   }
 
-  /** owner ทั้งหมดข้ามทุกร้าน — เฉพาะ super admin เห็นได้ (หน้าจัดการร้าน/บัญชีระดับระบบ) */
-  listAllOwners() {
-    return this.prisma.user.findMany({ where: { role: Role.OWNER }, orderBy: { createdAt: 'asc' }, include: { shop: true } })
+  /** owner ทั้งหมดข้ามทุกร้าน (1 แถวต่อ 1 สมาชิกภาพ — คนเดียวเป็น owner หลายร้านจะโผล่หลายแถว) เฉพาะ super admin เห็นได้ */
+  async listAllOwners() {
+    const members = await this.prisma.shopMember.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: { user: { include: MEMBERSHIPS_INCLUDE } },
+    })
+    return members.map((m) => toRoleView(m.user, m.shopId))
   }
 
   /**
    * เลื่อน/ถอดสิทธิ์ผู้ใช้ — ขอบเขตขึ้นกับว่าใครเป็นคนแก้ (editor):
-   *  - OWNER แก้ได้แค่ CUSTOMER↔OWNER "ในร้านตัวเอง" เท่านั้น (promote = ผูก shopId ให้เป็นร้านตัวเอง,
-   *    demote = ต้องเป็น owner ร้านเดียวกันอยู่แล้ว แล้วเคลียร์ shopId ทิ้ง) แตะ SUPER_ADMIN หรือร้านอื่นไม่ได้เลย
+   *  - OWNER แก้ได้แค่ CUSTOMER↔OWNER "ในร้านตัวเอง" เท่านั้น (promote = เพิ่ม ShopMember ของร้านตัวเอง,
+   *    demote = ลบ ShopMember ร้านตัวเอง ต้องเหลือ owner อย่างน้อย 1 คน) แตะ SUPER_ADMIN หรือร้านอื่นไม่ได้เลย
+   *    คนที่เป็น owner ร้านอื่นอยู่แล้วเลื่อนเป็น owner ร้านนี้เพิ่มได้ (1 คนเป็น owner ได้หลายร้าน)
    *  - SUPER_ADMIN แก้ได้แค่ CUSTOMER↔SUPER_ADMIN เท่านั้น — จะตั้งใครเป็น OWNER ต้องผ่าน ShopsService
-   *    (createShop/addOwner) เพราะ OWNER ต้องมี shopId คู่กันเสมอ ตั้งผ่าน endpoint นี้ตรงๆ ไม่ได้
+   *    (createShop/addOwner) เพราะ OWNER ต้องผูกกับร้านใดร้านหนึ่งเสมอ ตั้งผ่าน endpoint นี้ตรงๆ ไม่ได้
    */
-  /** ขอบเขตของ OWNER ที่แก้ role คนอื่น (แยกออกมาจาก setRole กันฟังก์ชันหลักซับซ้อนเกิน) — throw
-   *  BadRequestException ถ้าทำไม่ได้ ไม่มีอะไรคืนถ้าผ่านหมด */
-  private async assertOwnerCanSetRole(editor: ShopContext, target: User, role: Role): Promise<void> {
+  private async setRoleAsOwner(editor: ShopContext, target: UserWithMemberships, role: Role) {
+    const shopId = editor.shopId as string
     if (role === Role.SUPER_ADMIN || target.role === Role.SUPER_ADMIN) {
       throw new BadRequestException('ไม่มีสิทธิ์แก้ไขบัญชีระดับ super admin')
     }
-    if (role === Role.OWNER && target.role !== Role.CUSTOMER) {
-      throw new BadRequestException('เลื่อนสิทธิ์ได้เฉพาะบัญชีลูกค้าเท่านั้น')
-    }
-    if (target.role === Role.OWNER && target.shopId !== editor.shopId) {
-      throw new BadRequestException('ไม่มีสิทธิ์แก้ไขผู้ใช้ร้านอื่น')
-    }
-    if (target.role === Role.OWNER && role === Role.CUSTOMER) {
-      const ownerCount = await this.prisma.user.count({ where: { role: Role.OWNER, shopId: editor.shopId } })
+    const isMember = target.memberships.some((m) => m.shopId === shopId)
+
+    if (role === Role.OWNER) {
+      if (!isMember) await this.prisma.shopMember.create({ data: { userId: target.id, shopId } })
+    } else {
+      if (!isMember) throw new BadRequestException('ผู้ใช้นี้ไม่ใช่เจ้าของร้านนี้')
+      const ownerCount = await this.prisma.shopMember.count({ where: { shopId } })
       if (ownerCount <= 1) throw new BadRequestException('ต้องมีเจ้าของร้านอย่างน้อย 1 คนเสมอ')
+      await this.prisma.shopMember.delete({ where: { userId_shopId: { userId: target.id, shopId } } })
     }
+    return { before: isMember ? Role.OWNER : Role.CUSTOMER, after: role }
   }
 
-  /** ขอบเขตของ SUPER_ADMIN ที่แก้ role คนอื่น */
-  private assertSuperAdminCanSetRole(target: User, role: Role): void {
-    if (role === Role.OWNER || target.role === Role.OWNER) {
+  private async setRoleAsSuperAdmin(target: UserWithMemberships, role: Role) {
+    if (role === Role.OWNER || target.memberships.length > 0) {
       throw new BadRequestException('ตั้ง/ถอดสิทธิ์เจ้าของร้านต้องทำผ่านหน้าจัดการร้าน ไม่ใช่หน้านี้')
     }
+    await this.prisma.user.update({ where: { id: target.id }, data: { role } })
+    return { before: target.role, after: role }
   }
 
   async setRole(id: string, role: Role, editorAuth0Sub: string, editor: ShopContext) {
-    const target = await this.prisma.user.findUnique({ where: { id } })
+    const target = await this.prisma.user.findUnique({ where: { id }, include: MEMBERSHIPS_INCLUDE })
     if (!target) throw new NotFoundException('ไม่พบผู้ใช้นี้')
 
-    if (editor.role === Role.OWNER) await this.assertOwnerCanSetRole(editor, target, role)
-    else if (editor.role === Role.SUPER_ADMIN) this.assertSuperAdminCanSetRole(target, role)
+    let change: { before: Role; after: Role }
+    if (editor.role === Role.OWNER) change = await this.setRoleAsOwner(editor, target, role)
+    else if (editor.role === Role.SUPER_ADMIN) change = await this.setRoleAsSuperAdmin(target, role)
+    else throw new BadRequestException('ไม่มีสิทธิ์เปลี่ยนสิทธิ์ผู้ใช้')
 
-    let shopId: string | null
-    if (editor.role === Role.OWNER && role === Role.OWNER) shopId = editor.shopId
-    else if (role === Role.CUSTOMER) shopId = null
-    else shopId = target.shopId
-    const after = await this.prisma.user.update({ where: { id }, data: { role, shopId } })
-    // เปลี่ยน role กระทบสิทธิ์เข้าถึงโดยตรง — ต้องมี audit log ว่าใครเลื่อน/ถอดสิทธิ์ให้ใครเมื่อไหร่
-    await this.audit.log(editorAuth0Sub, 'user.setRole', 'User', id, { role: target.role }, { role: after.role }, editor.shopId)
-    return after
+    // เปลี่ยนสิทธิ์กระทบการเข้าถึงโดยตรง — ต้องมี audit log ว่าใครเลื่อน/ถอดสิทธิ์ให้ใครเมื่อไหร่
+    await this.audit.log(editorAuth0Sub, 'user.setRole', 'User', id, { role: change.before }, { role: change.after }, editor.shopId)
+    const fresh = await this.prisma.user.findUnique({ where: { id }, include: MEMBERSHIPS_INCLUDE })
+    return toRoleView(fresh ?? target, editor.shopId)
   }
 }

@@ -239,6 +239,35 @@ describe('BookingsService.updatePaymentSlipAsCustomer', () => {
     ).rejects.toThrow('ไม่มีสิทธิ์แก้ไขใบจองนี้')
   })
 
+  it('สลิปเดิมผ่านการตรวจสอบแล้ว (VERIFIED) — ห้ามแนบสลิปใหม่ทับ (ConflictException) ไม่แตะไฟล์/DB', async () => {
+    const { service, prisma, uploads } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({
+      id: 'b1',
+      customerId: 'c1',
+      paymentSlipUrl: '/uploads/slips/old.jpg',
+      paymentSlipVerifyStatus: 'VERIFIED',
+    })
+
+    await expect(service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')).rejects.toThrow(
+      'ไม่สามารถเปลี่ยนสลิปได้',
+    )
+    expect(prisma.booking.update).not.toHaveBeenCalled()
+    expect(uploads.deleteManagedFile).not.toHaveBeenCalled()
+  })
+
+  it('สลิปเดิมตรวจไม่ผ่าน (เช่น ยอดไม่ตรง) — แนบสลิปใหม่ทับได้ตามปกติ', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({
+      id: 'b1',
+      customerId: 'c1',
+      paymentSlipUrl: '/uploads/slips/old.jpg',
+      paymentSlipVerifyStatus: 'AMOUNT_MISMATCH',
+    })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', paymentSlipUrl: '/uploads/slips/new.jpg' })
+
+    await expect(service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')).resolves.toBeDefined()
+  })
+
   it('แนบสลิปใหม่ทับของเดิม — ลบไฟล์สลิปเก่าทิ้ง', async () => {
     const { service, prisma, uploads } = makeService()
     prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', paymentSlipUrl: '/uploads/slips/old.jpg' })

@@ -231,6 +231,11 @@ export class BookingsService {
   async updatePaymentSlipAsCustomer(id: string, customerId: string, paymentSlipUrl: string) {
     const booking = await this.assertExists(id)
     if (booking.customerId !== customerId) throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขใบจองนี้')
+    // สลิปที่ SlipOK ยืนยันแล้ว (ชื่อบัญชีผู้รับและยอดโอนตรงกับใบจอง) ถือว่าชำระมัดจำเรียบร้อย — ห้ามเปลี่ยน กันเอาสลิปอื่น
+    // มาทับหลังผ่านการตรวจแล้ว (เช็คฝั่ง backend ด้วย ไม่ไว้ใจแค่ซ่อนปุ่มฝั่ง frontend เพราะเรียก API ตรงๆ ข้าม UI ได้)
+    if (booking.paymentSlipVerifyStatus === SlipVerifyStatus.VERIFIED) {
+      throw new ConflictException('สลิปนี้ตรวจสอบแล้วว่าชื่อและยอดโอนถูกต้อง ไม่สามารถเปลี่ยนสลิปได้')
+    }
 
     // ตรวจสอบสลิปกับ SlipOK ก่อนบันทึก (ถ้าร้านนี้ตั้งค่าไว้) — ทำก่อน update ให้เสร็จในคำขอเดียว ลูกค้าเห็นผล
     // ตรวจทันทีตอนอัปโหลดเลย ไม่ต้องรอ poll/refresh แยกรอบ อัปโหลดไฟล์เองไม่มีวันล้มเหลวเพราะ SlipOK (ดู

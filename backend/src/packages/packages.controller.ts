@@ -23,7 +23,7 @@ export class PackagesController {
   /** owner ดูแพ็กเกจร้านตัวเอง, ลูกค้าต้องระบุ shopId ของร้านที่กำลังดู (เลือกร้านมาก่อนแล้วจากหน้ารายชื่อร้าน) */
   @Get()
   async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto, @Query('shopId') shopIdQ?: string) {
-    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.actingAsCustomer === true)
+    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     const isOwner = ctx?.role === Role.OWNER
     const shopId = isOwner ? ctx?.shopId : shopIdQ
     if (!shopId) throw new ForbiddenException('ต้องระบุร้านที่ต้องการดูแพ็กเกจ')
@@ -31,7 +31,7 @@ export class PackagesController {
   }
 
   private async ownShopId(jwtUser: Record<string, any>): Promise<string> {
-    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.actingAsCustomer === true)
+    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return ctx.shopId
   }

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useSettingsForm } from './useSettingsForm'
 import {
   ArrowDown,
   ArrowUp,
@@ -1135,10 +1136,10 @@ function CategoriesTab({
 }
 
 export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: Readonly<SettingsProps>) {
-  const [form, setForm] = useState<AppSettings>(settings)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useSettingsForm(settings, saving)
   const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
   const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
   const [newMetroProvince, setNewMetroProvince] = useState('')
   const [newClosedDate, setNewClosedDate] = useState('')
   const [newQuotationTerm, setNewQuotationTerm] = useState('')
@@ -1153,15 +1154,6 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
   const [testingSlipOk, setTestingSlipOk] = useState(false)
   const [slipOkTestResult, setSlipOkTestResult] = useState<{ ok: boolean; quota?: number; message?: string } | null>(null)
   const [showSlipOkKey, setShowSlipOkKey] = useState(false)
-
-  // settings prop เปลี่ยนได้เองจาก polling (คนอื่นแก้ที่เครื่องอื่น) — sync form ตามให้ถ้ายังไม่ได้แก้อะไรค้างไว้
-  // (เทียบกับค่า settings "ก่อนหน้า" ไม่ใช่ค่าล่าสุด กัน false positive ตอนกำลังจะเปลี่ยนพอดี)
-  const prevSettingsRef = useRef(settings)
-  useEffect(() => {
-    const prevSettings = prevSettingsRef.current
-    prevSettingsRef.current = settings
-    setForm(f => (JSON.stringify(f) === JSON.stringify(prevSettings) ? settings : f))
-  }, [settings])
 
   // เทียบด้วยค่าที่ trim whitespace หน้า/หลังแล้ว — กันเผลอเพิ่มช่องว่างท้ายข้อความแล้วนับเป็น "แก้ไข" ทั้งที่เนื้อหา
   // จริงเหมือนเดิม (ไม่งั้นปุ่มติด dirty ทั้งที่ไม่มีอะไรเปลี่ยน แถมขึ้นในประวัติการแก้ไขเป็นการแก้ไขปลอม)

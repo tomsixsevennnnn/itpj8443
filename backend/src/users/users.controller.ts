@@ -18,9 +18,8 @@ export class UsersController {
 
   /**
    * frontend เรียกทันทีหลัง login สำเร็จ — ส่ง profile จาก ID token มาเอง (access token ไม่มี
-   * name/email/picture ให้) ผู้ใช้ใหม่ทุกคนเริ่มเป็น CUSTOMER เสมอ (เดิมเช็ค Auth0 connection claim
-   * ให้เป็น owner อัตโนมัติ — ใช้ไม่ได้อีกต่อไปในระบบ multi-tenant เพราะ OWNER ต้องผูกกับร้านที่ super admin
-   * เป็นคนสร้าง/มอบหมายให้เท่านั้น ดู ShopsService.createShop) ยกเว้นอีเมลใน SUPER_ADMIN_EMAILS ที่ syncProfile
+   * name/email/picture ให้) ผู้ใช้ใหม่ทุกคนเริ่มเป็น CUSTOMER เสมอ (สิทธิ์ owner ต้องมาจาก ShopMember ที่ super admin
+   * สร้าง/มอบหมายให้เท่านั้น ดู ShopsService.createShop) response แนบ memberships (ร้านที่เป็น owner อยู่) ให้ frontend เลือกร้านที่เปิดอยู่ ยกเว้นอีเมลใน SUPER_ADMIN_EMAILS ที่ syncProfile
    * เช็คเองแล้วตั้งเป็น SUPER_ADMIN ให้ตอนสร้างครั้งแรก
    */
   // จำกัดแรงกว่า global default (60/min ที่ app.module.ts) เพราะ endpoint นี้ยิงทุกครั้งที่ login — ไม่ควรมีใคร
@@ -42,8 +41,9 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('owner', 'super_admin')
   @Get('search')
-  search(@Query() query: SearchUsersDto) {
-    return this.users.searchByEmail(query.email)
+  async search(@CurrentUser() jwtUser: Record<string, any>, @Query() query: SearchUsersDto) {
+    const editor = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
+    return this.users.searchByEmail(query.email, editor?.role === Role.OWNER ? editor.shopId : null)
   }
 
   /** owner ทั้งหมด — owner เห็นแค่ร้านตัวเอง, super admin เห็นข้ามทุกร้านพร้อมข้อมูลร้าน */
@@ -51,7 +51,7 @@ export class UsersController {
   @Roles('owner', 'super_admin')
   @Get('owners')
   async owners(@CurrentUser() jwtUser: Record<string, any>) {
-    const editor = await this.users.shopContextFor(jwtUser.sub)
+    const editor = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (editor?.role === Role.SUPER_ADMIN) return this.users.listAllOwners()
     if (!editor?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return this.users.listOwnersForShop(editor.shopId)
@@ -62,7 +62,7 @@ export class UsersController {
   @Roles('owner', 'super_admin')
   @Patch(':id/role')
   async setRole(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: SetRoleDto) {
-    const editor = await this.users.shopContextFor(jwtUser.sub)
+    const editor = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!editor) throw new ForbiddenException('ไม่พบบัญชีผู้เรียก')
     return this.users.setRole(id, dto.role, jwtUser.sub, editor)
   }

@@ -36,13 +36,14 @@ export const appStreamUrl = (token: string): string =>
 
 export type UploadImageKind = 'menu-image' | 'shop-logo' | 'content-image' | 'payment-slip'
 
-/** owner ที่กำลังใช้งานร้านอื่นในฐานะลูกค้า — แนบ header X-Acting-As: customer ให้ backend ลดสิทธิ์ owner เป็นลูกค้า
- *  ใน request นั้น (ดู backend jwt.strategy.ts) ตั้งค่าจาก App ทุกครั้งที่โหลดโปรไฟล์ */
-let actingAsCustomer = false
-export const setActingAsCustomer = (value: boolean): void => {
-  actingAsCustomer = value
+/** ร้านที่กำลังเปิดใช้งานอยู่ — แนบ header X-Shop-Id ทุก request ให้ backend resolve บทบาทในร้านนั้น (owner ของร้านนั้น
+ *  หรือลูกค้า — owner ร้านหนึ่งเป็นลูกค้าของอีกร้านได้ ดู backend auth/shop-context.ts) ตั้งค่าจาก App ทุกครั้งที่โหลดโปรไฟล์
+ *  เป็นแค่ตัวเลือกร้าน สิทธิ์ owner จริงมาจาก ShopMember ใน DB เสมอ */
+let activeShopId: string | null = null
+export const setActiveShopId = (id: string | null): void => {
+  activeShopId = id
 }
-const actingAsHeaders = (): Record<string, string> => (actingAsCustomer ? { 'X-Acting-As': 'customer' } : {})
+const shopHeaders = (): Record<string, string> => (activeShopId ? { 'X-Shop-Id': activeShopId } : {})
 
 async function request<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -50,7 +51,7 @@ async function request<T>(token: string, path: string, init: RequestInit = {}): 
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
-      ...actingAsHeaders(),
+      ...shopHeaders(),
       ...init.headers,
     },
   })
@@ -313,10 +314,13 @@ export interface BackendUser {
   email: string
   avatar: string
   createdAt: string
-  /** ร้านที่ผูกอยู่ — มีค่าเฉพาะ role OWNER เท่านั้น (CUSTOMER/SUPER_ADMIN ไม่ผูกร้านไหนเลย) */
+  /** ร้านที่เป็น owner อยู่ (1 คนเป็น owner ได้หลายร้าน) — มาจาก POST/PATCH /users/me ใช้เลือกว่าร้านที่เปิดอยู่เป็น
+   *  owner หรือลูกค้า (ดู resolveActiveRole ใน App.tsx) role ที่ backend ส่งมาตรงนี้เป็นระดับระบบ (CUSTOMER/SUPER_ADMIN) */
+  memberships?: { shopId: string; shop: Pick<ShopAdmin, 'id' | 'name' | 'slug'> }[]
+  /** ร้านที่กำลังใช้งานเป็น owner — ตั้งโดย resolveActiveRole ฝั่ง frontend เอง (role = OWNER) และในรายการจาก
+   *  GET /users/owners, /users/search (ร้านที่ตรงกับบริบทของรายการนั้น) ไม่ใช่ role ระดับระบบ */
   shopId: string | null
-  /** มีเฉพาะตอน super admin เรียก GET /users/owners (เห็นข้ามทุกร้าน) — owner ที่เห็นแค่ร้านตัวเองไม่มีฟิลด์นี้ */
-  shop?: ShopAdmin | null
+  shop?: (Pick<ShopAdmin, 'id' | 'name' | 'slug'> & Partial<ShopAdmin>) | null
 }
 
 /** ร้านที่ super admin มองเห็น — มีจำนวน owner/booking และยอดขายรวม (ไม่รวมใบจองที่ยกเลิก) กำกับด้วย
@@ -532,7 +536,7 @@ export const api = {
    */
   fetchPaymentSlip: async (token: string, bookingId: string): Promise<string> => {
     const res = await fetch(`${API_BASE}/bookings/${bookingId}/payment-slip`, {
-      headers: { Authorization: `Bearer ${token}`, ...actingAsHeaders() },
+      headers: { Authorization: `Bearer ${token}`, ...shopHeaders() },
     })
     if (!res.ok) throw new Error(`API GET /bookings/${bookingId}/payment-slip -> ${res.status}`)
     const blob = await res.blob()

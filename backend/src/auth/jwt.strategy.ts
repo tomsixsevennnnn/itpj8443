@@ -29,9 +29,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     })
   }
 
-  /** header X-Acting-As: customer = owner ที่กำลังใช้งานในฐานะลูกค้าของร้านอื่น (ดู UsersService.shopContextFor)
-   *  ใช้ได้แค่ "ลดสิทธิ์" เป็น customer เท่านั้น ไม่มีทางยกสิทธิ์ ผู้ใช้ที่ไม่ใช่ owner ส่งมาก็ไม่มีผลอะไร */
+  /** header X-Shop-Id = ร้านที่ผู้ใช้กำลังเปิดอยู่ใน request นี้ (ดู resolveShopContext) เป็นแค่ตัวเลือกร้าน
+   *  สิทธิ์ owner จริงมาจาก ShopMember ใน DB เสมอ ส่ง header ปลอมไปก็ไม่ได้สิทธิ์เพิ่ม */
   validate(req: Request, payload: Record<string, unknown>) {
-    return { ...payload, actingAsCustomer: req.headers['x-acting-as'] === 'customer' }
+    const header = req.headers['x-shop-id']
+    return { ...payload, requestedShopId: typeof header === 'string' && header ? header : undefined }
   }
 }

@@ -30,7 +30,7 @@ export default function Notifications({ bookings, notifSeenAt }: Readonly<Notifi
     <div className="min-h-screen bg-gray-50">
       <Navbar currentScreen="notifications" />
 
-      <div className="pt-24 pb-12 max-w-2xl mx-auto px-4">
+      <div className="pt-[8.5rem] md:pt-24 pb-12 max-w-2xl mx-auto px-4">
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">

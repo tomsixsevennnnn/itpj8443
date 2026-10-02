@@ -14,7 +14,8 @@ const makeService = () => {
 describe('AuditService', () => {
   it('log: บันทึกด้วย actorUserId/actorRole/actorEmail จาก DB ของ auth0Sub นั้น', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.OWNER, email: 'owner@shop.com' })
+    // owner ไม่ได้เก็บ role OWNER บน User แล้ว (อยู่ที่ ShopMember) — บันทึกเป็น OWNER ให้อัตโนมัติถ้าไม่ใช่ super admin
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, email: 'owner@shop.com' })
 
     await service.log('auth0|1', 'menu.delete', 'MenuItem', 'm1', { name: 'เดิม' }, undefined)
 
@@ -74,5 +75,16 @@ describe('AuditService', () => {
 
     expect(prisma.auditLog.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { shopId: 'shop1' } }))
     expect(prisma.auditLog.count).toHaveBeenCalledWith({ where: { shopId: 'shop1' } })
+  })
+
+  it('log: super admin เป็นผู้ทำ — บันทึก actorRole เป็น SUPER_ADMIN', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue({ id: 'sa1', role: Role.SUPER_ADMIN, email: 'boss@x.com' })
+
+    await service.log('auth0|sa', 'shop.create', 'Shop', 's1')
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ actorRole: Role.SUPER_ADMIN }) }),
+    )
   })
 })

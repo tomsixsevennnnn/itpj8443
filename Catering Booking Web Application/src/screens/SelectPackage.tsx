@@ -24,7 +24,7 @@ export default function SelectPackage({ packages, tables, selectedPackageId, onS
     <div className="min-h-screen bg-gray-50">
       <Navbar currentScreen="select-package" />
 
-      <div className="pt-24 pb-12 max-w-5xl mx-auto px-4">
+      <div className="pt-[8.5rem] md:pt-24 pb-12 max-w-5xl mx-auto px-4">
         <div className="text-center mb-10">
           <p className="text-orange-500 font-semibold text-sm mb-1">ขั้นตอนที่ 4</p>
           <h1 className="text-2xl font-bold text-gray-900">เลือกแพ็กเกจอาหาร</h1>

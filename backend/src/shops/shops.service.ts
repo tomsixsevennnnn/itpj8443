@@ -37,7 +37,7 @@ export class ShopsService {
     const [shops, revenueByShop] = await Promise.all([
       this.prisma.shop.findMany({
         orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { owners: true, bookings: true } } },
+        include: { _count: { select: { members: true, bookings: true } } },
       }),
       this.prisma.booking.groupBy({
         by: ['shopId'],
@@ -46,7 +46,12 @@ export class ShopsService {
       }),
     ])
     const revenueMap = new Map(revenueByShop.map((r) => [r.shopId, r._sum.totalPrice ?? 0]))
-    return shops.map((s) => ({ ...s, totalRevenue: revenueMap.get(s.id) ?? 0 }))
+    // หน้า super admin ใช้ _count.owners มาตั้งแต่ก่อนมี ShopMember — แปลงชื่อกลับให้ตรง contract เดิม
+    return shops.map(({ _count, ...s }) => ({
+      ...s,
+      _count: { owners: _count.members, bookings: _count.bookings },
+      totalRevenue: revenueMap.get(s.id) ?? 0,
+    }))
   }
 
   /** ร้านที่เปิดให้บริการอยู่ — ใช้หน้ารายชื่อร้านฝั่งลูกค้า (ไม่ต้อง login) */
@@ -79,8 +84,8 @@ export class ShopsService {
     if (!owner) {
       throw new NotFoundException('ไม่พบผู้ใช้นี้ในระบบ — ต้องให้เจ้าของร้านคนนี้ login เข้าเว็บอย่างน้อย 1 ครั้งก่อน')
     }
-    if (owner.role !== Role.CUSTOMER) {
-      throw new BadRequestException('ผู้ใช้นี้มีบทบาทอื่นอยู่แล้ว (เจ้าของร้านอื่น หรือ super admin) ไม่สามารถตั้งเป็นเจ้าของร้านใหม่ได้')
+    if (owner.role === Role.SUPER_ADMIN) {
+      throw new BadRequestException('ผู้ใช้นี้เป็น super admin ไม่สามารถตั้งเป็นเจ้าของร้านได้')
     }
 
     const baseSlug = slugify(dto.name)
@@ -94,7 +99,7 @@ export class ShopsService {
     const shop = await this.prisma.$transaction(async (tx) => {
       const created = await tx.shop.create({ data: { name: dto.name, slug } })
       await tx.settings.create({ data: { ...DEFAULT_SETTINGS, shopId: created.id, shopName: dto.name } })
-      await tx.user.update({ where: { id: owner.id }, data: { role: Role.OWNER, shopId: created.id } })
+      await tx.shopMember.create({ data: { userId: owner.id, shopId: created.id } })
       return created
     })
 
@@ -137,40 +142,41 @@ export class ShopsService {
     return after
   }
 
-  /** ผูก owner เพิ่มเข้าร้านที่มีอยู่แล้ว (เช่นเพิ่มผู้ช่วยดูแลร้าน) — ผู้ใช้ต้อง login มาก่อนแล้วและยังไม่มีร้านอื่นผูกอยู่ */
+  /** ผูก owner เพิ่มเข้าร้านที่มีอยู่แล้ว (เช่นเพิ่มผู้ช่วยดูแลร้าน) — ผู้ใช้ต้อง login มาก่อนแล้ว เป็น owner ร้านอื่นอยู่แล้วก็ได้
+   *  (1 คนเป็น owner ได้หลายร้าน) แต่ต้องไม่ใช่ owner ร้านนี้อยู่แล้ว */
   async addOwner(shopId: string, email: string, editorAuth0Sub: string) {
     const shop = await this.prisma.shop.findUnique({ where: { id: shopId } })
     if (!shop) throw new NotFoundException('ไม่พบร้านนี้')
 
     const user = await this.prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } })
     if (!user) throw new NotFoundException('ไม่พบผู้ใช้นี้ในระบบ — ต้อง login เข้าเว็บอย่างน้อย 1 ครั้งก่อน')
-    if (user.role !== Role.CUSTOMER) throw new ConflictException('ผู้ใช้นี้มีบทบาทอื่นอยู่แล้ว ไม่สามารถเพิ่มเป็นเจ้าของร้านนี้ได้')
+    if (user.role === Role.SUPER_ADMIN) throw new ConflictException('ผู้ใช้นี้เป็น super admin ไม่สามารถเพิ่มเป็นเจ้าของร้านได้')
+    const existing = await this.prisma.shopMember.findUnique({ where: { userId_shopId: { userId: user.id, shopId } } })
+    if (existing) throw new ConflictException('ผู้ใช้นี้เป็นเจ้าของร้านนี้อยู่แล้ว')
 
-    const after = await this.prisma.user.update({ where: { id: user.id }, data: { role: Role.OWNER, shopId } })
+    await this.prisma.shopMember.create({ data: { userId: user.id, shopId } })
     await this.audit.log(editorAuth0Sub, 'shop.addOwner', 'Shop', shopId, undefined, { userId: user.id, email }, shopId)
-    return after
+    return { ...user, role: Role.OWNER, shopId }
   }
 
-  /** ถอด owner ออกจากร้าน (กลับไปเป็น CUSTOMER ธรรมดา) — super admin เท่านั้น ไม่บังคับต้องเหลือ owner อย่างน้อย
+  /** ถอด owner ออกจากร้านนี้ (ลบ ShopMember — ยังเป็น owner ร้านอื่นและลูกค้าได้ตามปกติ) — super admin เท่านั้น ไม่บังคับต้องเหลือ owner อย่างน้อย
    *  1 คนเหมือนตอน owner ถอดกันเอง (setRole) เพราะ super admin มีสิทธิ์เต็มอยู่แล้ว เพิ่ม owner คนใหม่เข้าไปทีหลังได้เสมอ */
   async removeOwner(shopId: string, userId: string, editorAuth0Sub: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } })
     if (!user) throw new NotFoundException('ไม่พบผู้ใช้นี้')
-    if (user.role !== Role.OWNER || user.shopId !== shopId) {
-      throw new BadRequestException('ผู้ใช้นี้ไม่ใช่เจ้าของร้านนี้')
-    }
+    const member = await this.prisma.shopMember.findUnique({ where: { userId_shopId: { userId, shopId } } })
+    if (!member) throw new BadRequestException('ผู้ใช้นี้ไม่ใช่เจ้าของร้านนี้')
 
-    const after = await this.prisma.user.update({ where: { id: userId }, data: { role: Role.CUSTOMER, shopId: null } })
+    await this.prisma.shopMember.delete({ where: { id: member.id } })
     await this.audit.log(editorAuth0Sub, 'shop.removeOwner', 'Shop', shopId, { userId, email: user.email }, undefined, shopId)
-    return after
+    return user
   }
 
   /**
    * ลบร้านถาวร — ทำลายข้อมูลจริงของร้านนี้ทั้งหมด (booking/เมนู/แพ็กเกจ/settings/audit log ผูก onDelete: Cascade
    * ไว้ที่ Shop อยู่แล้วในระดับ DB) กู้คืนไม่ได้ จึงบังคับให้พิมพ์ชื่อร้านมายืนยันตรงตัวเป๊ะก่อนเสมอ (เช็คซ้ำฝั่ง
-   * backend ด้วย ไม่ไว้ใจแค่ฝั่ง frontend เพราะเรียก API ตรงๆ ข้าม UI ได้อยู่ดี) — owner ของร้านนี้ถูกถอดสิทธิ์กลับ
-   * เป็น CUSTOMER ธรรมดาก่อนลบเสมอ (ไม่งั้นจะเหลือ user ที่ role=OWNER แต่ shopId เป็น null ค้างอยู่ ซึ่งเป็นสถานะ
-   * ที่ระบบไม่ควรมี — ทุกจุดอื่นถือว่า OWNER ต้องมี shopId เสมอ)
+   * backend ด้วย ไม่ไว้ใจแค่ฝั่ง frontend เพราะเรียก API ตรงๆ ข้าม UI ได้อยู่ดี) — ShopMember ของร้านนี้ถูกลบตามไปด้วย
+   * (onDelete: Cascade) บัญชีผู้ใช้ไม่ถูกแตะ
    */
   async deleteShop(id: string, confirmName: string, editorAuth0Sub: string) {
     const shop = await this.prisma.shop.findUnique({ where: { id } })
@@ -179,10 +185,7 @@ export class ShopsService {
       throw new BadRequestException('ข้อความยืนยันไม่ตรงกับชื่อร้าน กรุณาพิมพ์ให้ตรงตัวเป๊ะ')
     }
 
-    await this.prisma.$transaction([
-      this.prisma.user.updateMany({ where: { shopId: id }, data: { role: Role.CUSTOMER, shopId: null } }),
-      this.prisma.shop.delete({ where: { id } }),
-    ])
+    await this.prisma.shop.delete({ where: { id } })
 
     // shopId ต้องเป็น null เท่านั้น (ไม่ใช่ id ร้านที่เพิ่งลบไป) — AuditLog.shopId ผูก onDelete: Cascade กับ Shop
     // ไว้ด้วย ถ้าใส่ id ร้านที่ลบไปแล้ว ประวัติการลบนี้เองจะถูก cascade ลบตามไปทันที ไม่เหลือหลักฐานอะไรเลย

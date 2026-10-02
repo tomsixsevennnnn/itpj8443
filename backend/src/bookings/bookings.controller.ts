@@ -24,7 +24,7 @@ export class BookingsController {
   /** owner เห็นทุกใบจองของร้านตัวเอง, customer เห็นใบจองของตัวเอง (ข้ามทุกร้าน) — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */
   @Get()
   async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
-    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.actingAsCustomer === true)
+    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (ctx?.role === Role.OWNER) {
       if (!ctx.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
       return this.bookings.findAllForOwner(ctx.shopId, query.page, query.limit)
@@ -53,7 +53,7 @@ export class BookingsController {
   @Patch(':id')
   @Roles('owner')
   async updateAsOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdateBookingDto) {
-    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.actingAsCustomer === true)
+    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return this.bookings.updateAsOwner(id, dto, jwtUser.sub, ctx.shopId)
   }
@@ -75,7 +75,7 @@ export class BookingsController {
    */
   @Get(':id/payment-slip')
   async getSlip(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Res() res: Response) {
-    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.actingAsCustomer === true)
+    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     const isOwner = ctx?.role === Role.OWNER
     const requesterId = isOwner ? '' : (await this.syncCustomer(jwtUser)).id
     const path = await this.bookings.getPaymentSlipPath(id, requesterId, isOwner, ctx?.shopId ?? null)

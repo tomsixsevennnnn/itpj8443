@@ -12,7 +12,8 @@ const makeService = () => {
   } as any
   const audit = { log: jest.fn() } as any
   const uploads = { deleteManagedFile: jest.fn(), makeThumbnailDataUrl: jest.fn().mockResolvedValue(null) } as any
-  return { service: new SettingsService(prisma, audit, uploads), prisma, audit, uploads }
+  const realtime = { emitAppChanged: jest.fn() } as any
+  return { service: new SettingsService(prisma, audit, uploads, realtime), prisma, audit, uploads, realtime }
 }
 
 const BASE_ROW = { id: 1, shopLogo: '', wageChef: 1200, depositRate: 0.5 }
@@ -95,6 +96,27 @@ describe('SettingsService', () => {
       { ...BASE_ROW, shopName: 'ใหม่' },
       'shop1',
     )
+  })
+
+  it("update: ชื่อร้านเปลี่ยน — ซิงค์เข้า Shop.name และแจ้ง realtime หัวข้อ 'shop' ให้ super admin เห็นทันที", async () => {
+    const { service, prisma, realtime } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, shopName: 'เดิม' })
+    prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopName: 'ใหม่' })
+
+    await service.update('shop1', { shopName: 'ใหม่' } as any, 'auth0|owner')
+
+    expect(prisma.shop.update).toHaveBeenCalledWith({ where: { id: 'shop1' }, data: { name: 'ใหม่' } })
+    expect(realtime.emitAppChanged).toHaveBeenCalledWith('shop')
+  })
+
+  it("update: ชื่อร้านไม่เปลี่ยน — ไม่แจ้งหัวข้อ 'shop' (ไม่ให้ทุก client โหลดข้อมูลใหม่โดยไม่จำเป็น)", async () => {
+    const { service, prisma, realtime } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, shopName: 'เดิม' })
+    prisma.settings.update.mockResolvedValue({ ...BASE_ROW, shopName: 'เดิม', wageChef: 1500 })
+
+    await service.update('shop1', { shopName: 'เดิม', wageChef: 1500 } as any, 'auth0|owner')
+
+    expect(realtime.emitAppChanged).not.toHaveBeenCalled()
   })
 
   it('update: ส่ง expectedVersion เป็นเงื่อนไข where แบบ compound key และ increment version ให้', async () => {

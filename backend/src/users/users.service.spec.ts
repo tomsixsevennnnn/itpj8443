@@ -12,73 +12,135 @@ const makeService = () => {
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    shopMember: { findMany: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn() },
   } as any
   const audit = { log: jest.fn() } as any
   return { service: new UsersService(prisma, audit), prisma, audit }
 }
 
+/** ผู้ใช้พร้อม memberships ตามที่ UsersService ดึงจาก DB (include MEMBERSHIPS_INCLUDE) */
+const userWith = (id: string, role: Role, shopIds: string[]) => ({
+  id,
+  role,
+  memberships: shopIds.map((shopId) => ({ shopId, shop: { id: shopId, name: shopId, slug: shopId } })),
+})
+
 const OWNER_EDITOR = { id: 'editor1', role: Role.OWNER, shopId: 'shop1' }
 const SUPER_ADMIN_EDITOR = { id: 'sa1', role: Role.SUPER_ADMIN, shopId: null }
+
+const MEMBERSHIPS_INCLUDE_EXPECTED = {
+  memberships: {
+    orderBy: { createdAt: 'asc' },
+    select: { shopId: true, shop: { select: { id: true, name: true, slug: true } } },
+  },
+}
 
 describe('UsersService', () => {
   it('setRole: ป้องกันไม่ให้ owner คนสุดท้ายของร้านถูก demote เป็น customer', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.OWNER, shopId: 'shop1' })
-    prisma.user.count.mockResolvedValue(1)
+    prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.CUSTOMER, ['shop1']))
+    prisma.shopMember.count.mockResolvedValue(1)
 
     await expect(service.setRole('u1', Role.CUSTOMER, 'auth0|editor', OWNER_EDITOR)).rejects.toThrow(BadRequestException)
-    expect(prisma.user.update).not.toHaveBeenCalled()
+    expect(prisma.shopMember.delete).not.toHaveBeenCalled()
   })
 
-  it('setRole: demote ได้ถ้ายังมี owner คนอื่นเหลืออยู่ในร้านเดียวกัน', async () => {
+  it('setRole: demote ได้ถ้ายังมี owner คนอื่นเหลืออยู่ในร้านเดียวกัน — ลบแค่ ShopMember ของร้านนี้', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.OWNER, shopId: 'shop1' })
-    prisma.user.count.mockResolvedValue(2)
-    prisma.user.update.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
+    prisma.user.findUnique
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, ['shop1', 'shop2']))
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, ['shop2']))
+    prisma.shopMember.count.mockResolvedValue(2)
 
-    await expect(service.setRole('u1', Role.CUSTOMER, 'auth0|editor', OWNER_EDITOR)).resolves.toEqual({ id: 'u1', role: Role.CUSTOMER })
-    expect(prisma.user.count).toHaveBeenCalledWith({ where: { role: Role.OWNER, shopId: 'shop1' } })
+    const result = await service.setRole('u1', Role.CUSTOMER, 'auth0|editor', OWNER_EDITOR)
+
+    expect(prisma.shopMember.count).toHaveBeenCalledWith({ where: { shopId: 'shop1' } })
+    expect(prisma.shopMember.delete).toHaveBeenCalledWith({ where: { userId_shopId: { userId: 'u1', shopId: 'shop1' } } })
+    // ยังเป็น owner ร้าน 2 อยู่ แต่ในมุมมองร้าน 1 (ร้านของผู้แก้) กลับเป็นลูกค้าแล้ว
+    expect(result).toEqual(expect.objectContaining({ id: 'u1', role: Role.CUSTOMER, shopId: null }))
   })
 
-  it('setRole: owner promote customer เป็น owner — ผูก shopId ของตัวเองให้อัตโนมัติ', async () => {
+  it('setRole: demote คนที่ไม่ได้เป็น owner ของร้านนี้ (เป็น owner ร้านอื่น) ไม่ได้', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, shopId: null })
-    prisma.user.update.mockResolvedValue({ id: 'u1', role: Role.OWNER, shopId: 'shop1' })
-
-    await expect(service.setRole('u1', Role.OWNER, 'auth0|editor', OWNER_EDITOR)).resolves.toEqual({ id: 'u1', role: Role.OWNER, shopId: 'shop1' })
-    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { role: Role.OWNER, shopId: 'shop1' } })
-    expect(prisma.user.count).not.toHaveBeenCalled()
-  })
-
-  it('setRole: owner แก้ owner ร้านอื่นไม่ได้', async () => {
-    const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.OWNER, shopId: 'shop2' })
+    prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.CUSTOMER, ['shop2']))
 
     await expect(service.setRole('u1', Role.CUSTOMER, 'auth0|editor', OWNER_EDITOR)).rejects.toThrow(BadRequestException)
-    expect(prisma.user.update).not.toHaveBeenCalled()
+    expect(prisma.shopMember.delete).not.toHaveBeenCalled()
+  })
+
+  it('setRole: owner promote customer เป็น owner — เพิ่ม ShopMember ของร้านตัวเอง', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, []))
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, ['shop1']))
+
+    const result = await service.setRole('u1', Role.OWNER, 'auth0|editor', OWNER_EDITOR)
+
+    expect(prisma.shopMember.create).toHaveBeenCalledWith({ data: { userId: 'u1', shopId: 'shop1' } })
+    expect(prisma.shopMember.count).not.toHaveBeenCalled()
+    expect(result).toEqual(expect.objectContaining({ id: 'u1', role: Role.OWNER, shopId: 'shop1' }))
+  })
+
+  it('setRole: คนที่เป็น owner ร้านอื่นอยู่แล้ว เลื่อนเป็น owner ร้านนี้เพิ่มได้ (1 คนเป็น owner หลายร้าน)', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, ['shop2']))
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, ['shop2', 'shop1']))
+
+    await service.setRole('u1', Role.OWNER, 'auth0|editor', OWNER_EDITOR)
+
+    expect(prisma.shopMember.create).toHaveBeenCalledWith({ data: { userId: 'u1', shopId: 'shop1' } })
+  })
+
+  it('setRole: promote คนที่เป็น owner ร้านนี้อยู่แล้ว — ไม่สร้างซ้ำ', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.CUSTOMER, ['shop1']))
+
+    await service.setRole('u1', Role.OWNER, 'auth0|editor', OWNER_EDITOR)
+
+    expect(prisma.shopMember.create).not.toHaveBeenCalled()
   })
 
   it('setRole: owner แตะบัญชี super admin ไม่ได้', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.SUPER_ADMIN, shopId: null })
+    prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.SUPER_ADMIN, []))
 
     await expect(service.setRole('u1', Role.CUSTOMER, 'auth0|editor', OWNER_EDITOR)).rejects.toThrow(BadRequestException)
   })
 
+  it('setRole: owner ตั้งใครเป็น super admin ไม่ได้', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.CUSTOMER, []))
+
+    await expect(service.setRole('u1', Role.SUPER_ADMIN, 'auth0|editor', OWNER_EDITOR)).rejects.toThrow(BadRequestException)
+  })
+
   it('setRole: super admin ตั้งใครเป็น OWNER ผ่าน endpoint นี้ตรงๆ ไม่ได้ (ต้องผ่านหน้าจัดการร้าน)', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, shopId: null })
+    prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.CUSTOMER, []))
 
     await expect(service.setRole('u1', Role.OWNER, 'auth0|sa', SUPER_ADMIN_EDITOR)).rejects.toThrow(BadRequestException)
     expect(prisma.user.update).not.toHaveBeenCalled()
   })
 
+  it('setRole: super admin เปลี่ยนสิทธิ์ของคนที่เป็น owner ร้านใดร้านหนึ่งอยู่ไม่ได้', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.CUSTOMER, ['shop1']))
+
+    await expect(service.setRole('u1', Role.SUPER_ADMIN, 'auth0|sa', SUPER_ADMIN_EDITOR)).rejects.toThrow(BadRequestException)
+    expect(prisma.user.update).not.toHaveBeenCalled()
+  })
+
   it('setRole: super admin เลื่อน customer เป็น super admin ได้ปกติ', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, shopId: null })
-    prisma.user.update.mockResolvedValue({ id: 'u1', role: Role.SUPER_ADMIN })
+    prisma.user.findUnique
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, []))
+      .mockResolvedValueOnce(userWith('u1', Role.SUPER_ADMIN, []))
 
-    await expect(service.setRole('u1', Role.SUPER_ADMIN, 'auth0|sa', SUPER_ADMIN_EDITOR)).resolves.toEqual({ id: 'u1', role: Role.SUPER_ADMIN })
+    const result = await service.setRole('u1', Role.SUPER_ADMIN, 'auth0|sa', SUPER_ADMIN_EDITOR)
+
+    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { role: Role.SUPER_ADMIN } })
+    expect(result).toEqual(expect.objectContaining({ id: 'u1', role: Role.SUPER_ADMIN }))
   })
 
   it('setRole: ไม่พบ user เลย throw NotFoundException', async () => {
@@ -88,10 +150,11 @@ describe('UsersService', () => {
     await expect(service.setRole('missing', Role.CUSTOMER, 'auth0|editor', OWNER_EDITOR)).rejects.toThrow(NotFoundException)
   })
 
-  it('setRole: บันทึก audit log พร้อม role เดิม/ใหม่ และ shopId ของผู้แก้ไข', async () => {
+  it('setRole: บันทึก audit log พร้อมสิทธิ์เดิม/ใหม่ และ shopId ของผู้แก้ไข', async () => {
     const { service, prisma, audit } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, shopId: null })
-    prisma.user.update.mockResolvedValue({ id: 'u1', role: Role.OWNER })
+    prisma.user.findUnique
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, []))
+      .mockResolvedValueOnce(userWith('u1', Role.CUSTOMER, ['shop1']))
 
     await service.setRole('u1', Role.OWNER, 'auth0|editor', OWNER_EDITOR)
 
@@ -106,16 +169,29 @@ describe('UsersService', () => {
     )
   })
 
-  it('isOwner: true เมื่อ role ใน DB เป็น OWNER', async () => {
+  it('shopContextFor: เป็น owner ร้านที่เปิดอยู่ = OWNER ของร้านนั้น, ร้านอื่น = CUSTOMER (บัญชีเดียวใช้ได้ทั้งสองบทบาท)', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue({ role: Role.OWNER })
-    await expect(service.isOwner('auth0|1')).resolves.toBe(true)
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, memberships: [{ shopId: 'shop2' }] })
+
+    await expect(service.shopContextFor('auth0|1', 'shop2')).resolves.toEqual({ id: 'u1', role: Role.OWNER, shopId: 'shop2' })
+    await expect(service.shopContextFor('auth0|1', 'shop1')).resolves.toEqual({ id: 'u1', role: Role.CUSTOMER, shopId: null })
   })
 
-  it('isOwner: false เมื่อไม่พบ user ใน DB', async () => {
+  it('searchByEmail: owner ค้นหา — role = OWNER เฉพาะคนที่เป็น owner ของร้านตัวเอง (ไม่นับร้านอื่น)', async () => {
     const { service, prisma } = makeService()
-    prisma.user.findUnique.mockResolvedValue(null)
-    await expect(service.isOwner('auth0|1')).resolves.toBe(false)
+    prisma.user.findMany.mockResolvedValue([
+      userWith('a', Role.CUSTOMER, ['shop1']),
+      userWith('b', Role.CUSTOMER, ['shop2']),
+      userWith('c', Role.CUSTOMER, []),
+    ])
+
+    const result = await service.searchByEmail('x', 'shop1')
+
+    expect(result.map((u) => [u.id, u.role])).toEqual([
+      ['a', Role.OWNER],
+      ['b', Role.CUSTOMER],
+      ['c', Role.CUSTOMER],
+    ])
   })
 
   it('findOrCreate: มี user อยู่แล้ว — คืนของเดิม ไม่สร้างซ้ำ', async () => {
@@ -138,7 +214,7 @@ describe('UsersService', () => {
 
     expect(prisma.user.create).toHaveBeenCalledWith({
       data: { auth0Sub: 'auth0|1', role: Role.CUSTOMER, name: 'Google', surname: 'Name', email: 'a@a.com', avatar: '' },
-      include: { shop: true },
+      include: MEMBERSHIPS_INCLUDE_EXPECTED,
     })
   })
 
@@ -154,7 +230,7 @@ describe('UsersService', () => {
 
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: { auth0Sub: 'auth0|1', role: Role.SUPER_ADMIN, name: 'Boss', surname: '', email: 'boss@example.com', avatar: '' },
-        include: { shop: true },
+        include: MEMBERSHIPS_INCLUDE_EXPECTED,
       })
     } finally {
       process.env.SUPER_ADMIN_EMAILS = prevEnv
@@ -171,7 +247,7 @@ describe('UsersService', () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { auth0Sub: 'auth0|1' },
       data: { email: 'a@a.com', avatar: 'pic.jpg' },
-      include: { shop: true },
+      include: MEMBERSHIPS_INCLUDE_EXPECTED,
     })
   })
 
@@ -185,7 +261,7 @@ describe('UsersService', () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { auth0Sub: 'auth0|1' },
       data: { email: 'a@a.com', avatar: '', name: 'Google', surname: 'Name' },
-      include: { shop: true },
+      include: MEMBERSHIPS_INCLUDE_EXPECTED,
     })
   })
 })

@@ -40,7 +40,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar currentScreen="select-menu" />
-        <div className="pt-32 text-center px-6">
+        <div className="pt-40 md:pt-32 text-center px-6">
           <p className="text-5xl mb-4">🍽️</p>
           <p className="text-gray-500 mb-6">กรุณาเลือกแพ็กเกจก่อนเลือกเมนูอาหาร</p>
           <button
@@ -87,7 +87,7 @@ export default function SelectMenu({ packages, packageId, selectedMenus, onSetMe
       <Navbar currentScreen="select-menu" />
 
       {/* Fixed header */}
-      <div className="pt-16 bg-white border-b border-gray-100 shadow-sm flex-shrink-0">
+      <div className="pt-[7.25rem] md:pt-16 bg-white border-b border-gray-100 shadow-sm flex-shrink-0">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between mb-3">
             <div>

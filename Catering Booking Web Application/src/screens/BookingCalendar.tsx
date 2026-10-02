@@ -71,7 +71,7 @@ export default function BookingCalendar({ bookings, onSelectDateTime, slotHours,
     <div className="min-h-screen bg-gray-50">
       <Navbar currentScreen="booking-calendar" />
 
-      <div className="pt-24 pb-12 max-w-6xl mx-auto px-4">
+      <div className="pt-[8.5rem] md:pt-24 pb-12 max-w-6xl mx-auto px-4">
         <div className="mb-8">
           <p className="text-orange-500 font-semibold text-sm mb-1">ขั้นตอนที่ 1</p>
           <h1 className="text-2xl font-bold text-gray-900">เลือกวันจัดงาน</h1>

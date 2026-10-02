@@ -6,6 +6,7 @@ import SlipVerifyBadge from '../../components/SlipVerifyBadge'
 import type { Booking } from '../../types'
 import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
+import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 import {
   BASE_SLOTS,
   BOOKING_STATUS_INFO,
@@ -21,7 +22,7 @@ import {
 
 interface CalendarViewProps {
   bookings: Booking[]
-  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<boolean>
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
 }
 
@@ -34,6 +35,10 @@ const DAYS_TH = ['อาทิตย์','จันทร์','อังคา�
 const SLOT_LABEL = Object.fromEntries(TIME_SLOTS.map(s => [s.id, s.label])) as Record<string, string>
 
 export default function CalendarView({ bookings, onUpdateBooking, onFetchPaymentSlip }: Readonly<CalendarViewProps>) {
+  const { pending: statusPending, feedback: statusFeedback, run: updateStatus } = useStatusUpdate(
+    onUpdateBooking,
+    status => BOOKING_STATUS_INFO[status].label,
+  )
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -421,19 +426,25 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                   {(['pending', 'confirmed', 'completed', 'cancelled'] as const).map(s => {
                     const info = BOOKING_STATUS_INFO[s]
                     const isActive = popup.status === s
+                    const isPending = statusPending?.id === popup.id && statusPending.status === s
                     return (
                       <button
                         key={s}
-                        onClick={() => onUpdateBooking(popup.id, { status: s })}
-                        className={`flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold transition-all border-2 ${
+                        onClick={() => updateStatus(popup.id, s)}
+                        disabled={statusPending !== null}
+                        className={`flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold transition-all border-2 disabled:cursor-wait ${
                           isActive ? `${info.chip} ${info.border}` : 'bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100'
-                        }`}
+                        } ${statusPending !== null && !isPending ? 'opacity-50' : ''}`}
                       >
-                        {isActive && <Check size={11} />}
-                        {info.label}
+                        {isPending && <Loader2 size={11} className="animate-spin" />}
+                        {!isPending && isActive && <Check size={11} />}
+                        {isPending ? 'กำลังเปลี่ยน...' : info.label}
                       </button>
                     )
                   })}
+                </div>
+                <div className="mt-2">
+                  <StatusFeedbackNote feedback={statusFeedback} />
                 </div>
               </div>
             </div>

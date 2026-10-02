@@ -30,7 +30,7 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
   async get(@CurrentUser() jwtUser: Record<string, any>, @Query('shopId') shopIdQ?: string) {
-    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.actingAsCustomer === true)
+    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     const isOwner = ctx?.role === Role.OWNER
     const shopId = isOwner ? ctx?.shopId : shopIdQ
     if (!shopId) throw new ForbiddenException('ต้องระบุร้านที่ต้องการดูค่าตั้งค่า')
@@ -41,7 +41,7 @@ export class SettingsController {
   @Patch()
   @Roles('owner')
   async update(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: UpdateSettingsDto) {
-    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.actingAsCustomer === true)
+    const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return this.settings.update(ctx.shopId, dto, jwtUser.sub)
   }

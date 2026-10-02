@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useSettingsForm } from './useSettingsForm'
 import {
   Check,
   Image,
@@ -32,10 +33,10 @@ const PAGE_CONTENT_TABS: { id: PageContentTab; label: string; icon: typeof Image
 ]
 
 export default function PageContent({ settings, onUpdateSettings, onUploadImage }: Readonly<PageContentProps>) {
-  const [form, setForm] = useState<AppSettings>(settings)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useSettingsForm(settings, saving)
   const [activeTab, setActiveTab] = useState<PageContentTab>('hero')
   const [savedAt, setSavedAt] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
   const [heroUploading, setHeroUploading] = useState(false)
   const [heroError, setHeroError] = useState<string | null>(null)
   const [galleryUploading, setGalleryUploading] = useState(false)

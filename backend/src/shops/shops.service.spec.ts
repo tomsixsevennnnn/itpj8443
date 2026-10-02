@@ -13,7 +13,8 @@ const makeService = () => {
       delete: jest.fn(),
     },
     settings: { create: jest.fn(), update: jest.fn() },
-    user: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+    user: { findFirst: jest.fn(), findUnique: jest.fn() },
+    shopMember: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
     booking: { groupBy: jest.fn() },
     // $transaction รองรับทั้งแบบ callback (createShop/updateShop) และแบบ array ของ promise (deleteShop)
     $transaction: jest.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
@@ -26,14 +27,17 @@ describe('ShopsService', () => {
   describe('listAll', () => {
     it('รวมยอดขาย (ไม่นับใบจองที่ยกเลิก) เข้ากับรายการร้านแต่ละร้าน', async () => {
       const { service, prisma } = makeService()
-      prisma.shop.findMany.mockResolvedValue([{ id: 'shop1', name: 'ร้านเอ' }, { id: 'shop2', name: 'ร้านบี' }])
+      prisma.shop.findMany.mockResolvedValue([
+        { id: 'shop1', name: 'ร้านเอ', _count: { members: 2, bookings: 3 } },
+        { id: 'shop2', name: 'ร้านบี', _count: { members: 1, bookings: 0 } },
+      ])
       prisma.booking.groupBy.mockResolvedValue([{ shopId: 'shop1', _sum: { totalPrice: 5000 } }])
 
       const result = await service.listAll()
 
       expect(result).toEqual([
-        { id: 'shop1', name: 'ร้านเอ', totalRevenue: 5000 },
-        { id: 'shop2', name: 'ร้านบี', totalRevenue: 0 },
+        { id: 'shop1', name: 'ร้านเอ', _count: { owners: 2, bookings: 3 }, totalRevenue: 5000 },
+        { id: 'shop2', name: 'ร้านบี', _count: { owners: 1, bookings: 0 }, totalRevenue: 0 },
       ])
       expect(prisma.booking.groupBy).toHaveBeenCalledWith(
         expect.objectContaining({ where: { status: { not: 'CANCELLED' } } }),
@@ -76,9 +80,9 @@ describe('ShopsService', () => {
       ).rejects.toThrow(NotFoundException)
     })
 
-    it('ผู้ใช้มี role อื่นอยู่แล้ว (ไม่ใช่ CUSTOMER) — throw BadRequestException', async () => {
+    it('ผู้ใช้เป็น super admin — throw BadRequestException', async () => {
       const { service, prisma } = makeService()
-      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: Role.OWNER })
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: Role.SUPER_ADMIN })
 
       await expect(
         service.createShop({ name: 'ร้านใหม่', ownerEmail: 'owner@example.com' } as any, 'auth0|admin'),
@@ -96,11 +100,19 @@ describe('ShopsService', () => {
       expect(prisma.settings.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ shopId: 'shop1', shopName: 'ร้านใหม่' }) }),
       )
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'u1' },
-        data: { role: Role.OWNER, shopId: 'shop1' },
-      })
+      expect(prisma.shopMember.create).toHaveBeenCalledWith({ data: { userId: 'u1', shopId: 'shop1' } })
       expect(audit.log).toHaveBeenCalledWith('auth0|admin', 'shop.create', 'Shop', 'shop1', undefined, result, 'shop1')
+    })
+
+    it('ผู้ใช้เป็น owner ร้านอื่นอยู่แล้ว — ตั้งเป็น owner ร้านใหม่เพิ่มได้ (1 คนเป็น owner หลายร้าน)', async () => {
+      const { service, prisma } = makeService()
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
+      prisma.shop.findUnique.mockResolvedValue(null)
+      prisma.shop.create.mockResolvedValue({ id: 'shop3', name: 'ร้านสาม', slug: 'ร้านสาม' })
+
+      await service.createShop({ name: 'ร้านสาม', ownerEmail: 'owner@example.com' } as any, 'auth0|admin')
+
+      expect(prisma.shopMember.create).toHaveBeenCalledWith({ data: { userId: 'u1', shopId: 'shop3' } })
     })
 
     it('ชื่อซ้ำ slug เดิม — ต่อเลขท้าย slug ให้ไม่ชนกัน', async () => {
@@ -228,23 +240,33 @@ describe('ShopsService', () => {
       await expect(service.addOwner('shop1', 'nobody@example.com', 'auth0|admin')).rejects.toThrow(NotFoundException)
     })
 
-    it('ผู้ใช้มี role อื่นอยู่แล้ว — throw ConflictException', async () => {
+    it('ผู้ใช้เป็น super admin — throw ConflictException', async () => {
       const { service, prisma } = makeService()
       prisma.shop.findUnique.mockResolvedValue({ id: 'shop1' })
-      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: Role.OWNER })
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: Role.SUPER_ADMIN })
 
-      await expect(service.addOwner('shop1', 'owner@example.com', 'auth0|admin')).rejects.toThrow(ConflictException)
+      await expect(service.addOwner('shop1', 'boss@example.com', 'auth0|admin')).rejects.toThrow(ConflictException)
     })
 
-    it('เพิ่ม owner สำเร็จ', async () => {
+    it('ผู้ใช้เป็น owner ร้านนี้อยู่แล้ว — throw ConflictException ไม่เพิ่มซ้ำ', async () => {
       const { service, prisma } = makeService()
       prisma.shop.findUnique.mockResolvedValue({ id: 'shop1' })
       prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
-      prisma.user.update.mockResolvedValue({ id: 'u1', role: Role.OWNER, shopId: 'shop1' })
+      prisma.shopMember.findUnique.mockResolvedValue({ id: 'm1' })
+
+      await expect(service.addOwner('shop1', 'owner@example.com', 'auth0|admin')).rejects.toThrow(ConflictException)
+      expect(prisma.shopMember.create).not.toHaveBeenCalled()
+    })
+
+    it('เพิ่ม owner สำเร็จ — เพิ่ม ShopMember (ไม่แตะ role ระดับระบบของผู้ใช้)', async () => {
+      const { service, prisma } = makeService()
+      prisma.shop.findUnique.mockResolvedValue({ id: 'shop1' })
+      prisma.user.findFirst.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
+      prisma.shopMember.findUnique.mockResolvedValue(null)
 
       await service.addOwner('shop1', 'owner@example.com', 'auth0|admin')
 
-      expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { role: Role.OWNER, shopId: 'shop1' } })
+      expect(prisma.shopMember.create).toHaveBeenCalledWith({ data: { userId: 'u1', shopId: 'shop1' } })
     })
   })
 
@@ -258,19 +280,21 @@ describe('ShopsService', () => {
 
     it('ผู้ใช้ไม่ใช่ owner ของร้านนี้ — throw BadRequestException', async () => {
       const { service, prisma } = makeService()
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, shopId: 'shop1' })
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
+      prisma.shopMember.findUnique.mockResolvedValue(null)
 
       await expect(service.removeOwner('shop1', 'u1', 'auth0|admin')).rejects.toThrow(BadRequestException)
+      expect(prisma.shopMember.delete).not.toHaveBeenCalled()
     })
 
-    it('ถอด owner สำเร็จ — กลับเป็น CUSTOMER และตัด shopId ออก', async () => {
+    it('ถอด owner สำเร็จ — ลบ ShopMember ของร้านนี้เท่านั้น', async () => {
       const { service, prisma } = makeService()
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.OWNER, shopId: 'shop1', email: 'o@example.com' })
-      prisma.user.update.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, shopId: null })
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER, email: 'o@example.com' })
+      prisma.shopMember.findUnique.mockResolvedValue({ id: 'm1' })
 
       await service.removeOwner('shop1', 'u1', 'auth0|admin')
 
-      expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { role: Role.CUSTOMER, shopId: null } })
+      expect(prisma.shopMember.delete).toHaveBeenCalledWith({ where: { id: 'm1' } })
     })
   })
 
@@ -290,16 +314,12 @@ describe('ShopsService', () => {
       expect(prisma.shop.delete).not.toHaveBeenCalled()
     })
 
-    it('ยืนยันชื่อตรง — ถอด owner ทุกคนก่อนแล้วลบร้านทิ้งในทรานแซกชันเดียว', async () => {
+    it('ยืนยันชื่อตรง — ลบร้านทิ้ง (ShopMember ลบตามด้วย cascade) ไม่แตะบัญชีผู้ใช้', async () => {
       const { service, prisma, audit } = makeService()
       prisma.shop.findUnique.mockResolvedValue({ id: 'shop1', name: 'ร้านเอ' })
 
       await service.deleteShop('shop1', 'ร้านเอ', 'auth0|admin')
 
-      expect(prisma.user.updateMany).toHaveBeenCalledWith({
-        where: { shopId: 'shop1' },
-        data: { role: Role.CUSTOMER, shopId: null },
-      })
       expect(prisma.shop.delete).toHaveBeenCalledWith({ where: { id: 'shop1' } })
       // shopId ของ audit log ต้องเป็น null (ไม่ใช่ id ร้านที่ลบไปแล้ว) กัน cascade ลบประวัตินี้ไปด้วย
       expect(audit.log).toHaveBeenCalledWith(

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChefHat } from 'lucide-react'
+import { ArrowLeft, ChefHat } from 'lucide-react'
 
 interface CompleteProfileProps {
   name: string
@@ -7,13 +7,15 @@ interface CompleteProfileProps {
   phone: string
   lineId: string
   onComplete: (profile: { name: string; surname: string; phone: string; lineId: string }) => void
+  /** กลับไปหน้าก่อนหน้า (หน้า login/เลือกร้าน) — หน้านี้บังคับกรอกก่อนเข้าใช้งาน ไม่มีหน้าในแอปให้ย้อนไป จึงออกจากระบบแล้วกลับหน้า login */
+  onBack: () => void
 }
 
 /**
  * ขอชื่อจริง/นามสกุล/เบอร์โทร/Line ID — เด้งมาหน้านี้ทุกครั้งที่ login จนกว่าจะกรอกครบ (ดู needsProfile ใน App.tsx)
  * ดึงค่าที่เคยกรอกไว้มาแสดงล่วงหน้าเสมอ (ไม่ใช่แค่ครั้งแรก) เผื่อกรอกไว้บางส่วนแล้วแค่ต้องมาเติมที่ขาด
  */
-export default function CompleteProfile({ name, surname, phone, lineId, onComplete }: Readonly<CompleteProfileProps>) {
+export default function CompleteProfile({ name, surname, phone, lineId, onComplete, onBack }: Readonly<CompleteProfileProps>) {
   const [form, setForm] = useState({ name, surname, phone, lineId })
 
   const handleSave = () => {
@@ -30,6 +32,14 @@ export default function CompleteProfile({ name, surname, phone, lineId, onComple
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-xl shadow-gray-100/80 border border-gray-100 w-full max-w-md p-8">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-4 transition-colors"
+        >
+          <ArrowLeft size={16} />
+          กลับ
+        </button>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
             <ChefHat size={20} className="text-orange-500" />

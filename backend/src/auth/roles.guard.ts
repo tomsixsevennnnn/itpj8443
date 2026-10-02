@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core'
 import { Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { resolveShopContext } from './shop-context'
 import { ROLES_KEY } from './roles.decorator'
 
 type AppRole = 'owner' | 'customer' | 'super_admin'
@@ -29,26 +30,27 @@ export class RolesGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest()
     const sub = request.user?.sub as string | undefined
-    const dbRole = await this.roleFor(sub)
-    const role: AppRole = dbRole === 'owner' && request.user?.actingAsCustomer === true ? 'customer' : dbRole
+    const role = await this.roleFor(sub, request.user?.requestedShopId as string | undefined)
     if (!required.includes(role)) throw new ForbiddenException('ไม่มีสิทธิ์เข้าถึงข้อมูลนี้')
     return true
   }
 
-  private async roleFor(sub: string | undefined): Promise<AppRole> {
+  /** role ในร้านที่ request นี้เปิดอยู่ (X-Shop-Id) — owner ร้านหนึ่งเป็น customer ของอีกร้านได้ ดู resolveShopContext */
+  private async roleFor(sub: string | undefined, requestedShopId: string | undefined): Promise<AppRole> {
     if (!sub) return 'customer'
 
-    const cached = this.cache.get(sub)
+    const key = `${sub}|${requestedShopId ?? ''}`
+    const cached = this.cache.get(key)
     if (cached && Date.now() - cached.at < this.CACHE_TTL_MS) return cached.role
 
-    const dbUser = await this.prisma.user.findUnique({ where: { auth0Sub: sub }, select: { role: true } })
+    const ctx = await resolveShopContext(this.prisma, sub, requestedShopId)
     // ไม่พบ user ใน DB เลย = ถือเป็น customer โดย default เสมอ ไม่ cache เคสนี้ไว้ (แถวอาจถูกสร้างในวินาทีถัดไปหลัง sync)
-    if (!dbUser) return 'customer'
+    if (!ctx) return 'customer'
 
     let role: AppRole = 'customer'
-    if (dbUser.role === Role.OWNER) role = 'owner'
-    else if (dbUser.role === Role.SUPER_ADMIN) role = 'super_admin'
-    this.cache.set(sub, { role, at: Date.now() })
+    if (ctx.role === Role.OWNER) role = 'owner'
+    else if (ctx.role === Role.SUPER_ADMIN) role = 'super_admin'
+    this.cache.set(key, { role, at: Date.now() })
     return role
   }
 }

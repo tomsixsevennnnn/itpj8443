@@ -8,6 +8,7 @@ import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../
 import { bookingCostSummary } from '../../costing'
 import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
+import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 
 const PAGE_SIZE = 20
 
@@ -22,7 +23,7 @@ interface OrdersProps {
   bookings: Booking[]
   menus: MenuItem[]
   settings: AppSettings
-  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<boolean>
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
   /** ใบจองที่ต้องเปิด detail ให้อัตโนมัติ (มาจากคลิกการ์ดแจ้งเตือน) */
   openBookingId?: string | null
@@ -81,9 +82,10 @@ export default function Orders({
   }, [page, totalPages])
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const updateStatus = (id: string, status: Booking['status']) => {
-    onUpdateBooking(id, { status })
-  }
+  const { pending: statusPending, feedback: statusFeedback, run: updateStatus } = useStatusUpdate(
+    onUpdateBooking,
+    status => STATUS_CONFIG[status].label,
+  )
 
   /* --- แผนกำลังคน ------------------------------------------------- */
 
@@ -544,29 +546,34 @@ export default function Orders({
                     {(['pending', 'confirmed', 'completed'] as const).map(s => {
                       const sc = STATUS_CONFIG[s]
                       const isActive = selected.status === s
+                      const isPending = statusPending?.id === selected.id && statusPending.status === s
                       return (
                         <button
                           key={s}
                           onClick={() => updateStatus(selected.id, s)}
-                          className={`flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                          disabled={statusPending !== null}
+                          className={`flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:cursor-wait ${
                             isActive ? `${sc.bg} ${sc.text} border-2 ${sc.border}` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                          }`}
+                          } ${statusPending !== null && !isPending ? 'opacity-50' : ''}`}
                         >
-                          {isActive && <Check size={12} />}
-                          {sc.label}
+                          {isPending && <Loader2 size={12} className="animate-spin" />}
+                          {!isPending && isActive && <Check size={12} />}
+                          {isPending ? 'กำลังเปลี่ยน...' : sc.label}
                         </button>
                       )
                     })}
                   </div>
                   <button
                     onClick={() => setShowCancelConfirm(true)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors"
+                    disabled={statusPending !== null}
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 border border-red-100 transition-colors"
                   >
                     <X size={12} />
                     ยกเลิกการจอง
                   </button>
                 </>
               )}
+              <StatusFeedbackNote feedback={statusFeedback} />
             </div>
             </div>
           </div>
@@ -594,12 +601,14 @@ export default function Orders({
                 <button
                   onClick={async () => {
                     setCancelling(true)
+                    let ok = false
                     try {
-                      await onUpdateBooking(selected.id, { status: 'cancelled' })
+                      ok = await updateStatus(selected.id, 'cancelled')
                     } finally {
                       setCancelling(false)
                     }
-                    setShowCancelConfirm(false)
+                    // ไม่สำเร็จ = เปิดหน้าต่างยืนยันค้างไว้ (ข้อความผิดพลาดอยู่ที่แถบแจ้งเตือนรวม) กดลองใหม่ได้เลย
+                    if (ok) setShowCancelConfirm(false)
                   }}
                   disabled={cancelling}
                   className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-2xl py-3 font-semibold text-sm transition-colors"

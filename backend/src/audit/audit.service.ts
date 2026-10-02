@@ -13,7 +13,8 @@ const ENTITY_TOPIC: Record<string, AppChangeTopic> = {
   Shop: 'shop',
 }
 
-/** บันทึกประวัติการลบ/แก้ไขข้อมูลสำคัญโดย owner — ทุก call site ตอนนี้อยู่หลัง @Roles('owner') อยู่แล้ว จึงไม่ต้องรับ role จาก caller เอง แค่ auth0Sub พอ */
+/** บันทึกประวัติการลบ/แก้ไขข้อมูลสำคัญโดย owner หรือ super admin — ทุก call site อยู่หลัง @Roles('owner'/'super_admin') อยู่แล้ว
+ *  จึงไม่ต้องรับ role จาก caller เอง แค่ auth0Sub พอ (ใครที่ไม่ใช่ super admin = owner ของร้านที่ action นั้นเกิดขึ้น) */
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name)
@@ -39,7 +40,7 @@ export class AuditService {
         data: {
           shopId: shopId ?? undefined,
           actorUserId: user?.id ?? auth0Sub,
-          actorRole: user?.role ?? Role.OWNER,
+          actorRole: user?.role === Role.SUPER_ADMIN ? Role.SUPER_ADMIN : Role.OWNER,
           actorEmail: user?.email ?? '',
           action,
           entityType,

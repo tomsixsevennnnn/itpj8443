@@ -11,7 +11,7 @@ import { useAuthedSlipUrl } from '../useAuthedSlipUrl'
 
 interface BookingHistoryProps {
   bookings: Booking[]
-  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
+  onUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<boolean>
   settings: AppSettings
   onFetchPaymentSlip: (bookingId: string) => Promise<string>
   /** ใบจองที่ต้องเปิด detail ให้อัตโนมัติ (มาจากคลิกการ์ดแจ้งเตือน) */
@@ -131,7 +131,7 @@ export default function BookingHistory({
     <div className="min-h-screen bg-gray-50">
       <Navbar currentScreen="history" />
 
-      <div className="pt-24 pb-12 max-w-6xl mx-auto px-4">
+      <div className="pt-[8.5rem] md:pt-24 pb-12 max-w-6xl mx-auto px-4">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Calendar size={24} className="text-orange-500" />
@@ -542,17 +542,25 @@ export default function BookingHistory({
                             {new Date(detailBooking.paymentSlipUploadedAt).toLocaleString('th-TH', {
                               day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                             })}
-                            {' · '}รอร้านตรวจสอบกับบัญชี
+                            {detailBooking.paymentSlipVerifyStatus === 'VERIFIED' ? '' : ' · รอร้านตรวจสอบกับบัญชี'}
                           </p>
                         )}
-                        <button
-                          onClick={() => slipInputRef.current?.click()}
-                          disabled={uploadingSlip}
-                          className="flex items-center gap-1.5 text-xs text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50"
-                        >
-                          {uploadingSlip ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-                          แนบสลิปใหม่
-                        </button>
+                        {detailBooking.paymentSlipVerifyStatus === 'VERIFIED' ? (
+                          // ตรวจแล้วว่าชื่อ/ยอดโอนถูกต้อง — เปลี่ยนสลิปไม่ได้อีก (backend ปฏิเสธด้วย)
+                          <p className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 rounded-xl px-3 py-2 font-medium">
+                            <Check size={13} />
+                            ตรวจสอบสลิปแล้ว ชื่อและยอดโอนถูกต้อง — ไม่สามารถเปลี่ยนสลิปได้
+                          </p>
+                        ) : (
+                          <button
+                            onClick={() => slipInputRef.current?.click()}
+                            disabled={uploadingSlip}
+                            className="flex items-center gap-1.5 text-xs text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50"
+                          >
+                            {uploadingSlip ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                            แนบสลิปใหม่
+                          </button>
+                        )}
                       </div>
                     )
                   }

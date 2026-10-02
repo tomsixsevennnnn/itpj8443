@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma, type Settings } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { RealtimeService } from '../realtime/realtime.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { UpdateSettingsDto } from './dto/update-settings.dto'
 
@@ -78,6 +79,7 @@ export class SettingsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly uploads: UploadsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   // เดิม cache ไว้ในหน่วยความจำ (TTL 1 วิ) กัน round-trip ไป DB ที่โฮสต์ไกล (Railway) — แต่ backend รันได้
@@ -190,6 +192,10 @@ export class SettingsService {
     if (logoReplaced) await this.uploads.deleteManagedFile(before.shopLogo)
 
     await this.cleanupHomeContentImages(dto, before, after)
+
+    // ชื่อร้านถูกซิงค์เข้า Shop.name ไปแล้วในทรานแซกชันข้างบน — แจ้งทุก client ที่เปิดอยู่ (โดยเฉพาะ super admin ที่ดูรายชื่อร้านทั้งหมด)
+    // ให้ refetch รายการร้านทันที (หัวข้อ 'shop') ไม่ต้องรอ refresh/poll เพราะ audit.log ข้างบนแจ้งแค่หัวข้อ 'settings'
+    if (patch.shopName !== undefined && patch.shopName !== before.shopName) this.realtime.emitAppChanged('shop')
 
     return after
   }

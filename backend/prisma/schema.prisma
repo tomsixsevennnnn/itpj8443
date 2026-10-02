@@ -73,7 +73,7 @@ model Shop {
   status    ShopStatus @default(ACTIVE)
   createdAt DateTime   @default(now())
 
-  owners          User[]
+  members         ShopMember[]
   bookings        Booking[]
   menuItems       MenuItem[]
   packages        Package[]
@@ -85,6 +85,11 @@ model Shop {
 model User {
   id        String    @id @default(cuid())
   auth0Sub  String    @unique
+  /**
+   * ระดับระบบเท่านั้น: CUSTOMER (ปกติ) หรือ SUPER_ADMIN — ความเป็น owner ของแต่ละร้านอยู่ที่ ShopMember (ผู้ใช้คนเดียว
+   * เป็น owner ได้หลายร้าน และเป็นลูกค้าของร้านอื่นได้พร้อมกัน) ค่า OWNER ของ enum Role เหลือไว้ใช้กับ AuditLog.actorRole
+   * เท่านั้น ไม่เก็บบน User อีกต่อไป
+   */
   role      Role      @default(CUSTOMER)
   name      String
   surname   String    @default("")
@@ -95,13 +100,23 @@ model User {
   createdAt DateTime  @default(now())
   bookings  Booking[]
 
-  /**
-   * ร้านที่ผูกอยู่ — บังคับให้มีค่าเฉพาะ role OWNER เท่านั้น (เช็คระดับ application ไม่ใช่ DB constraint เพราะ
-   * CUSTOMER/SUPER_ADMIN ต้องไม่ผูกกับร้านไหนเลย — CUSTOMER จองข้ามร้านได้, SUPER_ADMIN ดูแลทุกร้าน)
-   */
-  shop   Shop?   @relation(fields: [shopId], references: [id])
-  shopId String?
+  /** ร้านที่เป็น owner อยู่ — ไม่มีแถวสำหรับร้านนั้น = เป็นลูกค้าของร้านนั้น */
+  memberships ShopMember[]
+}
 
+/**
+ * สิทธิ์ owner ของผู้ใช้ 1 คนในร้าน 1 ร้าน — 1 คนเป็น owner ได้หลายร้าน และเป็นลูกค้าของร้านที่ไม่มีแถวนี้ได้ด้วย
+ * บัญชีเดียวกัน ร้านที่กำลังใช้งานมาจาก header X-Shop-Id ของแต่ละ request (ดู backend/src/auth/shop-context.ts)
+ */
+model ShopMember {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, shopId])
   @@index([shopId])
 }
 

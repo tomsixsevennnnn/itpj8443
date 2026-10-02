@@ -23,7 +23,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
       <Navbar currentScreen="home" />
 
       {/* Hero */}
-      <section className="relative pt-16 overflow-hidden">
+      <section className="relative pt-[7.25rem] md:pt-16 overflow-hidden">
         <div className="relative h-[580px] md:h-[640px]">
           <img
             src={resolveImageUrl(homeContent.heroImage)}

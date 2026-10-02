@@ -32,7 +32,7 @@ import { DEFAULT_NOTIF_SEEN_AT, unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
 import {
   api,
-  setActingAsCustomer,
+  setActiveShopId,
   type BackendUser,
   type CreatePackageInput,
   type ShopAdmin,
@@ -328,14 +328,20 @@ function handleLoadAppDataError(
   setLoadError(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ')
 }
 
-/** owner ที่เลือก (เข้า URL/หน้า login) ร้านอื่นที่ไม่ใช่ร้านตัวเอง = ใช้งานร้านนั้นในฐานะลูกค้า ไม่ใช่ owner —
- *  แปลง role/shop เป็น CUSTOMER ฝั่งนี้ทั้งหมด (หน้าจอ/ข้อมูลที่โหลดเดินตาม flow ลูกค้าปกติ) แล้วบอก backend ผ่าน header
- *  X-Acting-As ให้ลดสิทธิ์ owner ใน request ด้วย (ดู api.setActingAsCustomer) owner ที่เลือกร้านตัวเอง/ยังไม่ได้เลือกร้านเลย
- *  ยังเป็น owner ตามเดิม */
-function asCustomerOfOtherShop(me: BackendUser, selectedShopId: string | null): BackendUser {
-  const actingAsCustomer = me.role === 'OWNER' && selectedShopId !== null && selectedShopId !== me.shopId
-  setActingAsCustomer(actingAsCustomer)
-  return actingAsCustomer ? { ...me, role: 'CUSTOMER', shopId: null, shop: null } : me
+/** บัญชีเดียวใช้ได้หลายบทบาท: เป็น owner ของร้านที่มี ShopMember และเป็นลูกค้าของทุกร้านที่ไม่ได้เป็น owner — ตัดสินจาก
+ *  "ร้านที่เปิดอยู่" (selectedShopId จาก URL/หน้าเลือกร้าน) ถ้าเป็น owner ของร้านนั้น = owner ถ้าไม่ใช่ = ลูกค้าของร้านนั้น
+ *  ยังไม่ได้เลือกร้านเลย (session ค้าง/ล้าง localStorage) = owner ของร้านแรกที่เป็น owner (ถ้ามี) แล้วบอก backend
+ *  ผ่าน X-Shop-Id (ดู api.setActiveShopId) ให้ resolve บทบาทเดียวกัน — super admin ไม่ผูกร้าน ไม่เกี่ยวกับกติกานี้ */
+function resolveActiveRole(me: BackendUser, selectedShopId: string | null): BackendUser {
+  if (me.role === 'SUPER_ADMIN') {
+    setActiveShopId(null)
+    return me
+  }
+  const memberships = me.memberships ?? []
+  const member = selectedShopId ? memberships.find(m => m.shopId === selectedShopId) : memberships[0]
+  setActiveShopId(selectedShopId ?? member?.shopId ?? null)
+  if (member) return { ...me, role: 'OWNER', shopId: member.shopId, shop: member.shop }
+  return { ...me, role: 'CUSTOMER', shopId: null, shop: null }
 }
 
 /** โหลดข้อมูลทั้งหมดจาก backend ทันทีที่ login สำเร็จ — แยกออกจาก App component กันฟังก์ชันหลักซับซ้อนเกิน
@@ -361,7 +367,7 @@ async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
       email: auth0User?.email ?? '',
       avatar: auth0User?.picture ?? '',
     })
-    const me = asCustomerOfOtherShop(syncedUser, selectedShopId)
+    const me = resolveActiveRole(syncedUser, selectedShopId)
     if (isCancelled()) return
     setBackendUser(me)
 
@@ -504,7 +510,7 @@ interface OwnerScreensProps {
   menus: MenuItem[]
   settings: AppSettings
   packages: Package[]
-  handleUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
+  handleUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<boolean>
   handleFetchPaymentSlip: (bookingId: string) => Promise<string>
   pendingNotifBookingId: string | null
   setPendingNotifBookingId: Dispatch<SetStateAction<string | null>>
@@ -637,7 +643,7 @@ interface CustomerScreensProps {
   handleSetMenus: (menus: MenuItem[]) => void
   handleConfirm: () => Promise<void>
   bookings: Booking[]
-  handleUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<void>
+  handleUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<boolean>
   handleFetchPaymentSlip: (bookingId: string) => Promise<string>
   pendingNotifBookingId: string | null
   setPendingNotifBookingId: Dispatch<SetStateAction<string | null>>
@@ -1156,18 +1162,25 @@ export default function App() {
   }, BOOKINGS_POLL_MS)
 
   /** ห่อ handler ที่ยิง API ทุกตัว — ถ้า error ให้เด้ง banner แจ้งผู้ใช้แทนที่จะเงียบ/พังไม่รู้สาเหตุ */
-  const runAction = async (fn: () => Promise<void>) => {
+  /** เหมือน runAction แต่คืน true/false ว่าสำเร็จหรือไม่ — ให้ปุ่มที่ต้องบอกผู้ใช้ว่า "สำเร็จ/ไม่สำเร็จ" (เช่นเปลี่ยนสถานะใบจอง) */
+  const runActionResult = async (fn: () => Promise<void>): Promise<boolean> => {
     try {
       setActionError(null)
       await fn()
+      return true
     } catch (err) {
       // session/token หมดอายุระหว่างใช้งาน — เด้งกลับหน้า login แทนที่จะโชว์ banner error เฉยๆ
       if (isSessionExpiredError(err)) {
         forceLogout()
-        return
+        return false
       }
       setActionError(err instanceof Error ? err.message : 'ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง')
+      return false
     }
+  }
+
+  const runAction = async (fn: () => Promise<void>): Promise<void> => {
+    await runActionResult(fn)
   }
 
   /** เพิ่มหรือแก้ไขเมนู — ถ้าแก้ของเดิม ให้ซิงก์เข้าไปในแพ็กเกจที่ใช้เมนูนี้อยู่ด้วย */
@@ -1413,8 +1426,8 @@ export default function App() {
     })
 
   /** แก้ไขใบจอง — แยกปลายทางตาม patch: ลูกค้าแนบสลิป vs เจ้าของร้านเปลี่ยนสถานะ/บันทึกแผนกำลังคน */
-  const handleUpdateBooking = (id: string, patch: Partial<Booking>) =>
-    runAction(async () => {
+  const handleUpdateBooking = (id: string, patch: Partial<Booking>): Promise<boolean> =>
+    runActionResult(async () => {
       const token = await withToken()
       const updated =
         'paymentSlip' in patch && patch.paymentSlip
@@ -1427,8 +1440,11 @@ export default function App() {
             })
       setBookings(prev => prev.map(b => (b.id === id ? updated : b)))
       // เปลี่ยนสถานะ (เช่นยกเลิกงาน) กระทบคิวรับงานที่ลูกค้าเห็น — ดึงใหม่ให้ตรงกัน กันวันนั้นค้างว่า "เต็ม" อยู่
-      // (owner-only action — activeShopId คือร้านตัวเองเสมอที่จุดนี้)
-      if (patch.status !== undefined && activeShopId) setAvailability(await api.bookingsAvailability(token, activeShopId))
+      // (owner-only action — activeShopId คือร้านตัวเองเสมอที่จุดนี้) ไม่รอผลก่อนคืนค่า: สถานะใบจองเปลี่ยนสำเร็จแล้วตั้งแต่ข้างบน
+      // ถ้ารอดึงคิวด้วยจะหน่วงปุ่ม "กำลังเปลี่ยน..." โดยไม่จำเป็น (คิวรับงานตามมาทีหลังได้ ไม่กระทบผลการเปลี่ยนสถานะ)
+      if (patch.status !== undefined && activeShopId) {
+        api.bookingsAvailability(token, activeShopId).then(setAvailability).catch(() => {})
+      }
     })
 
   // กำลัง resolve ร้านจาก URL slug ที่แชร์มา (เช่น /pipat-catering) — เช็คก่อน isLoading เพราะไม่เกี่ยวกับ Auth0
@@ -1480,6 +1496,7 @@ export default function App() {
           surname={backendUser?.surname || ''}
           phone={backendUser?.phone || ''}
           lineId={backendUser?.lineId || ''}
+          onBack={forceLogout}
           onComplete={(profile) =>
             runAction(async () => {
               const token = await withToken()
