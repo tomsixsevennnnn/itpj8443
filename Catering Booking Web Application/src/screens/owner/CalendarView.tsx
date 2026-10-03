@@ -6,6 +6,7 @@ import SlipVerifyBadge from '../../components/SlipVerifyBadge'
 import type { Booking } from '../../types'
 import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
+import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 import {
   BASE_SLOTS,
@@ -48,7 +49,12 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
 
   const popup = popupId ? bookings.find(b => b.id === popupId) ?? null : null
-  const slipObjectUrl = useAuthedSlipUrl(popup?.id, !!popup?.paymentSlip, onFetchPaymentSlip)
+  const { url: slipObjectUrl, failed: slipFailed, retry: retrySlip } = useAuthedSlipUrl(
+    popup?.id,
+    !!popup?.paymentSlip,
+    onFetchPaymentSlip,
+    popup?.paymentSlipUploadedAt,
+  )
   const dayEvents = dayPopupDate ? bookingsOn(bookings, dayPopupDate) : []
 
   /** กด Esc ปิด popup ที่เปิดอยู่ล่างขึ้นบน: ดูสลิป → รายละเอียดงาน → รายการวัน */
@@ -401,10 +407,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
 
               {/* สลิปโอนเงินมัดจำ — ตรวจสอบกับบัญชีร้านเองก่อนเปลี่ยนสถานะ */}
               {popup.paymentSlip && !slipObjectUrl && (
-                <div className="w-full h-32 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
-                  <Loader2 size={16} className="animate-spin" />
-                  กำลังโหลดสลิป...
-                </div>
+                <SlipLoadStatus failed={slipFailed} onRetry={retrySlip} className="h-32" />
               )}
               {popup.paymentSlip && slipObjectUrl && (
                 <div className="space-y-2">

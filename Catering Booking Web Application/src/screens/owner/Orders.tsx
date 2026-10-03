@@ -8,6 +8,7 @@ import { calculateStaff, isSamePlan, staffRoles, sumStaff, toPlan } from '../../
 import { bookingCostSummary } from '../../costing'
 import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
+import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 
 const PAGE_SIZE = 20
@@ -51,7 +52,12 @@ export default function Orders({
 
   // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
   const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
-  const slipObjectUrl = useAuthedSlipUrl(selected?.id, !!selected?.paymentSlip, onFetchPaymentSlip)
+  const { url: slipObjectUrl, failed: slipFailed, retry: retrySlip } = useAuthedSlipUrl(
+    selected?.id,
+    !!selected?.paymentSlip,
+    onFetchPaymentSlip,
+    selected?.paymentSlipUploadedAt,
+  )
 
   const staffRatios = {
     tablesPerServer: settings.tablesPerServer,
@@ -493,12 +499,7 @@ export default function Orders({
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">สลิปโอนเงินมัดจำ</p>
                 {(() => {
                   if (selected.paymentSlip && !slipObjectUrl) {
-                    return (
-                      <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
-                        <Loader2 size={16} className="animate-spin" />
-                        กำลังโหลดสลิป...
-                      </div>
-                    )
+                    return <SlipLoadStatus failed={slipFailed} onRetry={retrySlip} />
                   }
                   if (selected.paymentSlip && slipObjectUrl) {
                     return (

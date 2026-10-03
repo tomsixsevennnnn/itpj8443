@@ -384,8 +384,11 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
             <input
                   type="number"
                   min="0"
+                  step="1"
+                  inputMode="numeric"
                   value={form.costPrice}
-                  onChange={e => setForm(f => ({ ...f, costPrice: Math.max(0, Number(e.target.value) || 0) }))}
+                  // ราคาทุนเก็บเป็นจำนวนเต็มบาท (backend/DB เป็น Int) — ปัดเป็นจำนวนเต็มตั้งแต่ตอนพิมพ์ กัน backend ปฏิเสธ 400
+                  onChange={e => setForm(f => ({ ...f, costPrice: Math.max(0, Math.round(Number(e.target.value)) || 0) }))}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                 />
           </label>

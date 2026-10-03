@@ -133,9 +133,16 @@ export default forwardRef<LocationMapHandle, LocationMapProps>(function Location
     }
   }, [layer])
 
-  // ย้ายหมุดตามตำแหน่งที่ parent กำหนด (เช่น หลังลากแล้ว parent normalize ค่ากลับมา)
+  // ย้ายหมุดตามตำแหน่งที่ parent กำหนด (เช่น หลังลากแล้ว parent normalize ค่ากลับมา หรือกด "ใช้ตำแหน่งปัจจุบัน")
+  // ถ้าตำแหน่งใหม่อยู่นอกกรอบที่มองเห็นอยู่ (เช่น GPS อยู่คนละจังหวัดกับตำแหน่งเดิม) ต้องบินกล้องตามไปด้วย
+  // ไม่งั้นหมุดย้ายไปแล้วแต่แผนที่ยังค้างที่เดิม ดูเหมือน "ไม่ไป" — ถ้ายังอยู่ในกรอบ (แตะ/ลากหมุดเอง) ไม่ขยับกล้อง
   useEffect(() => {
-    markerRef.current?.setLatLng([position.lat, position.lng])
+    const map = mapRef.current
+    const target: L.LatLngExpression = [position.lat, position.lng]
+    markerRef.current?.setLatLng(target)
+    if (map && !map.getBounds().contains(target)) {
+      map.flyTo(target, Math.max(map.getZoom(), 16), { duration: 0.7 })
+    }
   }, [position.lat, position.lng])
 
   /**

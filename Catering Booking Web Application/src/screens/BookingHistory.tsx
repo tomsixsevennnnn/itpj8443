@@ -8,6 +8,7 @@ import type { AppSettings, Booking } from '../types'
 import { DOC_LABEL, bookingCustomerName, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
 import { useAuthedSlipUrl } from '../useAuthedSlipUrl'
+import SlipLoadStatus from '../components/SlipLoadStatus'
 
 interface BookingHistoryProps {
   bookings: Booking[]
@@ -124,7 +125,12 @@ export default function BookingHistory({
   })
 
   const detailBooking = allBookings.find(b => b.id === detailId)
-  const slipObjectUrl = useAuthedSlipUrl(detailBooking?.id, !!detailBooking?.paymentSlip, onFetchPaymentSlip)
+  const { url: slipObjectUrl, failed: slipFailed, retry: retrySlip } = useAuthedSlipUrl(
+    detailBooking?.id,
+    !!detailBooking?.paymentSlip,
+    onFetchPaymentSlip,
+    detailBooking?.paymentSlipUploadedAt,
+  )
   const docBooking = docView ? allBookings.find(b => b.id === docView.id) : null
 
   return (
@@ -512,12 +518,7 @@ export default function BookingHistory({
                     )
                   }
                   if (detailBooking.paymentSlip && !slipObjectUrl) {
-                    return (
-                      <div className="w-full h-40 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400 text-sm gap-2">
-                        <Loader2 size={16} className="animate-spin" />
-                        กำลังโหลดสลิป...
-                      </div>
-                    )
+                    return <SlipLoadStatus failed={slipFailed} onRetry={retrySlip} />
                   }
                   if (detailBooking.paymentSlip && slipObjectUrl) {
                     return (
