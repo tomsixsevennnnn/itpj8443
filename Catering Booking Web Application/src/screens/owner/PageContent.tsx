@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useSettingsForm } from './useSettingsForm'
+import { useSettingsForm, type SaveSettingsResult } from './useSettingsForm'
 import {
   Check,
   Image,
@@ -19,7 +19,7 @@ import { deepTrim } from '../../deepTrim'
 
 interface PageContentProps {
   settings: AppSettings
-  onUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
+  onUpdateSettings: (patch: Partial<AppSettings>) => Promise<SaveSettingsResult>
   onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
 }
 
@@ -34,7 +34,7 @@ const PAGE_CONTENT_TABS: { id: PageContentTab; label: string; icon: typeof Image
 
 export default function PageContent({ settings, onUpdateSettings, onUploadImage }: Readonly<PageContentProps>) {
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useSettingsForm(settings, saving)
+  const [form, setForm] = useSettingsForm(settings)
   const [activeTab, setActiveTab] = useState<PageContentTab>('hero')
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [heroUploading, setHeroUploading] = useState(false)
@@ -124,8 +124,9 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
     if (saving) return
     setSaving(true)
     try {
-      await onUpdateSettings(deepTrim(form))
-      setSavedAt(Date.now())
+      const result = await onUpdateSettings(deepTrim(form))
+      if (result.settings) setForm(result.settings)
+      if (result.ok) setSavedAt(Date.now())
     } finally {
       setSaving(false)
     }

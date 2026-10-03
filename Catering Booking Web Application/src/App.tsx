@@ -31,6 +31,7 @@ import { DEFAULT_HOME_CONTENT } from './homeContent'
 import { DEFAULT_NOTIF_SEEN_AT, unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
 import { useLocationSync } from './useLocationSync'
+import type { SaveSettingsResult } from './screens/owner/useSettingsForm'
 import { firstIncompleteStep, loadBookingDraft, missingBookingField, saveBookingDraft } from './bookingDraft'
 import {
   api,
@@ -523,7 +524,7 @@ interface OwnerScreensProps {
   handleSaveMenu: (item: MenuItem) => Promise<void>
   handleDeleteMenu: (id: string) => Promise<void>
   handleUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
-  handleUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
+  handleUpdateSettings: (patch: Partial<AppSettings>) => Promise<SaveSettingsResult>
   withToken: () => Promise<string>
   auth0UserSub: string | undefined
   usersRefreshSignal: number
@@ -1091,7 +1092,9 @@ export default function App() {
     if (!activeShopId) return
     withToken()
       .then(token => api.settings(token, activeShopId))
-      .then(setSettings)
+      // คำตอบที่มาช้ากว่า (เช่นขอไว้ก่อนบันทึก แต่ตอบหลังบันทึกเสร็จ) ต้องไม่เขียนทับค่าที่ใหม่กว่า — ไม่งั้น version ถอยหลัง
+      // แล้วบันทึกครั้งต่อไปชน 409 (ร้านเดียวกันเท่านั้นที่ version เทียบกันได้ ร้านอื่นไม่เกี่ยว)
+      .then(next => setSettings(prev => (next.version < prev.version ? prev : next)))
       .catch(() => {})
   }
 
@@ -1422,24 +1425,30 @@ export default function App() {
     setBooking(b => ({ ...b, selectedMenus: menus }))
   }
 
-  const handleUpdateSettings = (patch: Partial<AppSettings>) =>
-    runAction(async () => {
+  const handleUpdateSettings = async (patch: Partial<AppSettings>): Promise<SaveSettingsResult> => {
+    let result: SaveSettingsResult = { ok: false, settings: null }
+    await runAction(async () => {
       const token = await withToken()
       try {
         const updated = await api.updateSettings(token, patch)
         setSettings(updated)
+        result = { ok: true, settings: updated }
       } catch (err) {
         // 409 = มีคนแก้ไขค่าตั้งค่าไปแล้วก่อนหน้านี้ (อีกแท็บ/อีกคน) — โหลดค่าล่าสุดจาก backend มาแทนที่ค่าในหน้าจอ
-        // แทนที่จะทิ้งข้อความ error ดิบให้ผู้ใช้เห็น (มี version เดิมค้างอยู่ ไม่มีทาง save ซ้ำผ่านได้จนกว่าจะ refresh)
+        // แทนที่จะทิ้งข้อความ error ดิบให้ผู้ใช้เห็น แล้วส่งค่าล่าสุดกลับให้ฟอร์มตามด้วย (ไม่งั้นฟอร์มค้าง version เดิม
+        // กดบันทึกซ้ำก็ชนซ้ำไม่จบ)
         const message = err instanceof Error ? err.message : ''
         if (/-> 409/.test(message)) {
           const fresh = await api.settings(token, activeShopId ?? undefined)
           setSettings(fresh)
+          result = { ok: false, settings: fresh }
           throw new Error('มีการแก้ไขค่าตั้งค่าจากที่อื่นไปแล้ว ระบบโหลดค่าล่าสุดมาให้แล้ว กรุณาตรวจสอบและบันทึกใหม่อีกครั้ง')
         }
         throw err
       }
     })
+    return result
+  }
 
   const handleConfirm = (): Promise<boolean> =>
     runActionResult(async () => {

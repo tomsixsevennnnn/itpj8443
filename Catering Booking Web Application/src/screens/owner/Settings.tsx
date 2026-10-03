@@ -1,5 +1,5 @@
 import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
-import { useSettingsForm } from './useSettingsForm'
+import { useSettingsForm, type SaveSettingsResult } from './useSettingsForm'
 import {
   ArrowDown,
   ArrowUp,
@@ -39,7 +39,7 @@ import { normalizeProvince, reverseGeocode } from '../../geo'
 
 interface SettingsProps {
   settings: AppSettings
-  onUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
+  onUpdateSettings: (patch: Partial<AppSettings>) => Promise<SaveSettingsResult>
   onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
   onTestSlipOk: (apiKey: string, branchId: string) => Promise<{ ok: boolean; quota?: number; message?: string }>
 }
@@ -1159,7 +1159,7 @@ function CategoriesTab({
 
 export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: Readonly<SettingsProps>) {
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useSettingsForm(settings, saving)
+  const [form, setForm] = useSettingsForm(settings)
   const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [newMetroProvince, setNewMetroProvince] = useState('')
@@ -1360,8 +1360,10 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
     if (saving) return
     setSaving(true)
     try {
-      await onUpdateSettings(deepTrim(form))
-      setSavedAt(Date.now())
+      const result = await onUpdateSettings(deepTrim(form))
+      // ฟอร์มต้องตามค่าล่าสุดจาก backend เสมอ (ได้ version ใหม่ ไม่งั้นบันทึกรอบถัดไปชน 409) — ทั้งตอนสำเร็จและตอนชน 409
+      if (result.settings) setForm(result.settings)
+      if (result.ok) setSavedAt(Date.now())
     } finally {
       setSaving(false)
     }

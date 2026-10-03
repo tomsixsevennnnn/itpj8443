@@ -1,24 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AppSettings } from '../../types'
 
+/** ผลของการกดบันทึกค่าตั้งค่า — settings = ค่าล่าสุดจาก backend ที่ฟอร์มต้องตามทันที (ค่าที่เพิ่งบันทึกสำเร็จ หรือค่าที่โหลดใหม่
+ *  หลังชน 409) ok = บันทึกสำเร็จจริงหรือไม่ (ไม่สำเร็จ = มีข้อความผิดพลาดที่แถบแจ้งเตือนรวมของ App อยู่แล้ว) */
+export interface SaveSettingsResult {
+  ok: boolean
+  settings: AppSettings | null
+}
+
 /**
- * state ของฟอร์มตั้งค่า (หน้าตั้งค่าร้าน/เนื้อหาหน้าแรก) ที่ sync ตาม settings ล่าสุดจาก backend อยู่เสมอ:
+ * state ของฟอร์มตั้งค่า (หน้าตั้งค่าร้าน/เนื้อหาหน้าแรก) ที่ sync ตาม settings ล่าสุดจาก backend:
  *  - ยังไม่ได้แก้อะไรค้างไว้ → ตามค่าล่าสุดทุกครั้ง (คนอื่นแก้จากเครื่องอื่น/polling/SSE)
- *  - กำลังบันทึกอยู่ (saving) แล้ว settings เปลี่ยน → ตามค่าล่าสุดเสมอ ทั้งกรณีบันทึกสำเร็จ (ได้ version ใหม่ ไม่งั้นบันทึกรอบถัดไป
- *    ส่ง version เก่าไปแล้วชน 409 ทั้งที่ไม่มีใครแก้) และกรณี 409 (App โหลดค่าล่าสุดมาแทนที่แล้ว ฟอร์มต้องตามด้วย
- *    ไม่งั้นค้าง version เก่า กดบันทึกซ้ำเท่าไรก็ชนเหมือนเดิม)
- *  - แก้ค้างไว้แต่ไม่ได้กำลังบันทึก → คงสิ่งที่พิมพ์ไว้ ไม่ทับกลางคัน
+ *  - แก้ค้างไว้ → คงสิ่งที่พิมพ์ไว้ ไม่ทับกลางคัน (ถ้าระหว่างนั้นมีคนอื่นบันทึกไปก่อน การบันทึกของเราจะชน 409 ตามที่ตั้งใจ)
+ *  - หลังกดบันทึก ผู้เรียกต้อง setForm(ค่าล่าสุดที่ได้กลับมา) เองเสมอ ทั้งกรณีสำเร็จ (ได้ version ใหม่) และกรณีชน 409 (ได้ค่า
+ *    ล่าสุดที่โหลดใหม่) — ห้ามพึ่งจังหวะ render ว่า settings เปลี่ยนตอนไหน (เคยใช้ธง "กำลังบันทึก" แล้วพลาดเป็นช่วงๆ เพราะ React รวม
+ *    การอัปเดต settings กับการปิดธงเข้า render เดียวกัน ฟอร์มเลยค้าง version เก่าแล้วชน 409 ซ้ำทั้งที่ไม่มีใครแก้)
  */
-export function useSettingsForm(settings: AppSettings, saving: boolean) {
+export function useSettingsForm(settings: AppSettings) {
   const [form, setForm] = useState<AppSettings>(settings)
   const prevSettingsRef = useRef(settings)
-  const savingRef = useRef(saving)
-  savingRef.current = saving
 
   useEffect(() => {
     const prevSettings = prevSettingsRef.current
     prevSettingsRef.current = settings
-    setForm(f => (savingRef.current || JSON.stringify(f) === JSON.stringify(prevSettings) ? settings : f))
+    setForm(f => (JSON.stringify(f) === JSON.stringify(prevSettings) ? settings : f))
   }, [settings])
 
   return [form, setForm] as const
