@@ -514,6 +514,9 @@ interface DeliveryTabProps {
   locateError: string | null
   /** แจ้งว่าระบบตั้ง "จังหวัดที่ร้านตั้งอยู่" ตามตำแหน่งที่ปักหมุดใหม่ให้อัตโนมัติ */
   locateNotice: string | null
+  /** ตั้ง "จังหวัดที่ร้านตั้งอยู่" ตามตำแหน่งหมุดร้านปัจจุบัน (กดเองได้ เผื่อหมุดอยู่ที่เดิมแต่จังหวัดยังเป็นค่าเก่า) */
+  onSyncProvince: () => void
+  syncingProvince: boolean
   setShopLocation: (lat: number, lng: number) => void
 }
 
@@ -531,6 +534,8 @@ function DeliveryTab({
   locating,
   locateError,
   locateNotice,
+  onSyncProvince,
+  syncingProvince,
   setShopLocation,
 }: Readonly<DeliveryTabProps>) {
   return (
@@ -683,6 +688,18 @@ function DeliveryTab({
 
           {locateError && <p className="mt-2 text-xs text-red-500">{locateError}</p>}
           {locateNotice && <p className="mt-2 text-xs text-blue-600">{locateNotice}</p>}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span>จังหวัดที่ร้านตั้งอยู่ตอนนี้: <span className="font-semibold text-gray-700">{form.homeProvince || '-'}</span></span>
+            <button
+              type="button"
+              onClick={onSyncProvince}
+              disabled={syncingProvince}
+              className="flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-60 transition-colors"
+            >
+              {syncingProvince && <Loader2 size={11} className="animate-spin" />}
+              ตั้งจังหวัดตามตำแหน่งหมุดนี้
+            </button>
+          </div>
 
           <div className="grid grid-cols-2 gap-2 mt-3">
             {[
@@ -1155,6 +1172,9 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
   const [locateError, setLocateError] = useState<string | null>(null)
   const [locateNotice, setLocateNotice] = useState<string | null>(null)
   const provinceCtrlRef = useRef<AbortController | null>(null)
+  const [syncingProvince, setSyncingProvince] = useState(false)
+  const homeProvinceRef = useRef(form.homeProvince)
+  homeProvinceRef.current = form.homeProvince
   const [logoUploading, setLogoUploading] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
@@ -1262,29 +1282,46 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
     setSavedAt(null)
   }
 
+  /** หาจังหวัดจากพิกัดแล้วตั้ง "จังหวัดที่ร้านตั้งอยู่" ตาม (โซน "พื้นที่ร้าน" ไม่มีค่าขนส่ง ตัดสินจากชื่อจังหวัด ไม่ได้ดูจากพิกัดหมุด —
+   *  ย้ายหมุดไปจังหวัดอื่นแล้วถ้าไม่ตาม ลูกค้าที่จัดงานตรงหมุดใหม่จะยังถูกคิดค่าขนส่งเหมือนเดิม) แก้ช่องจังหวัดเองได้เสมอ
+   *  announceSame = บอกผู้ใช้ด้วยแม้จังหวัดตรงอยู่แล้ว (ตอนกดปุ่มเอง ไม่ใช่ตอนลากหมุด) */
+  const syncHomeProvince = (lat: number, lng: number, announceSame: boolean) => {
+    provinceCtrlRef.current?.abort()
+    const ctrl = new AbortController()
+    provinceCtrlRef.current = ctrl
+    setSyncingProvince(true)
+    reverseGeocode(lat, lng, ctrl.signal)
+      .then(place => {
+        const province = place ? normalizeProvince(place.province) : ''
+        if (!province) {
+          setLocateNotice('ระบุจังหวัดจากตำแหน่งนี้ไม่ได้ กรุณาพิมพ์ในช่อง "จังหวัดที่ร้านตั้งอยู่" ด้านบนเอง')
+          return
+        }
+        const previous = homeProvinceRef.current
+        if (previous === province) {
+          if (announceSame) setLocateNotice(`จังหวัดที่ร้านตั้งอยู่เป็น "${province}" ตรงกับตำแหน่งหมุดอยู่แล้ว`)
+          return
+        }
+        setForm(f => ({ ...f, homeProvince: province }))
+        setSavedAt(null)
+        setLocateNotice(
+          `ตั้ง "จังหวัดที่ร้านตั้งอยู่" เป็น "${province}" ตามตำแหน่งหมุดแล้ว (เดิม "${previous}") — กด "บันทึกการตั้งค่า" เพื่อให้มีผลกับลูกค้า`,
+        )
+      })
+      .catch(err => {
+        if ((err as Error).name === 'AbortError') return // ขยับหมุดอีกก่อนได้ผล — รอบใหม่จัดการต่อ
+        setLocateNotice('ระบุจังหวัดจากตำแหน่งนี้ไม่สำเร็จ กรุณาลองใหม่ หรือพิมพ์จังหวัดเอง')
+      })
+      .finally(() => {
+        if (provinceCtrlRef.current === ctrl) setSyncingProvince(false)
+      })
+  }
+
   const setShopLocation = (lat: number, lng: number) => {
     setForm(f => ({ ...f, shopLocation: { lat, lng } }))
     setSavedAt(null)
     setLocateNotice(null)
-
-    // โซน "พื้นที่ร้าน" (ไม่มีค่าขนส่ง) ตัดสินจากชื่อจังหวัดที่ร้านตั้งอยู่ ไม่ได้ดูจากพิกัดหมุด — ย้ายหมุดไปจังหวัดอื่นแล้วถ้าไม่ตาม
-    // ลูกค้าที่จัดงานตรงหมุดใหม่จะยังถูกคิดค่าขนส่งเหมือนเดิม จึงตั้งจังหวัดตามตำแหน่งใหม่ให้เอง (ยังแก้ช่องจังหวัดเองได้)
-    provinceCtrlRef.current?.abort()
-    const ctrl = new AbortController()
-    provinceCtrlRef.current = ctrl
-    reverseGeocode(lat, lng, ctrl.signal)
-      .then(place => {
-        const province = place ? normalizeProvince(place.province) : ''
-        if (!province) return
-        setForm(f => {
-          if (f.homeProvince === province) return f
-          setLocateNotice(`ตั้ง "จังหวัดที่ร้านตั้งอยู่" เป็น "${province}" ตามตำแหน่งใหม่ให้แล้ว (เดิม "${f.homeProvince}") — แก้ได้ที่ช่องด้านบน`)
-          return { ...f, homeProvince: province }
-        })
-      })
-      .catch(() => {
-        // ระบุจังหวัดไม่สำเร็จ (หรือถูกยกเลิกเพราะขยับหมุดอีก) — ไม่แตะจังหวัดเดิม
-      })
+    syncHomeProvince(lat, lng, false)
   }
 
   /** ใช้ตำแหน่งปัจจุบันจาก GPS เป็นตำแหน่งร้าน — สะดวกเวลาตั้งค่าจากหน้าร้านจริง */
@@ -1458,6 +1495,8 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           locating={locating}
           locateError={locateError}
           locateNotice={locateNotice}
+          onSyncProvince={() => syncHomeProvince(form.shopLocation.lat, form.shopLocation.lng, true)}
+          syncingProvince={syncingProvince}
           setShopLocation={setShopLocation}
         />
       )}
