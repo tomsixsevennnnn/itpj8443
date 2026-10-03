@@ -233,7 +233,7 @@ export default function SelectLocation({
       .finally(() => setOutsideLoading(false))
     return () => ctrl.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zone, hasPlace, pos.lat, pos.lng])
+  }, [zone, hasPlace, pos.lat, pos.lng, shopLocation.lat, shopLocation.lng])
 
   const check = checkDelivery(
     tables,

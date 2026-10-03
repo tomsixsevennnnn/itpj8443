@@ -33,12 +33,19 @@ export function useLocationSync(
   const settingsKey = `${homeProvince}|${metroProvinces.join(',')}|${shopLocation.lat},${shopLocation.lng}`
 
   useEffect(() => {
-    if (!enabled || !location) {
+    if (!enabled) {
       setRecalculating(false)
       return
     }
-    const settingsChanged = lastSettingsKeyRef.current !== null && lastSettingsKeyRef.current !== settingsKey
+    // เทียบค่าตั้งค่าทุกครั้งที่พร้อมใช้งาน แม้ยังไม่ได้เลือกสถานที่ (ลูกค้าอยู่ขั้นก่อนหน้า) — ไม่งั้นพอเลือกสถานที่แล้วจะไม่รู้ว่าค่า
+    // ตั้งค่าเปลี่ยนไปแล้วหรือยัง ครั้งแรกสุดที่พร้อม (null) นับว่าเปลี่ยนเสมอ เพื่อคำนวณระยะทางของข้อมูลที่กู้จากฉบับร่างหลังรีเฟรชใหม่
+    // (ค่าตั้งค่าอาจถูกแก้ระหว่างที่ปิดหน้าไป)
+    const settingsChanged = lastSettingsKeyRef.current !== settingsKey
     lastSettingsKeyRef.current = settingsKey
+    if (!location) {
+      setRecalculating(false)
+      return
+    }
 
     const zone = zoneFor(location.province, location.address, metroProvinces, homeProvince)
     if (zone !== 'outside') {
