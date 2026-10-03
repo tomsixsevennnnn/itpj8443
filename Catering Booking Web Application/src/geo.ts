@@ -63,6 +63,12 @@ export const zoneFor = (
 ): ServiceZone =>
   zoneOfText(province, homeProvince, metroProvinces) ?? zoneOfText(address, homeProvince, metroProvinces) ?? 'outside'
 
+/**
+ * ชื่อจังหวัดจาก geocoding (เช่น "จังหวัดราชบุรี") ให้เหลือแค่ชื่อ ("ราชบุรี") — เทียบกับ homeProvince/metroProvinces ที่เจ้าของร้านพิมพ์
+ * ไว้เป็นชื่อสั้นๆ ได้ตรงกัน ("กรุงเทพมหานคร" ไม่มีคำนำหน้า คงไว้ตามเดิม)
+ */
+export const normalizeProvince = (province: string): string => province.trim().replace(/^จังหวัด\s*/u, '')
+
 /** label ของแต่ละโซน — เป็นฟังก์ชันเพราะ label ของ "home" ต้องใส่ชื่อจังหวัดร้านที่แก้ไขได้ */
 export const zoneLabel = (homeProvince: string = DEFAULT_HOME_PROVINCE): Record<ServiceZone, string> => ({
   home: `พื้นที่ร้าน (${homeProvince})`,

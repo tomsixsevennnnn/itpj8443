@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkDelivery, deliveryFeeFor, isGoogleMapsShortLink, isGoogleMapsUrl, parseGoogleMapsUrl, zoneFor } from './geo'
+import { checkDelivery, deliveryFeeFor, isGoogleMapsShortLink, isGoogleMapsUrl, normalizeProvince, parseGoogleMapsUrl, zoneFor } from './geo'
 
 describe('zoneFor', () => {
   it('นครปฐม = พื้นที่ร้าน', () => {
@@ -156,5 +156,17 @@ describe('parseGoogleMapsUrl', () => {
 
   it('แกะพิกัดไม่ได้ = null', () => {
     expect(parseGoogleMapsUrl('https://www.google.com/maps/place/ไม่มีพิกัด')).toBeNull()
+  })
+})
+
+describe('normalizeProvince', () => {
+  it('ตัดคำนำหน้า "จังหวัด" ออก เหลือชื่อสั้นเทียบกับค่าตั้งค่าร้านได้', () => {
+    expect(normalizeProvince('จังหวัดราชบุรี')).toBe('ราชบุรี')
+    expect(normalizeProvince('จังหวัด นครปฐม')).toBe('นครปฐม')
+  })
+
+  it('ชื่อที่ไม่มีคำนำหน้า (เช่น กรุงเทพมหานคร) คงเดิม', () => {
+    expect(normalizeProvince('กรุงเทพมหานคร')).toBe('กรุงเทพมหานคร')
+    expect(normalizeProvince('  ราชบุรี ')).toBe('ราชบุรี')
   })
 })
