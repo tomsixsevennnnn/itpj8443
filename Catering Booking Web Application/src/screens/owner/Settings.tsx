@@ -1,4 +1,4 @@
-import { useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { useSettingsForm, type SaveSettingsResult } from './useSettingsForm'
 import {
   ArrowDown,
@@ -35,6 +35,7 @@ import { pickImageAsDataUrl } from '../../imageUpload'
 import { resolveImageUrl, type UploadImageKind } from '../../api'
 import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
 import { deepTrim } from '../../deepTrim'
+import { THAI_PROVINCES } from '../../provinces'
 import { normalizeProvince, reverseGeocode } from '../../geo'
 
 interface SettingsProps {
@@ -517,6 +518,8 @@ interface DeliveryTabProps {
   /** ตั้ง "จังหวัดที่ร้านตั้งอยู่" ตามตำแหน่งหมุดร้านปัจจุบัน (กดเองได้ เผื่อหมุดอยู่ที่เดิมแต่จังหวัดยังเป็นค่าเก่า) */
   onSyncProvince: () => void
   syncingProvince: boolean
+  /** จังหวัดที่หมุดร้านอยู่จริง (จาก reverse geocode) — null = ยังไม่รู้ */
+  pinProvince: string | null
   setShopLocation: (lat: number, lng: number) => void
 }
 
@@ -536,10 +539,18 @@ function DeliveryTab({
   locateNotice,
   onSyncProvince,
   syncingProvince,
+  pinProvince,
   setShopLocation,
 }: Readonly<DeliveryTabProps>) {
   return (
     <>
+      {/* ตัวเลือกจังหวัดสำหรับช่องพิมพ์จังหวัดในแท็บนี้ (พิมพ์แล้วเลือกได้ ไม่ต้องสะกดเอง) */}
+      <datalist id="thai-provinces">
+        {THAI_PROVINCES.map(name => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+
       {/* ค่าขนส่ง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -556,8 +567,10 @@ function DeliveryTab({
             <span>จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)</span>
             <input
             type="text"
+            list="thai-provinces"
+            autoComplete="off"
             value={form.homeProvince}
-            placeholder="เช่น นครปฐม"
+            placeholder="พิมพ์แล้วเลือกจังหวัด เช่น นครปฐม"
             onChange={e => {
               setForm(f => ({ ...f, homeProvince: e.target.value }))
               setSavedAt(null)
@@ -614,7 +627,9 @@ function DeliveryTab({
                   addMetroProvince()
                 }
               }}
-              placeholder="เช่น ชลบุรี"
+              list="thai-provinces"
+              autoComplete="off"
+              placeholder="พิมพ์แล้วเลือกจังหวัด เช่น ชลบุรี"
               className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             <button
@@ -688,6 +703,15 @@ function DeliveryTab({
 
           {locateError && <p className="mt-2 text-xs text-red-500">{locateError}</p>}
           {locateNotice && <p className="mt-2 text-xs text-blue-600">{locateNotice}</p>}
+          {pinProvince && pinProvince !== form.homeProvince && (
+            <div role="alert" className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-semibold">หมุดร้านอยู่ที่จังหวัด "{pinProvince}" แต่ "จังหวัดที่ร้านตั้งอยู่" ตั้งไว้เป็น "{form.homeProvince}"</p>
+              <p className="mt-0.5">
+                ลูกค้าที่จัดงานในจังหวัด "{pinProvince}" จะยังไม่ถือเป็นพื้นที่ร้าน (ถูกคิดค่าขนส่ง) — กดปุ่ม "ตั้งจังหวัดตามตำแหน่งหมุดนี้"
+                แล้วกด "บันทึกการตั้งค่า" หรือพิมพ์จังหวัดเองที่ช่อง "จังหวัดที่ร้านตั้งอยู่"
+              </p>
+            </div>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
             <span>จังหวัดที่ร้านตั้งอยู่ตอนนี้: <span className="font-semibold text-gray-700">{form.homeProvince || '-'}</span></span>
             <button
@@ -1173,6 +1197,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
   const [locateNotice, setLocateNotice] = useState<string | null>(null)
   const provinceCtrlRef = useRef<AbortController | null>(null)
   const [syncingProvince, setSyncingProvince] = useState(false)
+  const [pinProvince, setPinProvince] = useState<string | null>(null)
   const homeProvinceRef = useRef(form.homeProvince)
   homeProvinceRef.current = form.homeProvince
   const [logoUploading, setLogoUploading] = useState(false)
@@ -1293,6 +1318,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
     reverseGeocode(lat, lng, ctrl.signal)
       .then(place => {
         const province = place ? normalizeProvince(place.province) : ''
+        if (province) setPinProvince(province)
         if (!province) {
           setLocateNotice('ระบุจังหวัดจากตำแหน่งนี้ไม่ได้ กรุณาพิมพ์ในช่อง "จังหวัดที่ร้านตั้งอยู่" ด้านบนเอง')
           return
@@ -1316,6 +1342,22 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
         if (provinceCtrlRef.current === ctrl) setSyncingProvince(false)
       })
   }
+
+  // เปิดหน้าตั้งค่ามา เช็คครั้งเดียวว่าหมุดร้านที่บันทึกไว้อยู่จังหวัดไหน — ถ้าไม่ตรงกับ "จังหวัดที่ร้านตั้งอยู่" ให้เตือนเลย
+  // (ไม่ต้องรอให้ขยับหมุด เพราะหมุดอาจถูกตั้งไว้ก่อนแล้ว แต่ช่องจังหวัดยังเป็นค่าเดิมทำให้ลูกค้าถูกคิดค่าขนส่งผิดโซน)
+  useEffect(() => {
+    const ctrl = new AbortController()
+    reverseGeocode(form.shopLocation.lat, form.shopLocation.lng, ctrl.signal)
+      .then(place => {
+        const province = place ? normalizeProvince(place.province) : ''
+        if (province) setPinProvince(province)
+      })
+      .catch(() => {
+        // ระบุจังหวัดไม่ได้ — ไม่เตือน (ผู้ใช้ยังกดปุ่ม "ตั้งจังหวัดตามตำแหน่งหมุดนี้" เองได้)
+      })
+    return () => ctrl.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const setShopLocation = (lat: number, lng: number) => {
     setForm(f => ({ ...f, shopLocation: { lat, lng } }))
@@ -1499,6 +1541,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           locateNotice={locateNotice}
           onSyncProvince={() => syncHomeProvince(form.shopLocation.lat, form.shopLocation.lng, true)}
           syncingProvince={syncingProvince}
+          pinProvince={pinProvince}
           setShopLocation={setShopLocation}
         />
       )}
