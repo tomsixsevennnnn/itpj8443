@@ -35,7 +35,7 @@ import { pickImageAsDataUrl } from '../../imageUpload'
 import { resolveImageUrl, type UploadImageKind } from '../../api'
 import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
 import { deepTrim } from '../../deepTrim'
-import { THAI_PROVINCES } from '../../provinces'
+import ProvinceInput from '../../components/ProvinceInput'
 import { normalizeProvince, reverseGeocode } from '../../geo'
 
 interface SettingsProps {
@@ -544,13 +544,6 @@ function DeliveryTab({
 }: Readonly<DeliveryTabProps>) {
   return (
     <>
-      {/* ตัวเลือกจังหวัดสำหรับช่องพิมพ์จังหวัดในแท็บนี้ (พิมพ์แล้วเลือกได้ ไม่ต้องสะกดเอง) */}
-      <datalist id="thai-provinces">
-        {THAI_PROVINCES.map(name => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
-
       {/* ค่าขนส่ง */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -563,21 +556,19 @@ function DeliveryTab({
         </p>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            <span>จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)</span>
-            <input
-            type="text"
-            list="thai-provinces"
-            autoComplete="off"
+          <label htmlFor="home-province" className="block text-sm font-medium text-gray-700 mb-1.5">
+            จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)
+          </label>
+          <ProvinceInput
+            id="home-province"
             value={form.homeProvince}
             placeholder="พิมพ์แล้วเลือกจังหวัด เช่น นครปฐม"
-            onChange={e => {
-              setForm(f => ({ ...f, homeProvince: e.target.value }))
+            onChange={value => {
+              setForm(f => ({ ...f, homeProvince: value }))
               setSavedAt(null)
             }}
-            className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            className="max-w-xs"
           />
-          </label>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -616,21 +607,13 @@ function DeliveryTab({
             พิมพ์ชื่อจังหวัดแล้วกด Enter เพื่อเพิ่ม — งานในจังหวัดที่ไม่อยู่ในรายการนี้ (และไม่ใช่นครปฐม) จะถูกจัดเป็น "นอกพื้นที่" อัตโนมัติ
           </p>
           <div className="flex gap-2 mb-3">
-            <input
+            <ProvinceInput
               id="new-metro-province"
-              type="text"
               value={newMetroProvince}
-              onChange={e => setNewMetroProvince(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  addMetroProvince()
-                }
-              }}
-              list="thai-provinces"
-              autoComplete="off"
+              onChange={setNewMetroProvince}
+              onEnter={addMetroProvince}
               placeholder="พิมพ์แล้วเลือกจังหวัด เช่น ชลบุรี"
-              className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="flex-1"
             />
             <button
               type="button"

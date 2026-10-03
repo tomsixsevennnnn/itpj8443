@@ -79,3 +79,23 @@ export const THAI_PROVINCES: readonly string[] = [
   'อุทัยธานี',
   'อุบลราชธานี',
 ]
+
+/**
+ * กรองรายชื่อจังหวัดตามคำที่พิมพ์ (ตรงบางส่วนก็ได้ ไม่สนช่องว่างหัวท้าย) — ตัวที่ขึ้นต้นด้วยคำที่พิมพ์ขึ้นก่อน ที่เหลือเรียงตามลำดับเดิม
+ * ไม่ได้พิมพ์อะไร = แสดงทั้งหมด
+ */
+export function filterProvinces(query: string): string[] {
+  const q = query.trim()
+  if (!q) return [...THAI_PROVINCES]
+  const starts = THAI_PROVINCES.filter(p => p.startsWith(q))
+  const contains = THAI_PROVINCES.filter(p => !p.startsWith(q) && p.includes(q))
+  return [...starts, ...contains]
+}
+
+/** แยกชื่อจังหวัดเป็น [ก่อนส่วนที่ตรง, ส่วนที่ตรง, หลังส่วนที่ตรง] ไว้ไฮไลต์ตัวอักษรที่พิมพ์ — ไม่ตรงเลย = [ชื่อทั้งหมด, '', ''] */
+export function splitMatch(name: string, query: string): [string, string, string] {
+  const q = query.trim()
+  const i = q ? name.indexOf(q) : -1
+  if (i < 0) return [name, '', '']
+  return [name.slice(0, i), name.slice(i, i + q.length), name.slice(i + q.length)]
+}
