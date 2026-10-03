@@ -1298,7 +1298,15 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
     const ctrl = new AbortController()
     provinceCtrlRef.current = ctrl
     setSyncingProvince(true)
-    reverseGeocode(lat, lng, ctrl.signal)
+    // บริการแผนที่ฟรีจำกัดความถี่ (ตอบ 429 ถ้าถูกเรียกถี่) — ลองซ้ำอีกครั้งหลังพักสั้นๆ ก่อนยอมแพ้
+    const lookup = () =>
+      reverseGeocode(lat, lng, ctrl.signal).catch(async (err: Error) => {
+        if (err.name === 'AbortError') throw err
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        if (ctrl.signal.aborted) throw new DOMException('Aborted', 'AbortError')
+        return reverseGeocode(lat, lng, ctrl.signal)
+      })
+    lookup()
       .then(place => {
         const province = place ? normalizeProvince(place.province) : ''
         if (province) setPinProvince(province)
@@ -1319,7 +1327,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
       })
       .catch(err => {
         if ((err as Error).name === 'AbortError') return // ขยับหมุดอีกก่อนได้ผล — รอบใหม่จัดการต่อ
-        setLocateNotice('ระบุจังหวัดจากตำแหน่งนี้ไม่สำเร็จ กรุณาลองใหม่ หรือพิมพ์จังหวัดเอง')
+        setLocateNotice(`ระบุจังหวัดจากตำแหน่งนี้ไม่สำเร็จ (${(err as Error).message}) กรุณากดปุ่ม "ตั้งจังหวัดตามตำแหน่งหมุดนี้" อีกครั้ง หรือพิมพ์จังหวัดเอง`)
       })
       .finally(() => {
         if (provinceCtrlRef.current === ctrl) setSyncingProvince(false)
