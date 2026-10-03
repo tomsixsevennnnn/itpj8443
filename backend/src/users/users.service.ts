@@ -32,7 +32,9 @@ type UserWithMemberships = User & { memberships: { shopId: string; shop: Pick<Sh
  * SUPER_ADMIN คงเดิม shopId/shop = ร้านที่ match (ถ้ามี) หน้าจอเดิมใช้ shape นี้อยู่แล้วจึงคงรูปเดิมไว้ ไม่ให้หน้าจอพัง
  */
 function toRoleView(user: UserWithMemberships, scopeShopId?: string | null) {
-  const { memberships, ...rest } = user
+  // เบอร์โทร/Line ID เป็นข้อมูลส่วนตัวของลูกค้า — owner ค้นหาผู้ใช้ข้ามร้านได้ (เพื่อเชิญมาเป็น owner) จึงไม่ส่งสองฟิลด์นี้ออกไป
+  // หน้า "สิทธิ์การเข้าถึง" ไม่ได้ใช้ (ใช้แค่ชื่อ อีเมล วันที่สมัคร และ auth0Sub เทียบว่าเป็นตัวเองหรือไม่)
+  const { memberships, phone: _phone, lineId: _lineId, ...rest } = user
   const member = scopeShopId ? memberships.find((m) => m.shopId === scopeShopId) : memberships[0]
   if (user.role === Role.SUPER_ADMIN || !member) return { ...rest, shopId: null, shop: null }
   return { ...rest, role: Role.OWNER, shopId: member.shopId, shop: member.shop }

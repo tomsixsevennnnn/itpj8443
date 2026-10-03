@@ -12,7 +12,8 @@ const makeService = () => {
       delete: jest.fn(),
     },
     packageCourse: { deleteMany: jest.fn(), createMany: jest.fn() },
-    menuItem: { findMany: jest.fn().mockResolvedValue([]) },
+    // count = จำนวนเมนูที่อยู่ในร้านจริง (ค่าเริ่มต้น 1 = เมนู m1 ที่เทสต์ส่วนใหญ่ใช้อยู่ในร้านนี้)
+    menuItem: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(1) },
     $executeRaw: jest.fn(),
     $transaction: jest.fn((fn: any) => (typeof fn === 'function' ? fn(prisma) : Promise.all(fn))),
   } as any
@@ -54,6 +55,30 @@ describe('PackagesService', () => {
     expect(prisma.menuItem.findMany).toHaveBeenCalledWith({ where: { id: { in: ['m1'] } } })
     expect(result.courses).toHaveLength(1)
     expect(result.courses[0].items).toEqual([item])
+  })
+
+  it('create: ใส่เมนูที่ไม่ได้อยู่ในร้านนี้ (เช่น id เมนูร้านอื่น) — ปฏิเสธ ไม่สร้างแพ็กเกจ', async () => {
+    const { service, prisma } = makeService()
+    prisma.package.count.mockResolvedValue(0)
+    prisma.menuItem.count.mockResolvedValue(0) // เมนูที่ส่งมาไม่อยู่ในร้านนี้
+
+    await expect(
+      service.create({ name: 'x', courses: [{ no: 1, title: 'a', category: 'snack', choose: 1, itemIds: ['other-shop-menu'] }] } as any, 'auth0|owner', SHOP),
+    ).rejects.toThrow(BadRequestException)
+    expect(prisma.menuItem.count).toHaveBeenCalledWith({ where: { id: { in: ['other-shop-menu'] }, shopId: SHOP } })
+    expect(prisma.package.create).not.toHaveBeenCalled()
+  })
+
+  it('addCourse: ใส่เมนูที่ไม่ได้อยู่ในร้านนี้ — ปฏิเสธ', async () => {
+    const { service, prisma } = makeService()
+    prisma.package.findUnique.mockResolvedValue({ id: 'p1', shopId: SHOP })
+    prisma.menuItem.count.mockResolvedValue(0)
+    ;(prisma.packageCourse as any).create = jest.fn()
+
+    await expect(
+      service.addCourse('p1', { no: 1, title: 'a', category: 'snack', choose: 1, itemIds: ['other-shop-menu'] } as any, SHOP),
+    ).rejects.toThrow(BadRequestException)
+    expect(prisma.packageCourse.create).not.toHaveBeenCalled()
   })
 
   it('update: บันทึก audit log พร้อม before/after (ไม่ส่ง courses มา)', async () => {

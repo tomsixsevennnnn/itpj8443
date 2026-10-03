@@ -395,8 +395,9 @@ export const api = {
   setUserRole: (token: string, userId: string, role: 'OWNER' | 'CUSTOMER' | 'SUPER_ADMIN') =>
     request<BackendUser>(token, `/users/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
-  bookings: async (token: string): Promise<Booking[]> =>
-    (await request<BackendBooking[]>(token, '/bookings')).map(toFrontendBooking),
+  /** shopId = เฉพาะใบจองของร้านนั้น (ฝั่งลูกค้า — หน้าประวัติของแต่ละร้านต้องไม่ปนใบจองของอีกร้าน) owner ไม่ต้องส่ง backend ใช้ร้านตัวเอง */
+  bookings: async (token: string, shopId?: string): Promise<Booking[]> =>
+    (await request<BackendBooking[]>(token, withShopIdQuery('/bookings', shopId))).map(toFrontendBooking),
 
   /** คิวรับงานของทุกลูกค้า (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควันที่เต็มแล้วตอนเลือกวันจัดงาน ต่างจาก bookings() ที่ลูกค้าเห็นแค่ของตัวเอง
    *  shopId บังคับเฉพาะฝั่งลูกค้า (เลือกร้านมาก่อนแล้ว) — owner ไม่ต้องส่ง backend resolve เองจาก JWT */

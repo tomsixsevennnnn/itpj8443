@@ -24,7 +24,7 @@ const makeService = () => {
   const prisma = {
     shop: { findUnique: jest.fn().mockResolvedValue({ id: 'shop1', status: 'ACTIVE' }) },
     package: { findUnique: jest.fn() },
-    booking: { findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+    booking: { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     bookingCounter: { upsert: jest.fn() },
     $transaction: jest.fn((fn: any) => fn(prisma)),
   } as any
@@ -226,6 +226,26 @@ describe('BookingsService.updateAsOwner', () => {
     prisma.booking.findUnique.mockResolvedValue(null)
 
     await expect(service.updateAsOwner('missing', {} as any, 'auth0|owner', 'shop1')).rejects.toThrow(NotFoundException)
+  })
+})
+
+describe('BookingsService.findAllForCustomer', () => {
+  it('ระบุ shopId — กรองเฉพาะใบจองของร้านนั้น (ไม่ปนร้านอื่น)', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findMany.mockResolvedValue([])
+
+    await service.findAllForCustomer('c1', undefined, undefined, 'shop2')
+
+    expect(prisma.booking.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { customerId: 'c1', shopId: 'shop2' } }))
+  })
+
+  it('ไม่ระบุ shopId — คืนใบจองของลูกค้าทุกร้านเหมือนเดิม', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findMany.mockResolvedValue([])
+
+    await service.findAllForCustomer('c1')
+
+    expect(prisma.booking.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { customerId: 'c1' } }))
   })
 })
 

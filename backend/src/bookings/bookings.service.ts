@@ -48,13 +48,15 @@ export class BookingsService {
     return { data, total, page: args.page, limit: args.limit } satisfies Paginated<unknown>
   }
 
-  async findAllForCustomer(customerId: string, page?: number, limit?: number) {
+  /** ใบจองของลูกค้าคนนี้ — ระบุ shopId = เฉพาะร้านนั้น (หน้าประวัติของแต่ละร้านต้องไม่ปนใบจองของร้านอื่น) ไม่ระบุ = ทุกร้าน */
+  async findAllForCustomer(customerId: string, page?: number, limit?: number, shopId?: string) {
     const args = pageArgsFor(page, limit)
-    const baseArgs = { where: { customerId }, orderBy: { createdAt: 'desc' as const } }
+    const where = { customerId, ...(shopId ? { shopId } : {}) }
+    const baseArgs = { where, orderBy: { createdAt: 'desc' as const } }
     if (!args) return this.prisma.booking.findMany(baseArgs)
     const [data, total] = await Promise.all([
       this.prisma.booking.findMany({ ...baseArgs, skip: args.skip, take: args.take }),
-      this.prisma.booking.count({ where: { customerId } }),
+      this.prisma.booking.count({ where }),
     ])
     return { data, total, page: args.page, limit: args.limit } satisfies Paginated<unknown>
   }

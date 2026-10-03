@@ -90,6 +90,15 @@ export class PackagesService {
     private readonly audit: AuditService,
   ) {}
 
+  /** เมนูที่ใส่ในแพ็กเกจต้องเป็นของร้านเดียวกันทั้งหมด — กัน owner ร้าน A เอา id เมนูร้าน B (ลูกค้าเห็น id ได้จาก GET /menus?shopId=)
+   *  มาผูกกับแพ็กเกจตัวเอง (ซึ่งจะแสดงเมนูร้านอื่นและผูกกับการแก้/ลบของร้านนั้น) */
+  private async assertItemsInShop(itemIds: string[], shopId: string): Promise<void> {
+    const unique = [...new Set(itemIds)]
+    if (unique.length === 0) return
+    const count = await this.prisma.menuItem.count({ where: { id: { in: unique }, shopId } })
+    if (count !== unique.length) throw new BadRequestException('มีเมนูที่ไม่ได้อยู่ในร้านนี้ หรือไม่พบเมนูที่เลือก')
+  }
+
   private async fetchItemsById(itemIds: string[]): Promise<Map<string, MenuItem>> {
     if (itemIds.length === 0) return new Map()
     const items = await this.prisma.menuItem.findMany({ where: { id: { in: itemIds } } })
@@ -136,6 +145,7 @@ export class PackagesService {
     const packageId = randomUUID()
     const courseIds = dto.courses.map(() => randomUUID())
     const itemIds = [...new Set(dto.courses.flatMap((c) => c.itemIds))]
+    await this.assertItemsInShop(itemIds, shopId)
 
     // nested create หลายข้อ × connect หลายเมนู/ข้อ กลายเป็นหลาย round trip ต่อเนื่องกัน (query ต่อ course บวก
     // query ต่อ connect) — ยิ่งช้าเมื่อ DB อยู่ไกล (dev เครื่องนี้ชี้ไป Railway ผ่าน public proxy) เลยยิง createMany
@@ -282,6 +292,7 @@ export class PackagesService {
     // เสร็จก่อนค่อยยิง query อ่านกลับซ้ำ — ตัด round trip สุดท้ายออกไปได้อีก 1 ก้อน
     const courseIds = dto.courses!.map(() => randomUUID())
     const itemIds = [...new Set(dto.courses!.flatMap((c) => c.itemIds))]
+    await this.assertItemsInShop(itemIds, shopId)
     const [itemsById, updated] = await Promise.all([
       this.fetchItemsById(itemIds),
       this.prisma.$transaction(
@@ -354,6 +365,7 @@ export class PackagesService {
   /** เพิ่มข้อใหม่เข้าแพ็กเกจที่มีอยู่ โดยไม่ต้องส่งคอร์สทั้งชุด — เช็คก่อนว่าแพ็กเกจเป็นของร้านตัวเองจริง */
   async addCourse(packageId: string, dto: CourseInput, shopId: string) {
     await this.assertPackageOwnedByShop(packageId, shopId)
+    await this.assertItemsInShop(dto.itemIds, shopId)
     return this.prisma.packageCourse.create({
       data: {
         packageId,
@@ -372,6 +384,7 @@ export class PackagesService {
   async updateCourse(packageId: string, courseId: string, dto: UpdateCourseDto, shopId: string) {
     await this.assertPackageOwnedByShop(packageId, shopId)
     await this.assertCourseInPackage(packageId, courseId)
+    if (dto.itemIds) await this.assertItemsInShop(dto.itemIds, shopId)
     return this.prisma.packageCourse.update({
       where: { id: courseId },
       data: {

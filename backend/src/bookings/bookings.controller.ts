@@ -21,9 +21,14 @@ export class BookingsController {
     private readonly users: UsersService,
   ) {}
 
-  /** owner เห็นทุกใบจองของร้านตัวเอง, customer เห็นใบจองของตัวเอง (ข้ามทุกร้าน) — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */
+  /** owner เห็นทุกใบจองของร้านตัวเอง, customer เห็นใบจองของตัวเอง — ส่ง ?shopId= มา = เฉพาะร้านนั้น (หน้าประวัติของร้านหนึ่ง
+   *  ไม่ควรโชว์ใบจองของอีกร้าน) ไม่ส่ง = ทุกร้าน — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */
   @Get()
-  async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto) {
+  async findAll(
+    @CurrentUser() jwtUser: Record<string, any>,
+    @Query() query: ListQueryDto,
+    @Query('shopId') shopIdQ?: string,
+  ) {
     const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (ctx?.role === Role.OWNER) {
       if (!ctx.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
@@ -31,7 +36,7 @@ export class BookingsController {
     }
 
     const user = await this.syncCustomer(jwtUser)
-    return this.bookings.findAllForCustomer(user.id, query.page, query.limit)
+    return this.bookings.findAllForCustomer(user.id, query.page, query.limit, shopIdQ || undefined)
   }
 
   /** คิวรับงานของร้านเดียว (ไม่มีข้อมูลส่วนตัว) — ใช้เช็ควัน/ช่วงเวลาที่เต็มแล้วตอนลูกค้าเลือกวันจัดงาน

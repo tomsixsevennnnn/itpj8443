@@ -395,7 +395,8 @@ async function loadAppData(deps: LoadAppDataDeps): Promise<void> {
     fetchingSelectedCustomerShop = me.role !== 'OWNER'
 
     const [bks, avail, pkgs, mns, sttgs] = await Promise.all([
-      api.bookings(token),
+      // ลูกค้าเห็นเฉพาะใบจองของร้านที่เปิดอยู่ (ไม่ปนใบจองของร้านอื่นที่เคยจอง) owner backend ใช้ร้านตัวเองอยู่แล้ว
+      api.bookings(token, me.role === 'CUSTOMER' ? shopId : undefined),
       api.bookingsAvailability(token, shopId),
       api.packages(token, shopId),
       api.menus(token, shopId),
@@ -1119,7 +1120,7 @@ export default function App() {
   const refetchBookings = () => {
     if (backendUser?.role === 'SUPER_ADMIN') return
     withToken()
-      .then(token => api.bookings(token))
+      .then(token => api.bookings(token, backendUser?.role === 'CUSTOMER' ? (selectedShopId ?? undefined) : undefined))
       .then(setBookings)
       .catch(() => {})
   }

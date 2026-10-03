@@ -177,6 +177,17 @@ describe('UsersService', () => {
     await expect(service.shopContextFor('auth0|1', 'shop1')).resolves.toEqual({ id: 'u1', role: Role.CUSTOMER, shopId: null })
   })
 
+  it('searchByEmail: ไม่ส่งเบอร์โทร/Line ID ของผู้ใช้ออกไป (owner ค้นหาข้ามร้านได้ — ข้อมูลส่วนตัวของลูกค้าต้องไม่รั่ว)', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findMany.mockResolvedValue([{ ...userWith('a', Role.CUSTOMER, []), phone: '0812345678', lineId: '@secret', email: 'a@x.com' }])
+
+    const [user] = await service.searchByEmail('a', 'shop1')
+
+    expect(user).not.toHaveProperty('phone')
+    expect(user).not.toHaveProperty('lineId')
+    expect(user).toEqual(expect.objectContaining({ id: 'a', email: 'a@x.com' }))
+  })
+
   it('searchByEmail: owner ค้นหา — role = OWNER เฉพาะคนที่เป็น owner ของร้านตัวเอง (ไม่นับร้านอื่น)', async () => {
     const { service, prisma } = makeService()
     prisma.user.findMany.mockResolvedValue([
