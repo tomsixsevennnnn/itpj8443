@@ -30,6 +30,8 @@ import { DEFAULT_SLOT_HOURS } from './availability'
 import { DEFAULT_HOME_CONTENT } from './homeContent'
 import { DEFAULT_NOTIF_SEEN_AT, unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
+import { useLocationSync } from './useLocationSync'
+import { firstIncompleteStep, loadBookingDraft, missingBookingField, saveBookingDraft } from './bookingDraft'
 import {
   api,
   setActiveShopId,
@@ -641,7 +643,8 @@ interface CustomerScreensProps {
   packages: Package[]
   handleSelectPackage: (pkg: Package) => void
   handleSetMenus: (menus: MenuItem[]) => void
-  handleConfirm: () => Promise<void>
+  handleConfirm: () => Promise<boolean>
+  locationRecalculating: boolean
   bookings: Booking[]
   handleUpdateBooking: (id: string, patch: Partial<Booking>) => Promise<boolean>
   handleFetchPaymentSlip: (bookingId: string) => Promise<string>
@@ -655,7 +658,7 @@ interface CustomerScreensProps {
 function CustomerScreens({
   navContext, actionError, setActionError, role, navigate, effectiveScreen, availability, handleSelectDateTime,
   settings, booking, handleSetTables, handleSetLocation, handleResolveMapsLink, packages, handleSelectPackage,
-  handleSetMenus, handleConfirm, bookings, handleUpdateBooking, handleFetchPaymentSlip, pendingNotifBookingId,
+  handleSetMenus, handleConfirm, locationRecalculating, bookings, handleUpdateBooking, handleFetchPaymentSlip, pendingNotifBookingId,
   setPendingNotifBookingId, notifPageSeenAt,
 }: Readonly<CustomerScreensProps>) {
   return (
@@ -727,6 +730,7 @@ function CustomerScreens({
           packages={packages}
           booking={booking}
           onConfirm={handleConfirm}
+          recalculating={locationRecalculating}
           deliveryFee={settings.deliveryFee}
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
           fuelCostPerKm={settings.fuelCostPerKm}
@@ -853,7 +857,17 @@ function renderUnauthenticatedScreen(
 export default function App() {
   const { isAuthenticated, isLoading, user: auth0User, logout, getAccessTokenSilently } = useAuth0()
   const [screen, setScreen] = useState<Screen>('login')
-  const [booking, setBooking] = useState<BookingData>(initialBooking)
+  // ข้อมูลจองที่กำลังเลือกอยู่ — เก็บลง sessionStorage ทุกครั้งที่เปลี่ยน แล้วอ่านกลับตอนเปิดหน้า เพื่อให้รีเฟรชกลางขั้นตอน
+  // (เลือกวัน → โต๊ะ → สถานที่ → แพ็กเกจ → เมนู → สรุป) แล้วข้อมูลที่เลือกไว้ไม่หาย (ดู bookingDraft.ts)
+  const [booking, setBooking] = useState<BookingData>(() => {
+    let shopId: string | null = null
+    try {
+      shopId = localStorage.getItem(SELECTED_SHOP_KEY)
+    } catch {
+      // เพิกเฉยได้ถ้า localStorage ใช้งานไม่ได้
+    }
+    return loadBookingDraft(shopId, initialBooking)
+  })
   // รายการจองทั้งหมด — ใช้ร่วมกันทั้งปฏิทินร้าน ประวัติ และเอกสาร (owner เห็นทุกใบจอง, customer เห็นเฉพาะของตัวเอง)
   const [bookings, setBookings] = useState<Booking[]>([])
   // คิวรับงานของ "ทุกลูกค้า" แบบไม่มีข้อมูลส่วนตัว — ใช้เฉพาะหน้าเลือกวันจัดงาน กันลูกค้าเลือกวันที่คนอื่นจองเต็มไปแล้ว
@@ -1344,6 +1358,36 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, screen, dataLoaded, needsProfile])
 
+  useEffect(() => {
+    saveBookingDraft(selectedShopId, booking, initialBooking)
+  }, [booking, selectedShopId])
+
+  // owner แก้ตำแหน่งร้าน/จังหวัด ระหว่างที่ลูกค้าเลือกสถานที่ไว้แล้ว — คำนวณโซน/ระยะทางใหม่ให้หน้าสรุปตรงกับที่ backend คิดจริง
+  const locationRecalculating = useLocationSync(
+    booking.location,
+    settings,
+    dataLoaded && role !== 'super_admin',
+    updated =>
+      setBooking(b =>
+        b.location && b.location.lat === updated.lat && b.location.lng === updated.lng ? { ...b, location: updated } : b,
+      ),
+  )
+
+  /** เปิดหน้าไหนของขั้นตอนการจองก็ตาม (รีเฟรช/พิมพ์ URL ตรงๆ) แต่ขั้นก่อนหน้ายังเลือกไม่ครบ — พากลับไปขั้นแรกที่ยังขาด
+   *  แทนที่จะโชว์หน้าสรุปที่ข้อมูลว่างแต่กดจองได้ (ใช้ replaceState ไม่เพิ่มประวัติ กดย้อนกลับแล้วไม่วนกลับมาที่หน้าที่ถูกเด้ง) */
+  useEffect(() => {
+    if (!dataLoaded || needsProfile || !isAuthenticated || role === 'super_admin') return
+    const target = firstIncompleteStep(booking, screen)
+    if (!target) return
+    setScreen(target)
+    try {
+      window.history.replaceState(null, '', pathForScreen(target, selectedShopSlug))
+    } catch {
+      // เพิกเฉยได้ถ้า History API ใช้ไม่ได้
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, booking, dataLoaded, needsProfile, isAuthenticated, role])
+
   const handleSelectDateTime = (date: string, timeSlot: string) => {
     setBooking(b => ({ ...b, date, timeSlot }))
   }
@@ -1397,21 +1441,23 @@ export default function App() {
       }
     })
 
-  const handleConfirm = () =>
-    runAction(async () => {
-      if (!booking.packageId) throw new Error('ยังไม่ได้เลือกแพ็กเกจ')
+  const handleConfirm = (): Promise<boolean> =>
+    runActionResult(async () => {
+      // ตาข่ายสุดท้าย — ห้ามจองด้วยข้อมูลไม่ครบ (เดิมวันที่/สถานที่ว่างจะถูกเติมค่าเอง ทำให้ใบจองออกมาผิด)
+      const missing = missingBookingField(booking)
+      if (missing) throw new Error(`ข้อมูลการจองไม่ครบ: ยังไม่ได้เลือก${missing} กรุณาเลือกให้ครบทุกขั้นตอน`)
       if (!selectedShopId) throw new Error('ยังไม่ได้เลือกร้านที่จะจอง')
       // ราคา/ชื่อแพ็กเกจไม่ส่งจาก client แล้ว — backend คำนวณเองจาก packageId (กันแก้ request body ปลอมราคาจอง)
       // ยอดที่ตะกร้าโชว์ก่อนกดยืนยัน (Cart.tsx) เป็นแค่ตัวเลข preview ด้วยสูตรเดียวกัน ไม่ใช่ค่าที่ backend เชื่อ
       const token = await withToken()
       const created = await api.createBooking(token, {
         shopId: selectedShopId,
-        date: booking.date || new Date().toISOString().split('T')[0],
-        timeSlot: booking.timeSlot || 'ทั้งวัน',
+        date: booking.date as string,
+        timeSlot: booking.timeSlot as string,
         tables: booking.tables,
         guestCount: booking.guestCount,
-        packageId: booking.packageId,
-        location: booking.location ? formatFullAddress(booking.location) : 'ไม่ระบุ',
+        packageId: booking.packageId as string,
+        location: formatFullAddress(booking.location as EventLocation),
         locationDetail: booking.location ?? undefined,
         menus: booking.selectedMenus.map(m => m.name),
         lineId: user?.lineId || undefined,
@@ -1422,7 +1468,8 @@ export default function App() {
         { date: created.date, timeSlot: created.timeSlot, tables: created.tables, status: created.status },
         ...prev,
       ])
-      setBooking(initialBooking)
+      // ไม่ล้างข้อมูลจองตรงนี้ — Cart เรียก navigate('history') ต่อทันทีหลังสำเร็จ ซึ่งล้างให้อยู่แล้ว (ล้างตรงนี้ทำให้หน้าสรุป
+      // ว่างเปล่าแวบหนึ่งจนตัวพากลับขั้นแรกเด้งทำงาน)
     })
 
   /** แก้ไขใบจอง — แยกปลายทางตาม patch: ลูกค้าแนบสลิป vs เจ้าของร้านเปลี่ยนสถานะ/บันทึกแผนกำลังคน */
@@ -1586,6 +1633,7 @@ export default function App() {
       handleSelectPackage={handleSelectPackage}
       handleSetMenus={handleSetMenus}
       handleConfirm={handleConfirm}
+      locationRecalculating={locationRecalculating}
       bookings={bookings}
       handleUpdateBooking={handleUpdateBooking}
       handleFetchPaymentSlip={handleFetchPaymentSlip}

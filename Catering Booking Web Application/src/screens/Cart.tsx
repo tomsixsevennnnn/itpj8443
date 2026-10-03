@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Calendar, ChevronLeft, Clock, Loader2, MapPin, Package, ShoppingBag, Users, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, Calendar, ChevronLeft, Clock, Loader2, MapPin, Package, ShoppingBag, Users, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import DishTile from '../components/DishTile'
 import LocationMap from '../components/LocationMap'
@@ -7,12 +7,16 @@ import { useNav } from '../NavContext'
 import type { AppRole } from '../auth'
 import type { BookingData, Package as PackageType } from '../types'
 import { deliveryFeeFor, formatFullAddress, zoneLabel } from '../geo'
+import { describePriceChange, type PriceChange, type PriceSnapshot } from '../priceChange'
 
 interface CartProps {
   role: AppRole
   packages: PackageType[]
   booking: BookingData
-  onConfirm: () => Promise<void>
+  /** คืน true ถ้าจองสำเร็จ — ไม่สำเร็จ (ข้อมูลไม่ครบ/ระบบขัดข้อง) ต้องอยู่หน้านี้ต่อ ไม่ไปหน้าประวัติเหมือนจองสำเร็จ */
+  onConfirm: () => Promise<boolean>
+  /** กำลังคำนวณโซน/ระยะทางใหม่ตามค่าตั้งค่าล่าสุดของร้าน — ล็อกปุ่มยืนยันไว้จนกว่ายอดจะนิ่ง */
+  recalculating?: boolean
   deliveryFee: number
   freeDeliveryMinTables: number
   fuelCostPerKm: number
@@ -24,6 +28,7 @@ export default function Cart({
   packages,
   booking,
   onConfirm,
+  recalculating = false,
   deliveryFee: deliveryFeeAmount,
   freeDeliveryMinTables,
   fuelCostPerKm,
@@ -36,9 +41,28 @@ export default function Cart({
   const pkg = packages.find(p => p.id === booking.packageId) ?? null
   /** จับคู่เมนูที่เลือกกับ "ข้อ" ของแพ็กเกจ เพื่อแสดงตามลำดับเสิร์ฟ */
   const courseOf = (menuId: string) => pkg?.courses.find(c => c.items.some(i => i.id === menuId)) ?? null
-  const subtotal = booking.packagePrice * booking.tables
+  // ราคาแพ็กเกจต่อโต๊ะ — ใช้ราคาปัจจุบันของแพ็กเกจเสมอ (owner แก้ราคาระหว่างที่ลูกค้าค้างอยู่หน้านี้ ยอดต้องตามทัน)
+  // ค่าที่เก็บไว้ในใบจองตอนเลือกแพ็กเกจเป็นแค่ fallback ถ้าแพ็กเกจถูกลบไปแล้ว
+  const packagePrice = pkg?.pricePerTable ?? booking.packagePrice
+  const subtotal = packagePrice * booking.tables
   const deliveryFee = deliveryFeeFor(booking.tables, booking.location, deliveryFeeAmount, freeDeliveryMinTables, fuelCostPerKm)
   const total = subtotal + deliveryFee
+
+  // ร้านแก้ตั้งค่า (ตำแหน่งร้าน/ค่าขนส่ง/ราคาแพ็กเกจ) ระหว่างที่ลูกค้าค้างอยู่หน้านี้แล้วยอดเปลี่ยน — แจ้งเป็นพิเศษจนกว่าลูกค้า
+  // จะกดรับทราบ และปิดหน้าต่างยืนยันที่เปิดค้างไว้ กันกดยืนยันด้วยยอดเก่าที่ตัวเองเห็นก่อนหน้านี้
+  const snapshot: PriceSnapshot = { total, deliveryFee, packagePrice, zone: booking.location?.zone ?? null }
+  const prevSnapshotRef = useRef(snapshot)
+  const [priceNotice, setPriceNotice] = useState<PriceChange | null>(null)
+  useEffect(() => {
+    const change = describePriceChange(prevSnapshotRef.current, snapshot, zoneLabel(homeProvince))
+    prevSnapshotRef.current = snapshot
+    if (!change) return
+    // เปลี่ยนซ้อนหลายครั้งก่อนกดรับทราบ — เทียบกับยอดที่ลูกค้าเห็นครั้งแรกเสมอ (from เดิม) ไม่ใช่ยอดระหว่างทาง
+    setPriceNotice(prev => (prev ? { ...change, from: prev.from } : change))
+    setShowConfirm(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total, deliveryFee, packagePrice, snapshot.zone])
+
   const deliveryLabel =
     booking.location?.zone === 'outside'
       ? `ค่าเดินทาง (ระยะทาง ${((booking.location.distanceKm ?? 0) * 2).toFixed(1)} กม. ไป-กลับ)`
@@ -53,9 +77,9 @@ export default function Cart({
     if (submitting) return
     setSubmitting(true)
     try {
-      await onConfirm()
+      const ok = await onConfirm()
       setShowConfirm(false)
-      navigate('history')
+      if (ok) navigate('history')
     } finally {
       setSubmitting(false)
     }
@@ -198,12 +222,37 @@ export default function Cart({
           {/* Summary card */}
           <div className="space-y-4">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-24">
+              {priceNotice && (
+                <div role="alert" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                  <p className="flex items-center gap-2 font-bold">
+                    <AlertTriangle size={16} className="flex-shrink-0" />
+                    ยอดรวมของคุณเปลี่ยนแปลง
+                  </p>
+                  <p className="mt-1">
+                    จาก <span className="font-semibold">{priceNotice.from.toLocaleString()} ฿</span> เป็น{' '}
+                    <span className="font-semibold">{priceNotice.to.toLocaleString()} ฿</span> เนื่องจากร้านปรับการตั้งค่า
+                  </p>
+                  <ul className="mt-2 list-disc pl-5 space-y-0.5 text-xs">
+                    {priceNotice.reasons.map(r => (
+                      <li key={r}>{r}</li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => setPriceNotice(null)}
+                    className="mt-3 w-full rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold py-2 transition-colors"
+                  >
+                    รับทราบยอดใหม่
+                  </button>
+                </div>
+              )}
+
               <h2 className="font-bold text-gray-900 mb-5">สรุปยอดชำระ</h2>
 
               <div className="space-y-3 mb-5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">ราคาแพ็กเกจ ({booking.packageName})</span>
-                  <span className="text-gray-700">{booking.packagePrice.toLocaleString()} ฿/โต๊ะ</span>
+                  <span className="text-gray-700">{packagePrice.toLocaleString()} ฿/โต๊ะ</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">จำนวนโต๊ะ</span>
@@ -226,12 +275,20 @@ export default function Cart({
                 💳 ชำระเงินเมื่อทีมงานยืนยันการจอง
               </div>
 
+              {recalculating && (
+                <div className="flex items-center gap-2 bg-blue-50 text-blue-700 rounded-xl p-3 mb-3 text-xs">
+                  <Loader2 size={14} className="animate-spin flex-shrink-0" />
+                  ร้านปรับค่าตั้งค่า กำลังคำนวณค่าขนส่งใหม่...
+                </div>
+              )}
+
               <button
                 onClick={() => {
                   setOwnerBlocked(false)
                   setShowConfirm(true)
                 }}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-2xl py-4 font-bold text-lg transition-all shadow-lg shadow-orange-200"
+                disabled={recalculating || priceNotice !== null}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 disabled:cursor-wait text-white rounded-2xl py-4 font-bold text-lg transition-all shadow-lg shadow-orange-200"
               >
                 ยืนยันการจอง
               </button>
