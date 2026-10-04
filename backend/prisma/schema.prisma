@@ -250,6 +250,19 @@ model Booking {
    */
   paymentSlipTransRef      String?
   paymentSlipVerifiedAt    DateTime?
+  /**
+   * ผู้รับเงินที่ SlipOK อ่านได้จากสลิป (ชื่อ/เลขบัญชีที่ถูกปกปิดบางส่วน/รหัสธนาคาร) — owner ใช้ดูเทียบกับบัญชีของร้านในหน้าใบจอง
+   * มีเฉพาะตอน SlipOK ยืนยันสลิปสำเร็จ เคลียร์ทุกครั้งที่อัปโหลดสลิปใหม่ทับ
+   */
+  paymentSlipReceiverName  String?
+  paymentSlipReceiverAccount String?
+  paymentSlipReceivingBank String?
+  /**
+   * ช่องทางโอนที่ลูกค้าเลือกตอนแนบสลิป (key = "bank:<เลขบัญชี>" หรือ "pp:<เลขพร้อมเพย์>" เฉพาะตัวเลข) และข้อความแสดงผลของช่องทางนั้น
+   * ณ ตอนนั้น (เก็บเป็นข้อความไว้ เผื่อ owner แก้บัญชีภายหลัง) — null = ลูกค้าไม่ได้เลือก (ร้านมีช่องทางเดียว/ร้านยังไม่ตั้งบัญชี)
+   */
+  paymentChannelKey        String?
+  paymentChannelLabel      String?
   createdAt                DateTime          @default(now())
   updatedAt                DateTime          @updatedAt
   /**
@@ -346,11 +359,39 @@ model Settings {
   promptPayFirstName      String   @default("")
   promptPayLastName       String   @default("")
   /**
+   * บัญชีธนาคารเพิ่มเติม (นอกจากบัญชีหลักด้านบน) — SlipOK ผูกได้หลายบัญชีต่อสาขา (ธนาคารเดียวกันคนละชื่อ/คนละเลข หรือคนละธนาคาร)
+   * รูปแบบ [{ bankName, accountNumber, accountName }] — แสดงให้ลูกค้าเห็นคู่กับบัญชีหลัก และใช้เทียบกับผู้รับในสลิป
+   */
+  extraBankAccounts       Json     @default("[]")
+  /**
+   * พร้อมเพย์เพิ่มเติม (นอกจากรายการหลักด้านบน) — รูปแบบ [{ id, firstName, lastName }]
+   */
+  extraPromptPays         Json     @default("[]")
+  /**
    * API key + Branch ID จากบัญชี SlipOK ของร้าน (สมัครเองที่ slipok.com ผูกกับบัญชีธนาคารที่รับเงินจริง) —
    * ว่างทั้งคู่ = ร้านนี้ยังไม่เปิดใช้การตรวจสอบสลิปอัตโนมัติ (ไม่บังคับ อัปโหลดสลิปได้ตามปกติ แค่ไม่มีผลตรวจ)
    */
   slipOkApiKey            String   @default("")
   slipOkBranchId          String   @default("")
+  /**
+   * ผู้รับเงินที่ SlipOK เห็นจากสลิปล่าสุดที่ตรวจผ่านของร้านนี้ — โชว์ในหน้าตั้งค่าการเงินให้ owner เช็คว่าบัญชีที่ผูกใน SlipOK
+   * เป็นบัญชีเดียวกับที่ตั้งไว้ในแอป (API ของ SlipOK ไม่เปิดให้ดู/แก้บัญชีตรงๆ) อัปเดตเองตอนลูกค้าแนบสลิป ไม่ผ่านการแก้ของ owner
+   * (ไม่ bump version จึงไม่ทำให้ owner ที่กำลังแก้ฟอร์มชน 409)
+   */
+  slipOkLastReceiverName    String   @default("")
+  slipOkLastReceiverAccount String   @default("")
+  slipOkLastReceivingBank   String   @default("")
+  /**
+   * ผลเทียบกับบัญชีที่ owner ตั้งไว้ในแอป — null = เทียบไม่ได้/ยังไม่ได้ตั้งบัญชีในแอป
+   */
+  slipOkLastReceiverMatched Boolean?
+  slipOkLastReceiverAt      DateTime?
+  /**
+   * ลายนิ้วมือ (sha256 ของ "apiKey|branchId") ของคู่ที่ owner กดทดสอบการเชื่อมต่อผ่านล่าสุด — ใช้ตัดสินว่า "เชื่อม SlipOK แล้ว"
+   * (ตรงกับคู่ที่บันทึกอยู่ตอนนี้ = ผ่านแล้ว เปลี่ยน key/branch ภายหลัง = ต้องทดสอบใหม่) ข้อมูลชำระเงินของร้านจะแสดงให้ลูกค้าเห็น
+   * เฉพาะตอนเชื่อมแล้ว (ดู SettingsService.get) ไม่ bump version
+   */
+  slipOkTestedHash          String   @default("")
   /**
    * 0–1 เช่น 0.5 = 50%
    */

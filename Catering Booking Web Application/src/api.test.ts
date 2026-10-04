@@ -18,6 +18,8 @@ describe('toBackendSettingsPatch', () => {
       name: 'ร้าน A', nameEn: 'Shop A', initials: 'A', address: 'ที่อยู่', phone: '0812345678', line: '@a',
       bankName: 'ธนาคาร A', bankAccountNumber: '123', bankAccountName: 'นาย A',
       promptPayId: '0812345678', promptPayFirstName: 'C', promptPayLastName: 'D',
+      extraBankAccounts: [{ bankName: 'ธนาคาร B', accountNumber: '456', accountName: 'นาย B' }],
+      extraPromptPays: [{ id: '0899999999', firstName: 'E', lastName: 'F' }],
       logo: 'logo.png', loginTagline: 'ยินดีต้อนรับ',
     }
     expect(toBackendSettingsPatch({ shopInfo })).toEqual({
@@ -34,6 +36,8 @@ describe('toBackendSettingsPatch', () => {
       promptPayId: '0812345678',
       promptPayFirstName: 'C',
       promptPayLastName: 'D',
+      extraBankAccounts: [{ bankName: 'ธนาคาร B', accountNumber: '456', accountName: 'นาย B' }],
+      extraPromptPays: [{ id: '0899999999', firstName: 'E', lastName: 'F' }],
       shopLogo: 'logo.png',
       shopLoginTagline: 'ยินดีต้อนรับ',
     })

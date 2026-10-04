@@ -188,6 +188,13 @@ export interface Booking {
   paymentSlipVerifyStatus?: 'VERIFIED' | 'DUPLICATE' | 'AMOUNT_MISMATCH' | 'ACCOUNT_MISMATCH' | 'REJECTED' | 'UNAVAILABLE'
   /** ข้อความรายละเอียดผลตรวจสอบจาก SlipOK — โชว์ให้ owner เห็นเหตุผลตรงๆ */
   paymentSlipVerifyMessage?: string
+  /** ผู้รับเงินที่ SlipOK อ่านได้จากสลิป (ชื่อ/เลขบัญชีที่ปกปิดบางส่วน/รหัสธนาคาร) — มีเฉพาะตอนตรวจสำเร็จ owner ใช้เทียบกับบัญชีร้าน */
+  paymentSlipReceiverName?: string
+  paymentSlipReceiverAccount?: string
+  paymentSlipReceivingBank?: string
+  /** ช่องทางโอนที่ลูกค้าเลือกตอนแนบสลิป — key ("bank:<เลข>"/"pp:<เลข>") ใช้ส่งขึ้น backend ตอนแนบ, label = ข้อความแสดงผล (owner เห็น) */
+  paymentChannelKey?: string
+  paymentChannelLabel?: string
 }
 
 /**
@@ -203,6 +210,20 @@ export interface UserProfile {
   lineId: string
   email: string
   avatar: string
+}
+
+/** บัญชีธนาคารรับเงิน 1 บัญชี */
+export interface BankAccount {
+  bankName: string
+  accountNumber: string
+  accountName: string
+}
+
+/** พร้อมเพย์รับเงิน 1 รายการ (เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต + ชื่อเจ้าของ) */
+export interface PromptPayAccount {
+  id: string
+  firstName: string
+  lastName: string
 }
 
 /** ข้อมูลร้านที่แสดงบนหัวเอกสารใบเสนอราคา/ใบจอง */
@@ -221,6 +242,10 @@ export interface ShopInfo {
   /** ชื่อ-นามสกุลเจ้าของเลขพร้อมเพย์ด้านบน — แสดงกำกับใต้ QR ที่ระบบสร้างอัตโนมัติ ให้ลูกค้าเช็คก่อนโอนได้ */
   promptPayFirstName: string
   promptPayLastName: string
+  /** บัญชีธนาคารเพิ่มเติมนอกจากบัญชีหลัก (SlipOK ผูกได้หลายบัญชี) — ลูกค้าเห็นทุกบัญชี */
+  extraBankAccounts: BankAccount[]
+  /** พร้อมเพย์เพิ่มเติมนอกจากรายการหลัก */
+  extraPromptPays: PromptPayAccount[]
   /** โลโก้ร้าน เก็บเป็น data URL — ว่าง = ใช้ไอคอนเริ่มต้น (ChefHat) แทน */
   logo: string
   /** คำโปรยใต้ชื่อร้านในหน้า Login — เจ้าของร้านแก้ไขเองได้ */
@@ -287,4 +312,9 @@ export interface AppSettings {
   slipOkApiKey: string
   /** Branch ID จากบัญชี SlipOK ของร้าน — คู่กับ slipOkApiKey */
   slipOkBranchId: string
+  /** ผู้รับเงินที่ SlipOK เห็นจากสลิปล่าสุดที่ตรวจผ่านของร้านนี้ (owner เท่านั้นที่เห็น) — undefined = ยังไม่เคยมี
+   *  matched: ตรงกับบัญชีที่ตั้งไว้ในแอปหรือไม่ (null = เทียบไม่ได้/ยังไม่ได้ตั้งบัญชีในแอป) อัปเดตเองตอนลูกค้าแนบสลิป ไม่ใช่ค่าที่แก้ได้ */
+  /** ร้านเชื่อม SlipOK แล้ว (API key + Branch ID ผ่านการทดสอบและบันทึกแล้ว) — ยังไม่เชื่อม = ลูกค้าไม่เห็นข้อมูลชำระเงินของร้าน (backend ส่งช่องว่างให้) */
+  slipOkConnected: boolean
+  slipOkLastReceiver?: { name: string; account: string; bank: string; matched: boolean | null; at: string | null }
 }

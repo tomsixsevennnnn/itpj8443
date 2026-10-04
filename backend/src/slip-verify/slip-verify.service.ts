@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { SlipVerifyStatus } from '@prisma/client'
+import type { SlipReceiver } from './receiver-match'
 
 /** error code จาก SlipOK (https://slipok.com/api-documentation/error-status-code/) ที่แปลเป็นสถานะของเราได้ตรงๆ
  *  ส่วนโค้ดอื่น (เช่น 1001 ไอดีสาขาผิด, 1002 authorization ผิด, 1005-1011 ไฟล์/QR มีปัญหา) ถือเป็น REJECTED
@@ -14,6 +15,25 @@ export interface SlipVerifyResult {
   status: SlipVerifyStatus
   message: string
   transRef: string | null
+  /** ผู้รับเงินในสลิป — มีเฉพาะตอน SlipOK ยืนยันสำเร็จและส่งข้อมูลผู้รับมาด้วย */
+  receiver: SlipReceiver | null
+}
+
+const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+/** แกะข้อมูลผู้รับจาก data.receiver / data.receivingBank ของ SlipOK — ไม่มีข้อมูลผู้รับเลย = null */
+export function parseReceiver(data: any): SlipReceiver | null {
+  const r = data?.receiver
+  if (!r || typeof r !== 'object') return null
+  const receiver: SlipReceiver = {
+    displayName: str(r.displayName),
+    name: str(r.name),
+    account: str(r.account?.value),
+    proxy: str(r.proxy?.value),
+    bankCode: str(data.receivingBank),
+  }
+  const hasAnything = receiver.displayName || receiver.name || receiver.account || receiver.proxy
+  return hasAnything ? receiver : null
 }
 
 export interface SlipOkQuotaResult {
@@ -61,22 +81,22 @@ export class SlipVerifyService {
 
       const body: any = await res.json().catch(() => null)
       if (!body) {
-        return { status: SlipVerifyStatus.UNAVAILABLE, message: 'เรียกระบบตรวจสอบสลิปไม่สำเร็จ (อ่านผลลัพธ์ไม่ได้)', transRef: null }
+        return { status: SlipVerifyStatus.UNAVAILABLE, message: 'เรียกระบบตรวจสอบสลิปไม่สำเร็จ (อ่านผลลัพธ์ไม่ได้)', transRef: null, receiver: null }
       }
 
       const transRef = typeof body.data?.transRef === 'string' ? body.data.transRef : null
 
       if (res.ok && body.success) {
-        return { status: SlipVerifyStatus.VERIFIED, message: 'ตรวจสอบสลิปสำเร็จ ยืนยันเป็นรายการโอนจริงกับธนาคาร', transRef }
+        return { status: SlipVerifyStatus.VERIFIED, message: 'ตรวจสอบสลิปสำเร็จ ยืนยันเป็นรายการโอนจริงกับธนาคาร', transRef, receiver: parseReceiver(body.data) }
       }
 
       const code = typeof body.code === 'number' ? body.code : undefined
       const status = (code !== undefined && SLIPOK_ERROR_STATUS[code]) || SlipVerifyStatus.REJECTED
       const message = typeof body.message === 'string' ? body.message : 'สลิปนี้ตรวจสอบไม่ผ่าน'
-      return { status, message, transRef }
+      return { status, message, transRef, receiver: null }
     } catch (err) {
       this.logger.warn('เรียก SlipOK ไม่สำเร็จ', err as Error)
-      return { status: SlipVerifyStatus.UNAVAILABLE, message: 'เรียกระบบตรวจสอบสลิปไม่สำเร็จ (เครือข่าย/บริการขัดข้องชั่วคราว)', transRef: null }
+      return { status: SlipVerifyStatus.UNAVAILABLE, message: 'เรียกระบบตรวจสอบสลิปไม่สำเร็จ (เครือข่าย/บริการขัดข้องชั่วคราว)', transRef: null, receiver: null }
     }
   }
 

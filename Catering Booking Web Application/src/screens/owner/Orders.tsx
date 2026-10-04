@@ -519,7 +519,16 @@ export default function Orders({
                             })}
                           </p>
                         )}
-                        <SlipVerifyBadge status={selected.paymentSlipVerifyStatus} message={selected.paymentSlipVerifyMessage} />
+                        <SlipVerifyBadge
+                          status={selected.paymentSlipVerifyStatus}
+                          message={selected.paymentSlipVerifyMessage}
+                          chosenChannel={selected.paymentChannelLabel}
+                          receiver={{
+                            name: selected.paymentSlipReceiverName,
+                            account: selected.paymentSlipReceiverAccount,
+                            bank: selected.paymentSlipReceivingBank,
+                          }}
+                        />
                         <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5">
                           ตรวจสอบยอดเงินเข้าบัญชีร้านให้ตรงกับสลิปก่อนกดเปลี่ยนสถานะเป็น "ยืนยันแล้ว"
                         </p>

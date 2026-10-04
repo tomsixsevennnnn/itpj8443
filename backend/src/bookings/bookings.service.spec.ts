@@ -28,7 +28,7 @@ const makeService = () => {
     bookingCounter: { upsert: jest.fn() },
     $transaction: jest.fn((fn: any) => fn(prisma)),
   } as any
-  const settingsService = { get: jest.fn().mockResolvedValue(SETTINGS), getSlipOkConfig: jest.fn().mockResolvedValue(null) } as any
+  const settingsService = { get: jest.fn().mockResolvedValue(SETTINGS), getSlipOkConfig: jest.fn().mockResolvedValue(null), recordSlipOkReceiver: jest.fn().mockResolvedValue(undefined), getPaymentChannels: jest.fn().mockResolvedValue([]) } as any
   const audit = { log: jest.fn() } as any
   const uploads = { deleteManagedFile: jest.fn() } as any
   const realtime = { emitBookingsChanged: jest.fn() } as any
@@ -310,9 +310,9 @@ describe('BookingsService.updatePaymentSlipAsCustomer', () => {
 
   it('ร้านตั้งค่า SlipOK ไว้ — ยิงไปตรวจสอบสลิปแล้วบันทึกผลลง booking', async () => {
     const { service, prisma, settingsService, uploads, slipVerify } = makeService()
-    settingsService.getSlipOkConfig.mockResolvedValue({ apiKey: 'key1', branchId: 'branch1', depositRate: 0.5 })
+    settingsService.getSlipOkConfig.mockResolvedValue({ apiKey: 'key1', branchId: 'branch1', depositRate: 0.5, expectedReceiver: { channels: [] } })
     uploads.readManagedFile = jest.fn().mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg', filename: 'new.jpg' })
-    slipVerify.checkSlip.mockResolvedValue({ status: 'VERIFIED', message: 'ตรวจสอบสลิปสำเร็จ', transRef: 'ref-123' })
+    slipVerify.checkSlip.mockResolvedValue({ status: 'VERIFIED', message: 'ตรวจสอบสลิปสำเร็จ', transRef: 'ref-123', receiver: null })
     prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', shopId: 'shop1', totalPrice: 5000, paymentSlipUrl: null })
     prisma.booking.update.mockResolvedValue({ id: 'b1', paymentSlipUrl: '/uploads/slips/new.jpg' })
 
@@ -330,6 +330,151 @@ describe('BookingsService.updatePaymentSlipAsCustomer', () => {
           paymentSlipTransRef: 'ref-123',
         }),
       }),
+    )
+  })
+
+  const RECEIVER = { displayName: 'ธนาทร ร', name: 'THANATORN R', account: 'xxx-x-x3109-x', proxy: '', bankCode: '004' }
+
+  it('SlipOK ยืนยันแล้ว + ผู้รับตรงกับบัญชีที่ owner ตั้งไว้ — คง VERIFIED เก็บผู้รับลงใบจอง และจดผู้รับล่าสุดลงตั้งค่า (matched=true)', async () => {
+    const { service, prisma, settingsService, uploads, slipVerify } = makeService()
+    settingsService.getSlipOkConfig.mockResolvedValue({
+      apiKey: 'key1', branchId: 'branch1', depositRate: 0.5,
+      expectedReceiver: { channels: [{ names: ['ธนาทร รักดี'], accounts: ['1234531096'] }] },
+    })
+    uploads.readManagedFile = jest.fn().mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg', filename: 'new.jpg' })
+    slipVerify.checkSlip.mockResolvedValue({ status: 'VERIFIED', message: 'ok', transRef: 'ref-1', receiver: RECEIVER })
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', shopId: 'shop1', totalPrice: 5000, paymentSlipUrl: null })
+    prisma.booking.update.mockResolvedValue({ id: 'b1' })
+
+    await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(settingsService.recordSlipOkReceiver).toHaveBeenCalledWith('shop1', RECEIVER, true)
+    expect(prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentSlipVerifyStatus: 'VERIFIED',
+          paymentSlipReceiverName: 'ธนาทร ร',
+          paymentSlipReceiverAccount: 'xxx-x-x3109-x',
+          paymentSlipReceivingBank: '004',
+        }),
+      }),
+    )
+  })
+
+  it('SlipOK ยืนยันแล้ว แต่ผู้รับไม่ตรงกับบัญชีที่ owner ตั้งไว้ — เปลี่ยนเป็น ACCOUNT_MISMATCH (ลูกค้าแนบใหม่ได้) และจดว่าไม่ตรง', async () => {
+    const { service, prisma, settingsService, uploads, slipVerify } = makeService()
+    settingsService.getSlipOkConfig.mockResolvedValue({
+      apiKey: 'key1', branchId: 'branch1', depositRate: 0.5,
+      expectedReceiver: { channels: [{ names: ['สมชาย ใจดี'], accounts: [] }] },
+    })
+    uploads.readManagedFile = jest.fn().mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg', filename: 'new.jpg' })
+    slipVerify.checkSlip.mockResolvedValue({ status: 'VERIFIED', message: 'ok', transRef: 'ref-1', receiver: RECEIVER })
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', shopId: 'shop1', totalPrice: 5000, paymentSlipUrl: null })
+    prisma.booking.update.mockResolvedValue({ id: 'b1' })
+
+    await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(settingsService.recordSlipOkReceiver).toHaveBeenCalledWith('shop1', RECEIVER, false)
+    expect(prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentSlipVerifyStatus: 'ACCOUNT_MISMATCH',
+          paymentSlipVerifyMessage: expect.stringContaining('ชื่อผู้รับ'),
+        }),
+      }),
+    )
+  })
+
+  const CHANNEL_A = { names: ['สมชาย ใจดี'], accounts: ['9999999999'], key: 'bank:9999999999', label: 'ธนาคารกสิกรไทย 999-9-99999-9 (สมชาย ใจดี)' }
+  const CHANNEL_B = { names: ['ธนาทร รักดี'], accounts: ['1234531096'], key: 'bank:1234531096', label: 'ธนาคารกสิกรไทย 123-4-53109-6 (ธนาทร รักดี)' }
+
+  const setupTwoAccounts = (h: ReturnType<typeof makeService>) => {
+    h.settingsService.getSlipOkConfig.mockResolvedValue({
+      apiKey: 'key1', branchId: 'branch1', depositRate: 0.5,
+      expectedReceiver: { channels: [CHANNEL_A, CHANNEL_B] },
+    })
+    h.settingsService.getPaymentChannels.mockResolvedValue([CHANNEL_A, CHANNEL_B])
+    h.uploads.readManagedFile = jest.fn().mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg', filename: 'new.jpg' })
+    // ผู้รับในสลิปคือบัญชี B (ธนาทร / 1234531096)
+    h.slipVerify.checkSlip.mockResolvedValue({ status: 'VERIFIED', message: 'ok', transRef: 'ref-1', receiver: RECEIVER })
+    h.prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', shopId: 'shop1', totalPrice: 5000, paymentSlipUrl: null })
+    h.prisma.booking.update.mockResolvedValue({ id: 'b1' })
+  }
+
+  it('ลูกค้าเลือกช่องทาง B และโอนเข้า B จริง — บันทึกช่องทางที่เลือกไว้ที่ใบจอง ไม่มีหมายเหตุเพิ่ม', async () => {
+    const h = makeService()
+    setupTwoAccounts(h)
+
+    await h.service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg', 'bank:1234531096')
+
+    expect(h.prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentSlipVerifyStatus: 'VERIFIED',
+          paymentSlipVerifyMessage: 'ok',
+          paymentChannelKey: 'bank:1234531096',
+          paymentChannelLabel: CHANNEL_B.label,
+        }),
+      }),
+    )
+  })
+
+  it('ลูกค้าเลือกช่องทาง A แต่สลิปโอนเข้า B (อีกบัญชีของร้านเอง) — ยังเป็น VERIFIED แต่แจ้งหมายเหตุให้ owner รู้ว่าเลือกไม่ตรงกับที่โอนจริง', async () => {
+    const h = makeService()
+    setupTwoAccounts(h)
+
+    await h.service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg', 'bank:9999999999')
+
+    expect(h.prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentSlipVerifyStatus: 'VERIFIED',
+          paymentSlipVerifyMessage: expect.stringContaining('ลูกค้าเลือกโอนเข้า'),
+          paymentChannelKey: 'bank:9999999999',
+          paymentChannelLabel: CHANNEL_A.label,
+        }),
+      }),
+    )
+  })
+
+  it('channel key ที่ไม่มีอยู่แล้ว (ร้านลบบัญชีนั้นไปแล้ว) — ถือว่าไม่ได้เลือก ไม่ error', async () => {
+    const h = makeService()
+    setupTwoAccounts(h)
+
+    await h.service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg', 'bank:1111111111')
+
+    expect(h.prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentChannelKey: null, paymentChannelLabel: null }) }),
+    )
+  })
+
+  it('ไม่ส่งช่องทางมา — ไม่ค้นช่องทางและบันทึกเป็น null', async () => {
+    const h = makeService()
+    setupTwoAccounts(h)
+
+    await h.service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(h.settingsService.getPaymentChannels).not.toHaveBeenCalled()
+    expect(h.prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentChannelKey: null }) }),
+    )
+  })
+
+  it('owner ยังไม่ได้ตั้งบัญชีในแอป — เทียบไม่ได้ ใช้ผลของ SlipOK ตามเดิม (matched=null)', async () => {
+    const { service, prisma, settingsService, uploads, slipVerify } = makeService()
+    settingsService.getSlipOkConfig.mockResolvedValue({
+      apiKey: 'key1', branchId: 'branch1', depositRate: 0.5, expectedReceiver: { channels: [] },
+    })
+    uploads.readManagedFile = jest.fn().mockResolvedValue({ buffer: Buffer.from('img'), mimeType: 'image/jpeg', filename: 'new.jpg' })
+    slipVerify.checkSlip.mockResolvedValue({ status: 'VERIFIED', message: 'ok', transRef: 'ref-1', receiver: RECEIVER })
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', shopId: 'shop1', totalPrice: 5000, paymentSlipUrl: null })
+    prisma.booking.update.mockResolvedValue({ id: 'b1' })
+
+    await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(settingsService.recordSlipOkReceiver).toHaveBeenCalledWith('shop1', RECEIVER, null)
+    expect(prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentSlipVerifyStatus: 'VERIFIED' }) }),
     )
   })
 

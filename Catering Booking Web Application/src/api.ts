@@ -1,4 +1,4 @@
-import type { AppSettings, Booking, Category, MenuItem, Package, QueueBooking, ShopPublic } from './types'
+import type { AppSettings, BankAccount, Booking, Category, MenuItem, Package, PromptPayAccount, QueueBooking, ShopPublic } from './types'
 import { DEFAULT_CATEGORIES, DEFAULT_CATEGORY_ORDER } from './data'
 import {
   DEFAULT_BOOKING_TERMS,
@@ -77,12 +77,17 @@ const withShopIdQuery = (path: string, shopId?: string): string => {
 
 type BackendStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'
 
-interface BackendBooking extends Omit<Booking, 'status' | 'paymentSlip' | 'paymentSlipVerifyStatus' | 'paymentSlipVerifyMessage'> {
+interface BackendBooking extends Omit<Booking, 'status' | 'paymentSlip' | 'paymentSlipVerifyStatus' | 'paymentSlipVerifyMessage' | 'paymentSlipReceiverName' | 'paymentSlipReceiverAccount' | 'paymentSlipReceivingBank' | 'paymentChannelKey' | 'paymentChannelLabel'> {
   status: BackendStatus
   paymentSlipUrl?: string | null
   // Booking['paymentSlipVerifyStatus'] เป็น optional field อยู่แล้ว (มี | undefined ในตัว) ไม่ต้องใส่ ? ซ้ำ
   paymentSlipVerifyStatus: Booking['paymentSlipVerifyStatus'] | null
   paymentSlipVerifyMessage?: string | null
+  paymentSlipReceiverName?: string | null
+  paymentSlipReceiverAccount?: string | null
+  paymentSlipReceivingBank?: string | null
+  paymentChannelKey?: string | null
+  paymentChannelLabel?: string | null
 }
 
 const toFrontendBooking = (b: BackendBooking): Booking => ({
@@ -90,6 +95,11 @@ const toFrontendBooking = (b: BackendBooking): Booking => ({
   status: b.status.toLowerCase() as Booking['status'],
   paymentSlip: b.paymentSlipUrl ?? undefined,
   paymentSlipVerifyStatus: b.paymentSlipVerifyStatus ?? undefined,
+  paymentSlipReceiverName: b.paymentSlipReceiverName ?? undefined,
+  paymentSlipReceiverAccount: b.paymentSlipReceiverAccount ?? undefined,
+  paymentSlipReceivingBank: b.paymentSlipReceivingBank ?? undefined,
+  paymentChannelKey: b.paymentChannelKey ?? undefined,
+  paymentChannelLabel: b.paymentChannelLabel ?? undefined,
   paymentSlipVerifyMessage: b.paymentSlipVerifyMessage ?? undefined,
 })
 
@@ -116,6 +126,8 @@ interface BackendSettings {
   promptPayId: string
   promptPayFirstName: string
   promptPayLastName: string
+  extraBankAccounts?: BankAccount[]
+  extraPromptPays?: PromptPayAccount[]
   shopLogo: string
   shopLoginTagline: string
   depositRate: number
@@ -146,6 +158,12 @@ interface BackendSettings {
   homeContent: HomeContent | null
   slipOkApiKey?: string
   slipOkBranchId?: string
+  slipOkConnected?: boolean
+  slipOkLastReceiverName?: string
+  slipOkLastReceiverAccount?: string
+  slipOkLastReceivingBank?: string
+  slipOkLastReceiverMatched?: boolean | null
+  slipOkLastReceiverAt?: string | null
 }
 
 const toFrontendSettings = (s: BackendSettings): AppSettings => ({
@@ -163,6 +181,8 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
     promptPayId: s.promptPayId ?? '',
     promptPayFirstName: s.promptPayFirstName ?? '',
     promptPayLastName: s.promptPayLastName ?? '',
+    extraBankAccounts: s.extraBankAccounts ?? [],
+    extraPromptPays: s.extraPromptPays ?? [],
     logo: s.shopLogo ?? '',
     loginTagline: s.shopLoginTagline ?? DEFAULT_SHOP_INFO.loginTagline,
   },
@@ -199,6 +219,17 @@ const toFrontendSettings = (s: BackendSettings): AppSettings => ({
   // ลูกค้าไม่เห็นสองฟิลด์นี้เลย (owner-only ฝั่ง backend) — ว่างไว้เฉยๆ ไม่มีผลอะไรฝั่ง customer
   slipOkApiKey: s.slipOkApiKey ?? '',
   slipOkBranchId: s.slipOkBranchId ?? '',
+  slipOkConnected: s.slipOkConnected ?? false,
+  slipOkLastReceiver:
+    s.slipOkLastReceiverName || s.slipOkLastReceiverAccount
+      ? {
+          name: s.slipOkLastReceiverName ?? '',
+          account: s.slipOkLastReceiverAccount ?? '',
+          bank: s.slipOkLastReceivingBank ?? '',
+          matched: s.slipOkLastReceiverMatched ?? null,
+          at: s.slipOkLastReceiverAt ?? null,
+        }
+      : undefined,
 })
 
 /** ชื่อ field ฝั่ง frontend (shopInfo) -> ชื่อ field ฝั่ง backend — ใช้เป็น lookup ตรงๆ แทน if เรียงต่อกัน 17 ตัว
@@ -216,6 +247,8 @@ const SHOP_INFO_PATCH_FIELD_MAP: Record<keyof AppSettings['shopInfo'], string> =
   promptPayId: 'promptPayId',
   promptPayFirstName: 'promptPayFirstName',
   promptPayLastName: 'promptPayLastName',
+  extraBankAccounts: 'extraBankAccounts',
+  extraPromptPays: 'extraPromptPays',
   logo: 'shopLogo',
   loginTagline: 'shopLoginTagline',
 }
@@ -426,11 +459,12 @@ export const api = {
       }),
     ),
 
-  uploadPaymentSlip: async (token: string, id: string, paymentSlipUrl: string): Promise<Booking> =>
+  /** paymentChannelKey = ช่องทางที่ลูกค้าเลือกโอน (ไม่ส่ง = ไม่ได้เลือก เช่นร้านมีช่องทางเดียว) */
+  uploadPaymentSlip: async (token: string, id: string, paymentSlipUrl: string, paymentChannelKey?: string): Promise<Booking> =>
     toFrontendBooking(
       await request<BackendBooking>(token, `/bookings/${id}/payment-slip`, {
         method: 'PATCH',
-        body: JSON.stringify({ paymentSlipUrl }),
+        body: JSON.stringify({ paymentSlipUrl, ...(paymentChannelKey ? { paymentChannelKey } : {}) }),
       }),
     ),
 
@@ -506,6 +540,8 @@ export const api = {
       promptPayId: '',
       promptPayFirstName: '',
       promptPayLastName: '',
+      extraBankAccounts: [],
+      extraPromptPays: [],
     }
   },
 

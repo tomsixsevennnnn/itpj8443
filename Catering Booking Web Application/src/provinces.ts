@@ -84,11 +84,11 @@ export const THAI_PROVINCES: readonly string[] = [
  * กรองรายชื่อจังหวัดตามคำที่พิมพ์ (ตรงบางส่วนก็ได้ ไม่สนช่องว่างหัวท้าย) — ตัวที่ขึ้นต้นด้วยคำที่พิมพ์ขึ้นก่อน ที่เหลือเรียงตามลำดับเดิม
  * ไม่ได้พิมพ์อะไร = แสดงทั้งหมด
  */
-export function filterProvinces(query: string): string[] {
+export function filterProvinces(query: string, list: readonly string[] = THAI_PROVINCES): string[] {
   const q = query.trim()
-  if (!q) return [...THAI_PROVINCES]
-  const starts = THAI_PROVINCES.filter(p => p.startsWith(q))
-  const contains = THAI_PROVINCES.filter(p => !p.startsWith(q) && p.includes(q))
+  if (!q) return [...list]
+  const starts = list.filter(p => p.startsWith(q))
+  const contains = list.filter(p => !p.startsWith(q) && p.includes(q))
   return [...starts, ...contains]
 }
 

@@ -51,7 +51,13 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('slipok/test')
   @Roles('owner')
-  testSlipOk(@Body() dto: TestSlipOkDto) {
-    return this.slipVerify.checkQuota(dto.apiKey, dto.branchId)
+  async testSlipOk(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: TestSlipOkDto) {
+    const result = await this.slipVerify.checkQuota(dto.apiKey, dto.branchId)
+    // ผ่านแล้วจำคู่ key/branch นี้ไว้ — ร้านถึงจะนับว่า "เชื่อม SlipOK แล้ว" (ข้อมูลชำระเงินแสดงให้ลูกค้า) หลังบันทึกคู่เดียวกัน
+    if (result.ok) {
+      const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
+      if (ctx?.shopId) await this.settings.markSlipOkTested(ctx.shopId, dto.apiKey, dto.branchId)
+    }
+    return result
   }
 }

@@ -231,6 +231,7 @@ const initialSettings: AppSettings = {
   homeContent: DEFAULT_HOME_CONTENT,
   slipOkApiKey: '',
   slipOkBranchId: '',
+  slipOkConnected: false,
 }
 
 /** ทางหลักที่ทำให้ settings/เมนู-แพ็กเกจ-คิวช่วงเวลา/bookings เห็นการเปลี่ยนแปลงแบบ realtime คือ SSE
@@ -598,6 +599,7 @@ function OwnerScreens({
             settings={settings}
             onUpdateSettings={handleUpdateSettings}
             onUploadImage={handleUploadImage}
+            onResolveMapsLink={url => withToken().then(token => api.resolveMapsLink(token, url))}
             onTestSlipOk={(apiKey, branchId) => withToken().then(token => api.testSlipOk(token, apiKey, branchId))}
           />
         )}
@@ -1488,7 +1490,7 @@ export default function App() {
       const token = await withToken()
       const updated =
         'paymentSlip' in patch && patch.paymentSlip
-          ? await api.uploadPaymentSlip(token, id, await api.uploadImage(token, 'payment-slip', patch.paymentSlip))
+          ? await api.uploadPaymentSlip(token, id, await api.uploadImage(token, 'payment-slip', patch.paymentSlip), patch.paymentChannelKey)
           : await api.updateBookingAsOwner(token, id, {
               status: patch.status,
               staffAuto: patch.staffAuto,

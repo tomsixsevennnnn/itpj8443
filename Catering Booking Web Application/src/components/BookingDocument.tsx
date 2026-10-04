@@ -1,5 +1,6 @@
 import type { Booking, ShopInfo } from '../types'
-import PromptPayQr from './PromptPayQr'
+import PaymentChannels from './PaymentChannels'
+import { hasPaymentChannel } from '../paymentChannels'
 import {
   DEFAULT_BOOKING_TERMS,
   DEFAULT_DEPOSIT_RATE,
@@ -211,36 +212,11 @@ export default function BookingDocument({
         </div>
       </div>
 
-      {/* ข้อมูลการโอนเงิน */}
-      {(shopInfo.bankAccountNumber || shopInfo.promptPayId) && (
+      {/* ข้อมูลการโอนเงิน — ทุกบัญชีธนาคาร/พร้อมเพย์ที่ร้านตั้งไว้ (ฝังยอดมัดจำใน QR ทุกใบ — ยอดที่ต้องโอนคือมัดจำเสมอ ส่วนที่เหลือจ่ายวันงานจริง) */}
+      {hasPaymentChannel(shopInfo) && (
         <div className="bg-gray-50 rounded-xl p-4 mb-5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-3">ช่องทางการโอนเงิน</p>
-          <div className="flex flex-wrap items-center gap-4">
-            {shopInfo.bankAccountNumber && (
-              <div className="flex-1 min-w-[180px] space-y-1">
-                {shopInfo.bankName && <p className="text-sm font-semibold text-gray-700">{shopInfo.bankName}</p>}
-                <p className="text-xl font-bold font-mono tracking-wider text-gray-900 leading-tight">
-                  {shopInfo.bankAccountNumber}
-                </p>
-                {shopInfo.bankAccountName && <p className="text-sm text-gray-600">{shopInfo.bankAccountName}</p>}
-              </div>
-            )}
-            {/* ฝังยอดมัดจำใน QR เหมือนกันทั้งใบเสนอราคาและใบจอง — ยอดที่ต้องโอนคือมัดจำเสมอ (ส่วนที่เหลือจ่ายวันงานจริง) */}
-            {shopInfo.promptPayId && (
-              <div className="flex-shrink-0 text-center">
-                <PromptPayQr
-                  promptPayId={shopInfo.promptPayId}
-                  amount={price.deposit}
-                  className="w-28 h-28 rounded-lg border border-gray-200 bg-white"
-                />
-                {(shopInfo.promptPayFirstName || shopInfo.promptPayLastName) && (
-                  <p className="text-xs text-gray-600 mt-1">
-                    {shopInfo.promptPayFirstName} {shopInfo.promptPayLastName}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          <PaymentChannels shopInfo={shopInfo} depositAmount={price.deposit} variant="document" />
         </div>
       )}
 

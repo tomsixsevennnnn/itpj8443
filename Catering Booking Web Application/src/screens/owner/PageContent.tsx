@@ -120,14 +120,19 @@ export default function PageContent({ settings, onUpdateSettings, onUploadImage 
     }
   }
 
+  // ref กันกดบันทึกซ้ำภายในจังหวะเดียวกัน (ดับเบิลคลิก) — state `saving` อัปเดตหลัง render จึงกันไม่ทัน ทำให้ส่งคำขอสองครั้งด้วย
+  // version เดียวกัน ครั้งที่สองชน 409 ทั้งที่ครั้งแรกบันทึกสำเร็จแล้ว
+  const savingGuardRef = useRef(false)
   const handleSave = async () => {
-    if (saving) return
+    if (savingGuardRef.current) return
+    savingGuardRef.current = true
     setSaving(true)
     try {
       const result = await onUpdateSettings(deepTrim(form))
       if (result.settings) setForm(result.settings)
       if (result.ok) setSavedAt(Date.now())
     } finally {
+      savingGuardRef.current = false
       setSaving(false)
     }
   }

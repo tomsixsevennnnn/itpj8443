@@ -14,6 +14,8 @@ export const DEFAULT_SHOP_INFO: ShopInfo = {
   promptPayId: '',
   promptPayFirstName: '',
   promptPayLastName: '',
+  extraBankAccounts: [],
+  extraPromptPays: [],
   logo: '',
   loginTagline: 'ระบบจองจัดเลี้ยงนอกสถานที่',
 }

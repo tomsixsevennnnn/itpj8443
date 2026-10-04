@@ -1,4 +1,21 @@
-import { IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator'
+import { Type } from 'class-transformer'
+import { ArrayMaxSize, IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator'
+
+/** จำนวนสูงสุดของบัญชีเพิ่มเติมแต่ละชนิด (ธนาคาร/พร้อมเพย์) — ต้องตรงกับ MAX_EXTRA_PAYMENT_ACCOUNTS ฝั่ง frontend */
+export const MAX_EXTRA_PAYMENT_ACCOUNTS = 8
+
+export class ExtraBankAccountDto {
+  @IsString() @MaxLength(100) bankName!: string
+  @IsString() @MaxLength(40) accountNumber!: string
+  @IsString() @MaxLength(100) accountName!: string
+}
+
+export class ExtraPromptPayDto {
+  /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — ตัวเลขและขีดคั่นเท่านั้น (เหมือน promptPayId หลัก) */
+  @IsString() @Matches(/^[0-9-]*$/, { message: 'พร้อมเพย์ต้องเป็นตัวเลข (และขีดคั่นได้)' }) @MaxLength(30) id!: string
+  @IsString() @MaxLength(100) firstName!: string
+  @IsString() @MaxLength(100) lastName!: string
+}
 
 export class UpdateSettingsDto {
   /** version ของ settings ที่ client โหลดมาตอนเปิดหน้า — กันสองแท็บ/สองคนแก้ทับกันเงียบๆ (ดู settings.service.ts) */
@@ -20,6 +37,8 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString() @Matches(/^[0-9-]*$/, { message: 'promptPayId ต้องเป็นตัวเลข (และขีดคั่นได้)' }) promptPayId?: string
   @IsOptional() @IsString() promptPayFirstName?: string
   @IsOptional() @IsString() promptPayLastName?: string
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_EXTRA_PAYMENT_ACCOUNTS) @ValidateNested({ each: true }) @Type(() => ExtraBankAccountDto) extraBankAccounts?: ExtraBankAccountDto[]
+  @IsOptional() @IsArray() @ArrayMaxSize(MAX_EXTRA_PAYMENT_ACCOUNTS) @ValidateNested({ each: true }) @Type(() => ExtraPromptPayDto) extraPromptPays?: ExtraPromptPayDto[]
 
   /** API key + Branch ID จากบัญชี SlipOK ของร้าน (slipok.com) — ว่างทั้งคู่ = ปิดการตรวจสอบสลิปอัตโนมัติ */
   @IsOptional() @IsString() @MaxLength(200) slipOkApiKey?: string

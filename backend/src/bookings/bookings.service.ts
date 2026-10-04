@@ -10,6 +10,7 @@ import { UploadsService } from '../uploads/uploads.service'
 import { CreateBookingDto } from './dto/create-booking.dto'
 import { UpdateBookingDto } from './dto/update-booking.dto'
 import { outsideDeliveryFeeFor, routeDistanceKm, zoneFor, ServiceZone } from './geo.util'
+import { evaluateChannel, matchReceiver, type ExpectedChannel, type ExpectedReceiver, type SlipReceiver } from '../slip-verify/receiver-match'
 
 /** สถานะที่ยังกินคิวอยู่ — ต้องตรงกับ OCCUPIES_QUEUE ใน frontend src/availability.ts */
 const OCCUPIES_QUEUE: BookingStatus[] = [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
@@ -230,7 +231,37 @@ export class BookingsService {
     return after
   }
 
-  async updatePaymentSlipAsCustomer(id: string, customerId: string, paymentSlipUrl: string) {
+  /**
+   * หลัง SlipOK ยืนยันสลิปแล้ว เทียบ "ผู้รับเงิน" กับบัญชีที่ owner ตั้งไว้ในแอปอีกชั้น — ไม่ตรง = เปลี่ยนเป็น ACCOUNT_MISMATCH
+   * (ลูกค้าแนบสลิปใหม่ได้ ไม่ถูกล็อก) ไม่ได้ตั้งบัญชีในแอป/เทียบไม่ได้ = ใช้ผลของ SlipOK ตามเดิม แล้วจดผู้รับล่าสุดให้หน้าตั้งค่าโชว์
+   */
+  private async crossCheckReceiver(
+    shopId: string,
+    verify: { status: SlipVerifyStatus; message: string; transRef: string | null; receiver: SlipReceiver | null },
+    expected: ExpectedReceiver,
+    chosenChannel: ExpectedChannel | null,
+  ) {
+    if (verify.status !== SlipVerifyStatus.VERIFIED || !verify.receiver) return verify
+    const match = matchReceiver(verify.receiver, expected)
+    await this.settingsService.recordSlipOkReceiver(shopId, verify.receiver, match.checked ? match.ok : null)
+    if (match.ok) {
+      // เงินเข้าบัญชีที่ถูกต้องของร้านแล้ว แต่คนละช่องทางกับที่ลูกค้าเลือก — ไม่ปฏิเสธ (ยังเป็น VERIFIED) แค่แจ้ง owner ในข้อความผลตรวจ
+      if (chosenChannel && match.checked && evaluateChannel(verify.receiver, chosenChannel).status === 'mismatch') {
+        return {
+          ...verify,
+          message: `${verify.message} — หมายเหตุ: ลูกค้าเลือกโอนเข้า "${chosenChannel.label}" แต่สลิปแสดงว่าโอนเข้าอีกช่องทางหนึ่งของร้าน`,
+        }
+      }
+      return verify
+    }
+    return {
+      ...verify,
+      status: SlipVerifyStatus.ACCOUNT_MISMATCH,
+      message: `SlipOK ยืนยันสลิปแล้ว แต่ ${match.reasons.join(' และ ')} — ตรวจสอบบัญชีรับเงินในหน้าตั้งค่าการเงิน หรือให้ลูกค้าโอนเข้าบัญชีที่ถูกต้อง`,
+    }
+  }
+
+  async updatePaymentSlipAsCustomer(id: string, customerId: string, paymentSlipUrl: string, paymentChannelKey?: string) {
     const booking = await this.assertExists(id)
     if (booking.customerId !== customerId) throw new ForbiddenException('ไม่มีสิทธิ์แก้ไขใบจองนี้')
     // สลิปที่ SlipOK ยืนยันแล้ว (ชื่อบัญชีผู้รับและยอดโอนตรงกับใบจอง) ถือว่าชำระมัดจำเรียบร้อย — ห้ามเปลี่ยน กันเอาสลิปอื่น
@@ -243,7 +274,11 @@ export class BookingsService {
     // ตรวจทันทีตอนอัปโหลดเลย ไม่ต้องรอ poll/refresh แยกรอบ อัปโหลดไฟล์เองไม่มีวันล้มเหลวเพราะ SlipOK (ดู
     // slip-verify.service.ts — เรียกไม่สำเร็จก็แค่ได้สถานะ UNAVAILABLE กลับมา ไม่ throw)
     const slipOk = await this.settingsService.getSlipOkConfig(booking.shopId)
-    let verify: { status: SlipVerifyStatus; message: string; transRef: string | null } | null = null
+    // ช่องทางที่ลูกค้าเลือก — หาจาก key เทียบกับบัญชีที่ร้านตั้งไว้ตอนนี้ (key ที่ไม่มีแล้ว เช่นร้านลบบัญชีนั้นไปหลังลูกค้าเปิดหน้าค้างไว้ = ถือว่าไม่ได้เลือก)
+    const chosenChannel = paymentChannelKey
+      ? (await this.settingsService.getPaymentChannels(booking.shopId)).find((c) => c.key === paymentChannelKey) ?? null
+      : null
+    let verify: { status: SlipVerifyStatus; message: string; transRef: string | null; receiver: SlipReceiver | null } | null = null
     if (slipOk) {
       const file = await this.uploads.readManagedFile(paymentSlipUrl)
       if (file) {
@@ -256,6 +291,7 @@ export class BookingsService {
           // ลูกค้าโอนแค่ค่ามัดจำ ไม่ใช่ totalPrice เต็มจำนวน (สูตรต้องตรงกับ bookingPricing() ฝั่ง frontend)
           expectedAmount: Math.round(booking.totalPrice * slipOk.depositRate),
         })
+        verify = await this.crossCheckReceiver(booking.shopId, verify, slipOk.expectedReceiver, chosenChannel)
       }
     }
 
@@ -270,6 +306,13 @@ export class BookingsService {
         paymentSlipVerifyMessage: verify?.message ?? null,
         paymentSlipTransRef: verify?.transRef ?? null,
         paymentSlipVerifiedAt: verify ? new Date() : null,
+        // ผู้รับที่ SlipOK อ่านได้จากสลิป (เคลียร์ทุกครั้งที่แนบใหม่ทับ) ให้ owner เทียบกับบัญชีร้านในหน้าใบจอง
+        paymentSlipReceiverName: verify?.receiver ? verify.receiver.displayName || verify.receiver.name : null,
+        paymentSlipReceiverAccount: verify?.receiver ? verify.receiver.account || verify.receiver.proxy : null,
+        paymentSlipReceivingBank: verify?.receiver?.bankCode || null,
+        // ช่องทางที่ลูกค้าเลือกโอน (เก็บข้อความไว้ เผื่อ owner แก้บัญชีภายหลัง) — เคลียร์ทุกครั้งที่แนบสลิปใหม่ทับ
+        paymentChannelKey: chosenChannel?.key ?? null,
+        paymentChannelLabel: chosenChannel?.label ?? null,
       },
     })
     // แนบสลิปใหม่ทับของเดิม (เช่นโอนผิดแล้วอัปโหลดใหม่) — ลบไฟล์เก่าทิ้งกัน orphan สะสมบน disk

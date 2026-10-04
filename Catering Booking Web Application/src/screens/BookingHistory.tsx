@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { Calendar, Check, Eye, FileText, Filter, Landmark, Loader2, Printer, QrCode, Search, Send, Upload, X } from 'lucide-react'
+import { Calendar, Check, Eye, FileText, Filter, Loader2, Printer, Search, Send, Upload, X } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BookingDocument from '../components/BookingDocument'
 import ImageLightbox from '../components/ImageLightbox'
-import PromptPayQr from '../components/PromptPayQr'
 import type { AppSettings, Booking } from '../types'
 import { DOC_LABEL, bookingCustomerName, bookingPricing, docNumber, type DocType } from '../documents'
 import { pickImageAsDataUrl } from '../imageUpload'
 import { useAuthedSlipUrl } from '../useAuthedSlipUrl'
 import SlipLoadStatus from '../components/SlipLoadStatus'
+import PaymentChannels from '../components/PaymentChannels'
+import { channelKeysOf, hasPaymentChannel } from '../paymentChannels'
 
 interface BookingHistoryProps {
   bookings: Booking[]
@@ -56,10 +57,12 @@ export default function BookingHistory({
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
   const slipInputRef = useRef<HTMLInputElement>(null)
 
-  const hasBankTransfer = !!settings.shopInfo.bankAccountNumber
-  const hasQr = !!settings.shopInfo.promptPayId
-  /** เลือกช่องทางที่มีให้ก่อน ถ้ามีทั้งคู่ให้ QR มาก่อน (สแกนแล้วยอดขึ้นเองสะดวกกว่า) */
-  const [payMethod, setPayMethod] = useState<'bank' | 'qr'>(hasQr ? 'qr' : 'bank')
+  const hasPayment = hasPaymentChannel(settings.shopInfo)
+  /** ช่องทางโอนที่ลูกค้าเลือกได้ — มีช่องทางเดียวไม่ต้องเลือก (ใช้ช่องทางนั้นให้เอง) มีหลายช่องทางต้องเลือกก่อนส่งสลิป */
+  const channelKeys = channelKeysOf(settings.shopInfo)
+  const [pickedChannelKey, setPickedChannelKey] = useState<string | null>(null)
+  const chosenChannelKey = channelKeys.length === 1 ? channelKeys[0] : pickedChannelKey && channelKeys.includes(pickedChannelKey) ? pickedChannelKey : null
+  const needsChannelChoice = channelKeys.length > 1 && !chosenChannelKey
 
   const allBookings = bookings
 
@@ -106,10 +109,14 @@ export default function BookingHistory({
 
   /** กดส่งจริง — ค่อยบันทึกสลิปเข้าใบจองให้ร้านเห็น */
   const submitSlip = async () => {
-    if (!slipDraft || submittingSlip) return
+    if (!slipDraft || submittingSlip || needsChannelChoice) return
     setSubmittingSlip(true)
     try {
-      await onUpdateBooking(slipDraft.id, { paymentSlip: slipDraft.dataUrl, paymentSlipUploadedAt: new Date().toISOString() })
+      await onUpdateBooking(slipDraft.id, {
+        paymentSlip: slipDraft.dataUrl,
+        paymentSlipUploadedAt: new Date().toISOString(),
+        paymentChannelKey: chosenChannelKey ?? undefined,
+      })
       setSlipDraft(null)
       setSlipSent(true)
     } finally {
@@ -402,8 +409,21 @@ export default function BookingHistory({
                 <span className="text-xl font-bold text-orange-600">{detailBooking.totalPrice.toLocaleString()} ฿</span>
               </div>
 
+              {/* ร้านยังไม่เปิดช่องทางโอนในระบบ (ยังไม่เชื่อม SlipOK หรือยังไม่ได้กรอกบัญชี) — บอกลูกค้าให้ติดต่อร้าน แทนที่จะไม่เห็นอะไรเลย */}
+              {!hasPayment && (
+                <div className="bg-gray-50 rounded-2xl p-4 text-sm text-gray-600">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-gray-800">ยอดมัดจำที่ต้องโอน</span>
+                    <span className="text-lg font-bold text-orange-600">
+                      {bookingPricing(detailBooking, settings.depositRate).deposit.toLocaleString()} ฿
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">ร้านยังไม่ได้เปิดช่องทางโอนเงินในระบบ — กรุณาติดต่อร้านเพื่อสอบถามช่องทางชำระมัดจำ</p>
+                </div>
+              )}
+
               {/* ช่องทางการโอนมัดจำ — โชว์ตรงจุดที่ลูกค้าจะมาแนบสลิป กันต้องสลับไปเปิดใบเสนอราคาแยกเพื่อดูเลขบัญชี */}
-              {(hasBankTransfer || hasQr) && (
+              {hasPayment && (
                 <div className="bg-gray-50 rounded-2xl p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-bold text-gray-800">ยอดมัดจำที่ต้องโอน</span>
@@ -411,65 +431,13 @@ export default function BookingHistory({
                       {bookingPricing(detailBooking, settings.depositRate).deposit.toLocaleString()} ฿
                     </span>
                   </div>
-
-                  {/* มีให้เลือกมากกว่า 1 ช่องทางถึงจะโชว์ตัวเลือก — ถ้ามีทางเดียวก็ไม่ต้องให้กดอะไร */}
-                  {hasBankTransfer && hasQr && (
-                    <div className="flex gap-2 mb-3">
-                      <button
-                        type="button"
-                        onClick={() => setPayMethod('qr')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                          payMethod === 'qr' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 border border-gray-200'
-                        }`}
-                      >
-                        <QrCode size={13} />
-                        สแกน QR พร้อมเพย์
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPayMethod('bank')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                          payMethod === 'bank' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 border border-gray-200'
-                        }`}
-                      >
-                        <Landmark size={13} />
-                        โอนเข้าบัญชีธนาคาร
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap items-center gap-4">
-                    {(payMethod === 'bank' || !hasQr) && hasBankTransfer && (
-                      <div className="flex-1 min-w-[180px] space-y-1">
-                        {settings.shopInfo.bankName && (
-                          <p className="text-sm font-semibold text-gray-700">{settings.shopInfo.bankName}</p>
-                        )}
-                        <p className="text-2xl font-bold font-mono tracking-wider text-gray-900 leading-tight">
-                          {settings.shopInfo.bankAccountNumber}
-                        </p>
-                        {settings.shopInfo.bankAccountName && (
-                          <p className="text-sm text-gray-600">{settings.shopInfo.bankAccountName}</p>
-                        )}
-                      </div>
-                    )}
-                    {(payMethod === 'qr' || !hasBankTransfer) && hasQr && (
-                      <div className="flex items-center gap-3">
-                        <PromptPayQr
-                          promptPayId={settings.shopInfo.promptPayId}
-                          amount={bookingPricing(detailBooking, settings.depositRate).deposit}
-                          className="w-32 h-32 rounded-lg border border-gray-200 bg-white flex-shrink-0"
-                        />
-                        <div className="text-left space-y-1">
-                          {(settings.shopInfo.promptPayFirstName || settings.shopInfo.promptPayLastName) && (
-                            <p className="text-lg font-bold text-gray-900 leading-tight">
-                              {settings.shopInfo.promptPayFirstName} {settings.shopInfo.promptPayLastName}
-                            </p>
-                          )}
-                          <p className="text-xs text-gray-400">สแกนแล้วยอดขึ้นอัตโนมัติ</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <PaymentChannels
+                    shopInfo={settings.shopInfo}
+                    depositAmount={bookingPricing(detailBooking, settings.depositRate).deposit}
+                    variant="history"
+                    selectedKey={chosenChannelKey}
+                    onSelect={channelKeys.length > 1 ? setPickedChannelKey : undefined}
+                  />
                 </div>
               )}
 
@@ -497,10 +465,13 @@ export default function BookingHistory({
                           />
                         </button>
                         <p className="text-[11px] text-orange-600">ยังไม่ได้ส่ง — กด "ส่งสลิป" เพื่อแจ้งร้าน</p>
+                        {needsChannelChoice && (
+                          <p className="text-[11px] font-medium text-red-600">เลือกช่องทางที่คุณโอนในกล่อง "ยอดมัดจำที่ต้องโอน" ด้านบนก่อน แล้วจึงกดส่งสลิป</p>
+                        )}
                         <div className="flex gap-2">
                           <button
                             onClick={submitSlip}
-                            disabled={submittingSlip}
+                            disabled={submittingSlip || needsChannelChoice}
                             className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white rounded-xl py-2 text-xs font-semibold transition-colors"
                           >
                             {submittingSlip ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}

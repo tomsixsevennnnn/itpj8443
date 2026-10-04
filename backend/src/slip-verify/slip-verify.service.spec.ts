@@ -23,7 +23,37 @@ describe('SlipVerifyService', () => {
 
     const result = await service.checkSlip(baseParams)
 
-    expect(result).toEqual({ status: 'VERIFIED', message: expect.any(String), transRef: 'ref-1' })
+    expect(result).toEqual({ status: 'VERIFIED', message: expect.any(String), transRef: 'ref-1', receiver: null })
+  })
+
+  it('SlipOK ตอบสำเร็จพร้อมข้อมูลผู้รับ — แกะชื่อ/เลขบัญชี/พร้อมเพย์/รหัสธนาคารผู้รับมาด้วย', async () => {
+    ;(global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          transRef: 'ref-2',
+          receivingBank: '004',
+          receiver: {
+            displayName: 'ธนาทร ร',
+            name: 'THANATORN R',
+            proxy: { type: 'MSISDN', value: '086xxx0000' },
+            account: { type: 'BANKAC', value: 'xxx-x-x3109-x' },
+          },
+        },
+      }),
+    })
+    const service = new SlipVerifyService()
+
+    const result = await service.checkSlip(baseParams)
+
+    expect(result.receiver).toEqual({
+      displayName: 'ธนาทร ร',
+      name: 'THANATORN R',
+      account: 'xxx-x-x3109-x',
+      proxy: '086xxx0000',
+      bankCode: '004',
+    })
   })
 
   it('SlipOK ตอบสลิปซ้ำ (code 1012) — คืนสถานะ DUPLICATE', async () => {

@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, MapPin } from 'lucide-react'
-import { filterProvinces, splitMatch } from '../provinces'
+import { THAI_PROVINCES, filterProvinces, splitMatch } from '../provinces'
 
-interface ProvinceInputProps {
+interface SuggestInputProps {
   value: string
   onChange: (value: string) => void
   /** กด Enter ตอนที่ไม่ได้เลือกตัวเลือกใดในรายการ (เช่นช่อง "เพิ่มจังหวัด" ใช้กด Enter เพื่อเพิ่ม) */
@@ -10,21 +10,37 @@ interface ProvinceInputProps {
   placeholder?: string
   id?: string
   className?: string
+  /** รายการตัวเลือก — ไม่ส่งมา = รายชื่อจังหวัด */
+  options?: readonly string[]
+  /** ไอคอนหน้าแต่ละตัวเลือก (เช่นป้ายธนาคาร) — ไม่ส่งมา = ไอคอนหมุด (ถ้าส่งมาแล้วคืน null จะใช้ไอคอนหมุดแทนเฉพาะตัวนั้น) */
+  renderIcon?: (name: string) => ReactNode
+  /** ไอคอนที่แสดงในช่องพิมพ์ด้านซ้าย (เช่นป้ายของธนาคารที่เลือกอยู่) — null = ไม่แสดง */
+  leadingIcon?: ReactNode
 }
 
 /**
- * ช่องพิมพ์ชื่อจังหวัดพร้อมรายการให้เลือกที่ดีไซน์เข้ากับแอป (แทน <datalist> ของเบราว์เซอร์ที่จัดสไตล์ไม่ได้)
+ * ช่องพิมพ์พร้อมรายการให้เลือก (ค่าเริ่มต้นเป็นจังหวัด ใช้กับรายชื่อธนาคารได้ด้วย)ที่ดีไซน์เข้ากับแอป (แทน <datalist> ของเบราว์เซอร์ที่จัดสไตล์ไม่ได้)
  * พิมพ์แล้วกรองรายการ (ตัวที่ขึ้นต้นด้วยคำที่พิมพ์ขึ้นก่อน) ไฮไลต์ตัวอักษรที่ตรง เลื่อนด้วยลูกศรขึ้น/ลง เลือกด้วย Enter/คลิก ปิดด้วย Esc
  * หรือคลิกข้างนอก — ยังพิมพ์ชื่ออื่นที่ไม่อยู่ในรายการได้ (ไม่บังคับให้เลือก)
  */
-export default function ProvinceInput({ value, onChange, onEnter, placeholder, id, className = '' }: Readonly<ProvinceInputProps>) {
+export default function SuggestInput({
+  value,
+  onChange,
+  onEnter,
+  placeholder,
+  id,
+  className = '',
+  options: optionList = THAI_PROVINCES,
+  renderIcon,
+  leadingIcon,
+}: Readonly<SuggestInputProps>) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const rootRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const listId = useId()
 
-  const options = filterProvinces(value)
+  const options = filterProvinces(value, optionList)
 
   // คลิกนอกกล่อง = ปิดรายการ
   useEffect(() => {
@@ -90,8 +106,11 @@ export default function ProvinceInput({ value, onChange, onEnter, placeholder, i
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+        className={`w-full border border-gray-200 rounded-xl py-2.5 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 ${
+          leadingIcon ? 'pl-11' : 'pl-4'
+        }`}
       />
+      {leadingIcon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">{leadingIcon}</span>}
 
       {open && (
         <ul
@@ -101,7 +120,7 @@ export default function ProvinceInput({ value, onChange, onEnter, placeholder, i
           className="absolute left-0 right-0 z-30 mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-gray-100 bg-white py-1.5 shadow-xl shadow-gray-200/70"
         >
           {options.length === 0 ? (
-            <li className="px-4 py-3 text-xs text-gray-400">ไม่พบจังหวัดที่ตรงกับ "{value.trim()}" — ใช้ชื่อที่พิมพ์ต่อได้เลย</li>
+            <li className="px-4 py-3 text-xs text-gray-400">ไม่พบรายการที่ตรงกับ "{value.trim()}" — ใช้ชื่อที่พิมพ์ต่อได้เลย</li>
           ) : (
             options.map((name, i) => {
               const [before, match, after] = splitMatch(name, value)
@@ -121,7 +140,9 @@ export default function ProvinceInput({ value, onChange, onEnter, placeholder, i
                     i === active ? 'bg-orange-50 text-orange-700' : 'text-gray-700 hover:bg-orange-50/60'
                   }`}
                 >
-                  <MapPin size={13} className={i === active || selected ? 'text-orange-500' : 'text-gray-300'} />
+                  {renderIcon?.(name) ?? (
+                    <MapPin size={13} className={i === active || selected ? 'text-orange-500' : 'text-gray-300'} />
+                  )}
                   <span className="flex-1">
                     {before}
                     <span className="font-bold text-orange-600">{match}</span>

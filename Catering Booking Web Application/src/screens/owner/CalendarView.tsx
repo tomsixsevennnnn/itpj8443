@@ -418,7 +418,16 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                       className="w-full max-h-48 object-contain rounded-xl border border-gray-200 bg-gray-50 hover:opacity-90 transition-opacity cursor-zoom-in"
                     />
                   </button>
-                  <SlipVerifyBadge status={popup.paymentSlipVerifyStatus} message={popup.paymentSlipVerifyMessage} />
+                  <SlipVerifyBadge
+                    status={popup.paymentSlipVerifyStatus}
+                    message={popup.paymentSlipVerifyMessage}
+                    chosenChannel={popup.paymentChannelLabel}
+                    receiver={{
+                      name: popup.paymentSlipReceiverName,
+                      account: popup.paymentSlipReceiverAccount,
+                      bank: popup.paymentSlipReceivingBank,
+                    }}
+                  />
                 </div>
               )}
 

@@ -71,7 +71,7 @@ export class BookingsController {
     @Body() dto: UpdatePaymentSlipDto,
   ) {
     const user = await this.syncCustomer(jwtUser)
-    return this.bookings.updatePaymentSlipAsCustomer(id, user.id, dto.paymentSlipUrl)
+    return this.bookings.updatePaymentSlipAsCustomer(id, user.id, dto.paymentSlipUrl, dto.paymentChannelKey)
   }
 
   /**

@@ -1,9 +1,11 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { createHash } from 'node:crypto'
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { Prisma, type Settings } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { UploadsService } from '../uploads/uploads.service'
+import type { ExpectedChannel, ExpectedReceiver, SlipReceiver } from '../slip-verify/receiver-match'
 import { UpdateSettingsDto } from './dto/update-settings.dto'
 
 /** ดึง path รูป Hero/แกลเลอรีออกจาก homeContent (Json ที่ไม่มี type ผูกไว้ — โครงสร้างจริงคือ HomeContent ฝั่ง
@@ -60,6 +62,19 @@ export const DEFAULT_SETTINGS = {
   fuelCostPerKm: 8,
 }
 
+/** ลายนิ้วมือของคู่ API key + Branch ID (ต้องตรงกับสูตรใน migration 20261005100000) */
+export const slipOkFingerprint = (apiKey: string, branchId: string): string =>
+  createHash('sha256').update(`${apiKey}|${branchId}`, 'utf8').digest('hex')
+
+/** ข้อมูลชำระเงินของร้าน (บัญชีธนาคาร/พร้อมเพย์) — ลูกค้าเห็นเฉพาะตอนร้านเชื่อม SlipOK แล้ว */
+const PAYMENT_FIELDS = ['bankName', 'bankAccountNumber', 'bankAccountName', 'promptPayId', 'promptPayFirstName', 'promptPayLastName'] as const
+
+/** ค่า JSON ที่ควรเป็น array (null/ชนิดอื่น = array ว่าง) */
+const asArray = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
+
+/** ตัดช่องว่างหัวท้าย (null/undefined = สตริงว่าง) */
+const clean = (v?: string | null): string => (v ?? '').trim()
+
 /** ค่าที่เป็นต้นทุนภายในของร้าน (ค่าแรงพนักงาน) — owner เท่านั้นที่ควรเห็น ไม่มีลูกค้าคนไหนต้องใช้ค่าพวกนี้เลย */
 const OWNER_ONLY_FIELDS = [
   'wageChef',
@@ -71,10 +86,18 @@ const OWNER_ONLY_FIELDS = [
   'staffRemainderThreshold',
   'slipOkApiKey',
   'slipOkBranchId',
+  'slipOkLastReceiverName',
+  'slipOkLastReceiverAccount',
+  'slipOkLastReceivingBank',
+  'slipOkLastReceiverMatched',
+  'slipOkLastReceiverAt',
+  'slipOkTestedHash',
 ] as const
 
 @Injectable()
 export class SettingsService {
+  private readonly logger = new Logger(SettingsService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -100,13 +123,41 @@ export class SettingsService {
     return this.prisma.settings.create({ data: { ...DEFAULT_SETTINGS, shopId } })
   }
 
-  /** ลูกค้าไม่ควรเห็นค่าแรงพนักงาน (ต้นทุนภายใน) — เดิม endpoint นี้คืนทุกฟิลด์ให้ทุก role ที่ล็อกอินอยู่ */
-  async get(shopId: string, isOwner: boolean): Promise<Settings> {
-    const settings = await this.getRaw(shopId)
-    if (isOwner) return settings
-    const stripped = { ...settings }
-    for (const field of OWNER_ONLY_FIELDS) delete (stripped as Record<string, unknown>)[field]
-    return stripped
+  /** "เชื่อม SlipOK แล้ว" = มี API key + Branch ID และเป็นคู่เดียวกับที่ owner กดทดสอบการเชื่อมต่อผ่านล่าสุด */
+  private isSlipOkConnected(s: Settings): boolean {
+    return !!s.slipOkApiKey && !!s.slipOkBranchId && s.slipOkTestedHash !== '' && s.slipOkTestedHash === slipOkFingerprint(s.slipOkApiKey, s.slipOkBranchId)
+  }
+
+  /** แปลงแถวใน DB เป็นข้อมูลที่ส่งให้ client — เพิ่ม slipOkConnected และไม่ส่งลายนิ้วมือ
+   *  ลูกค้าไม่เห็นค่าแรงพนักงาน/ข้อมูล SlipOK (ต้นทุนภายใน/ความลับของร้าน) และเห็นข้อมูลชำระเงินของร้านเฉพาะตอนเชื่อม SlipOK แล้ว
+   *  (ยังไม่เชื่อม = ว่างเปล่า ลูกค้าไม่เห็นช่องทางโอน) */
+  private toClient(settings: Settings, isOwner: boolean): Settings & { slipOkConnected: boolean } {
+    const slipOkConnected = this.isSlipOkConnected(settings)
+    const out = { ...settings, slipOkConnected } as Record<string, unknown>
+    delete out.slipOkTestedHash
+    if (!isOwner) {
+      for (const field of OWNER_ONLY_FIELDS) delete out[field]
+      if (!slipOkConnected) {
+        for (const field of PAYMENT_FIELDS) out[field] = ''
+        out.extraBankAccounts = []
+        out.extraPromptPays = []
+      }
+    }
+    return out as unknown as Settings & { slipOkConnected: boolean }
+  }
+
+  async get(shopId: string, isOwner: boolean): Promise<Settings & { slipOkConnected: boolean }> {
+    return this.toClient(await this.getRaw(shopId), isOwner)
+  }
+
+  /** owner กดทดสอบการเชื่อมต่อผ่าน — จำลายนิ้วมือของคู่ key/branch ที่ทดสอบไว้ (ไม่ bump version) ถ้าคู่นี้ตรงกับที่บันทึกอยู่
+   *  (ตอนนี้หรือหลังบันทึก) ก็ถือว่าเชื่อมแล้ว ตัวคำตอบของ endpoint ทดสอบไม่เปลี่ยน */
+  async markSlipOkTested(shopId: string, apiKey: string, branchId: string): Promise<void> {
+    try {
+      await this.prisma.settings.updateMany({ where: { shopId }, data: { slipOkTestedHash: slipOkFingerprint(apiKey, branchId) } })
+    } catch (err) {
+      this.logger.warn(`จดผลทดสอบ SlipOK ไม่สำเร็จ (shop=${shopId})`, err as Error)
+    }
   }
 
   /** เฉพาะข้อมูลร้านที่โชว์หน้าตาได้ — ไม่มี auth guard จึงต้องไม่รวมค่ามัดจำ/ค่าแรง/พิกัดร้าน ฯลฯ */
@@ -127,10 +178,88 @@ export class SettingsService {
 
   /** ให้ BookingsService เรียกตอนลูกค้าอัปโหลดสลิป — คืน null ถ้าร้านนี้ยังไม่ได้ตั้งค่า SlipOK ไว้ (ไม่บังคับ)
    *  แนบ depositRate มาด้วยเพื่อคำนวณยอดที่คาดว่าจะได้รับ — ลูกค้าโอนแค่ค่ามัดจำ ไม่ใช่ totalPrice เต็มจำนวน */
-  async getSlipOkConfig(shopId: string): Promise<{ apiKey: string; branchId: string; depositRate: number } | null> {
+  async getSlipOkConfig(shopId: string): Promise<{
+    apiKey: string
+    branchId: string
+    depositRate: number
+    /** บัญชีรับเงินที่ owner ตั้งไว้ในแอป (บัญชีธนาคาร + พร้อมเพย์) ไว้เทียบกับผู้รับที่ SlipOK อ่านได้จากสลิป */
+    expectedReceiver: ExpectedReceiver
+  } | null> {
     const settings = await this.getRaw(shopId)
     if (!settings.slipOkApiKey || !settings.slipOkBranchId) return null
-    return { apiKey: settings.slipOkApiKey, branchId: settings.slipOkBranchId, depositRate: settings.depositRate }
+    return {
+      apiKey: settings.slipOkApiKey,
+      branchId: settings.slipOkBranchId,
+      depositRate: settings.depositRate,
+      expectedReceiver: { channels: this.paymentChannels(settings) },
+    }
+  }
+
+  /** บัญชีรับเงินทั้งหมดของร้าน: บัญชีธนาคาร/พร้อมเพย์หลัก + ที่เพิ่มเติม — แต่ละบัญชีเป็น 1 channel (ชื่อกับเลขต้องเป็นของบัญชีเดียวกัน)
+   *  บัญชีที่มีเลข (ลูกค้าโอนได้จริง) ได้ key/label ไว้ให้ลูกค้าเลือกตอนแนบสลิป: key = "bank:<เลขเฉพาะตัวเลข>" หรือ "pp:<เลขเฉพาะตัวเลข>" */
+  paymentChannels(settings: Settings): ExpectedChannel[] {
+    const digits = (v: string) => v.replace(/\D/g, '')
+    const withName = (text: string, name: string) => (name ? `${text} (${name})` : text)
+    const channels: ExpectedChannel[] = []
+
+    const addBank = (bankName?: string, accountNumber?: string, accountName?: string) => {
+      const number = clean(accountNumber)
+      const name = clean(accountName)
+      if (!number && !name) return
+      const key = digits(number).length >= 4 ? `bank:${digits(number)}` : undefined
+      channels.push({
+        names: name ? [name] : [],
+        accounts: number ? [number] : [],
+        key,
+        label: key ? withName([clean(bankName), number].filter(Boolean).join(' '), name) : undefined,
+      })
+    }
+    const addPromptPay = (id?: string, firstName?: string, lastName?: string) => {
+      const number = clean(id)
+      const name = [firstName, lastName].map(clean).filter(Boolean).join(' ')
+      if (!number && !name) return
+      const key = digits(number).length >= 4 ? `pp:${digits(number)}` : undefined
+      channels.push({
+        names: name ? [name] : [],
+        accounts: number ? [number] : [],
+        key,
+        label: key ? withName(`พร้อมเพย์ ${number}`, name) : undefined,
+      })
+    }
+
+    addBank(settings.bankName, settings.bankAccountNumber, settings.bankAccountName)
+    addPromptPay(settings.promptPayId, settings.promptPayFirstName, settings.promptPayLastName)
+    for (const b of asArray<{ bankName?: string; accountNumber?: string; accountName?: string }>(settings.extraBankAccounts)) {
+      addBank(b.bankName, b.accountNumber, b.accountName)
+    }
+    for (const p of asArray<{ id?: string; firstName?: string; lastName?: string }>(settings.extraPromptPays)) {
+      addPromptPay(p.id, p.firstName, p.lastName)
+    }
+    return channels
+  }
+
+  /** ช่องทางโอนของร้านนี้ (ให้ BookingsService หาช่องทางที่ลูกค้าเลือกจาก key) */
+  async getPaymentChannels(shopId: string): Promise<ExpectedChannel[]> {
+    return this.paymentChannels(await this.getRaw(shopId))
+  }
+
+  /** จดผู้รับเงินที่ SlipOK เห็นจากสลิปล่าสุดที่ตรวจผ่านของร้านนี้ ให้หน้าตั้งค่าการเงินโชว์ — ไม่ bump version (ไม่ใช่การแก้ของ owner
+   *  ไม่งั้น owner ที่กำลังแก้ฟอร์มอยู่จะชน 409 ทุกครั้งที่มีลูกค้าแนบสลิป) ไม่มีวัน throw ออกไปบล็อกการแนบสลิป */
+  async recordSlipOkReceiver(shopId: string, receiver: SlipReceiver, matched: boolean | null): Promise<void> {
+    try {
+      await this.prisma.settings.updateMany({
+        where: { shopId },
+        data: {
+          slipOkLastReceiverName: receiver.displayName || receiver.name,
+          slipOkLastReceiverAccount: receiver.account || receiver.proxy,
+          slipOkLastReceivingBank: receiver.bankCode,
+          slipOkLastReceiverMatched: matched,
+          slipOkLastReceiverAt: new Date(),
+        },
+      })
+    } catch (err) {
+      this.logger.warn(`จดผู้รับเงินจาก SlipOK ไม่สำเร็จ (shop=${shopId})`, err as Error)
+    }
   }
 
   /** เปลี่ยนโลโก้ร้าน — ไฟล์เก่ากำลังจะถูกลบทิ้งกัน orphan สะสมบน disk แต่ประวัติการแก้ไข (audit log) ต้องยังดูรูปเดิม
@@ -181,6 +310,11 @@ export class SettingsService {
     } catch (err) {
       // P2025 = ไม่พบแถวที่ตรงเงื่อนไข where (id, version) — แปลว่ามีคนแก้ไปแล้วก่อนหน้านี้ (version ไม่ตรงที่ client ถืออยู่)
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        // log ไว้ให้ไล่สาเหตุได้ — เทียบ version ที่ client ส่งมากับ version จริงใน DB ตอนนี้ (ดูได้ด้วย railway logs)
+        const current = await this.prisma.settings.findUnique({ where: { id: before.id }, select: { version: true } }).catch(() => null)
+        this.logger.warn(
+          `settings conflict (409): shop=${shopId} editor=${editorAuth0Sub} expectedVersion=${expectedVersion} currentVersion=${current?.version ?? '?'}`,
+        )
         throw new ConflictException('มีคนแก้ไขค่าตั้งค่าไปแล้ว กรุณาโหลดหน้าใหม่')
       }
       throw err
@@ -197,6 +331,6 @@ export class SettingsService {
     // ให้ refetch รายการร้านทันที (หัวข้อ 'shop') ไม่ต้องรอ refresh/poll เพราะ audit.log ข้างบนแจ้งแค่หัวข้อ 'settings'
     if (patch.shopName !== undefined && patch.shopName !== before.shopName) this.realtime.emitAppChanged('shop')
 
-    return after
+    return this.toClient(after, true)
   }
 }

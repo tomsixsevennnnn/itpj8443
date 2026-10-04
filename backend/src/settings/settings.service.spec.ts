@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
-import { SettingsService } from './settings.service'
+import { SettingsService, slipOkFingerprint } from './settings.service'
 
 const makeService = () => {
   const prisma = {
@@ -49,7 +49,158 @@ describe('SettingsService', () => {
     const { service, prisma } = makeService()
     prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, slipOkApiKey: 'key1', slipOkBranchId: 'branch1' })
 
-    await expect(service.getSlipOkConfig('shop1')).resolves.toEqual({ apiKey: 'key1', branchId: 'branch1', depositRate: 0.5 })
+    await expect(service.getSlipOkConfig('shop1')).resolves.toEqual({
+      apiKey: 'key1',
+      branchId: 'branch1',
+      depositRate: 0.5,
+      expectedReceiver: { channels: [] },
+    })
+  })
+
+  it('getSlipOkConfig: คืนบัญชีรับเงินทั้งหมดที่ owner ตั้งไว้ แยกเป็นต่อบัญชี (ธนาคารหลัก/พร้อมเพย์หลัก/ที่เพิ่มเติม) ตัดบัญชีที่ว่างทิ้ง', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({
+      ...BASE_ROW,
+      slipOkApiKey: 'key1',
+      slipOkBranchId: 'branch1',
+      bankAccountName: 'ธนาทร รักดี',
+      bankAccountNumber: '123-4-53109-6',
+      promptPayId: '0861230000',
+      promptPayFirstName: '',
+      promptPayLastName: '',
+      extraBankAccounts: [
+        { bankName: 'ธนาคารกสิกรไทย', accountNumber: '999-9-99999-9', accountName: 'สมชาย ใจดี' },
+        { bankName: '', accountNumber: '', accountName: '' },
+      ],
+      extraPromptPays: [{ id: '0891110000', firstName: 'มานี', lastName: 'มีตา' }],
+    })
+
+    const config = await service.getSlipOkConfig('shop1')
+
+    // key = "bank:/pp:" + เลขเฉพาะตัวเลข ไว้ให้ลูกค้าเลือกช่องทางตอนแนบสลิป, label = ข้อความแสดงผล (ธนาคาร เลขบัญชี (ชื่อ))
+    expect(config?.expectedReceiver.channels).toEqual([
+      { names: ['ธนาทร รักดี'], accounts: ['123-4-53109-6'], key: 'bank:1234531096', label: '123-4-53109-6 (ธนาทร รักดี)' },
+      { names: [], accounts: ['0861230000'], key: 'pp:0861230000', label: 'พร้อมเพย์ 0861230000' },
+      {
+        names: ['สมชาย ใจดี'],
+        accounts: ['999-9-99999-9'],
+        key: 'bank:9999999999',
+        label: 'ธนาคารกสิกรไทย 999-9-99999-9 (สมชาย ใจดี)',
+      },
+      { names: ['มานี มีตา'], accounts: ['0891110000'], key: 'pp:0891110000', label: 'พร้อมเพย์ 0891110000 (มานี มีตา)' },
+    ])
+  })
+
+  it('get: ร้านยังไม่เชื่อม SlipOK — ลูกค้าไม่เห็นบัญชีเพิ่มเติมด้วย แต่ owner เห็นครบ', async () => {
+    const { service, prisma } = makeService()
+    const extras = {
+      extraBankAccounts: [{ bankName: 'ธนาคารกสิกรไทย', accountNumber: '999', accountName: 'ก' }],
+      extraPromptPays: [{ id: '0891110000', firstName: 'ก', lastName: 'ข' }],
+    }
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, ...extras, slipOkTestedHash: '' })
+
+    expect(await service.get('shop1', false)).toEqual(expect.objectContaining({ extraBankAccounts: [], extraPromptPays: [] }))
+    expect(await service.get('shop1', true)).toEqual(expect.objectContaining(extras))
+  })
+
+  it('recordSlipOkReceiver: จดผู้รับล่าสุดลง Settings โดยไม่ bump version (ไม่ให้ owner ที่แก้ฟอร์มอยู่ชน 409)', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.updateMany = jest.fn().mockResolvedValue({ count: 1 })
+
+    await service.recordSlipOkReceiver(
+      'shop1',
+      { displayName: 'ธนาทร ร', name: 'THANATORN R', account: 'xxx-x-x3109-x', proxy: '', bankCode: '004' },
+      true,
+    )
+
+    const call = (prisma.settings.updateMany as jest.Mock).mock.calls[0][0]
+    expect(call.where).toEqual({ shopId: 'shop1' })
+    expect(call.data).toEqual(
+      expect.objectContaining({
+        slipOkLastReceiverName: 'ธนาทร ร',
+        slipOkLastReceiverAccount: 'xxx-x-x3109-x',
+        slipOkLastReceivingBank: '004',
+        slipOkLastReceiverMatched: true,
+      }),
+    )
+    expect(call.data).not.toHaveProperty('version')
+  })
+
+  const PAYMENT = {
+    bankName: 'ธนาคารกสิกรไทย',
+    bankAccountNumber: '123-4-56789-0',
+    bankAccountName: 'พีรณัฐ ทุ่งศรีแก้ว',
+    promptPayId: '0929364180',
+    promptPayFirstName: 'พีรณัฐ',
+    promptPayLastName: 'ทุ่งศรีแก้ว',
+  }
+
+  it('get: ร้านยังไม่เชื่อม SlipOK (ยังไม่ผ่านการทดสอบ) — ลูกค้าไม่เห็นข้อมูลชำระเงิน (ว่างเปล่า) แต่ owner เห็นครบ', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, ...PAYMENT, slipOkApiKey: 'k', slipOkBranchId: 'b', slipOkTestedHash: '' })
+
+    const customer = await service.get('shop1', false)
+    expect(customer).toEqual(expect.objectContaining({ bankName: '', bankAccountNumber: '', promptPayId: '', promptPayFirstName: '', slipOkConnected: false }))
+
+    const owner = await service.get('shop1', true)
+    expect(owner).toEqual(expect.objectContaining({ ...PAYMENT, slipOkConnected: false }))
+  })
+
+  it('get: เชื่อม SlipOK แล้ว (ลายนิ้วมือตรงกับ key/branch ที่บันทึกอยู่) — ลูกค้าเห็นข้อมูลชำระเงิน และไม่ส่งลายนิ้วมือออกไป', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({
+      ...BASE_ROW,
+      ...PAYMENT,
+      slipOkApiKey: 'k',
+      slipOkBranchId: 'b',
+      slipOkTestedHash: slipOkFingerprint('k', 'b'),
+    })
+
+    const customer = await service.get('shop1', false)
+
+    expect(customer).toEqual(expect.objectContaining({ ...PAYMENT, slipOkConnected: true }))
+    expect(customer).not.toHaveProperty('slipOkTestedHash')
+    expect((await service.get('shop1', true)) as any).not.toHaveProperty('slipOkTestedHash')
+  })
+
+  it('get: เปลี่ยน API key/Branch ID หลังทดสอบ (ลายนิ้วมือไม่ตรง) — กลับไปเป็นยังไม่เชื่อม ลูกค้าไม่เห็นข้อมูลชำระเงินจนกว่าจะทดสอบใหม่', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({
+      ...BASE_ROW,
+      ...PAYMENT,
+      slipOkApiKey: 'new-key',
+      slipOkBranchId: 'b',
+      slipOkTestedHash: slipOkFingerprint('old-key', 'b'),
+    })
+
+    const customer = await service.get('shop1', false)
+
+    expect(customer).toEqual(expect.objectContaining({ bankAccountNumber: '', slipOkConnected: false }))
+  })
+
+  it('markSlipOkTested: จำลายนิ้วมือของคู่ key/branch ที่ทดสอบผ่าน โดยไม่ bump version', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.updateMany = jest.fn().mockResolvedValue({ count: 1 })
+
+    await service.markSlipOkTested('shop1', 'k', 'b')
+
+    expect(prisma.settings.updateMany).toHaveBeenCalledWith({ where: { shopId: 'shop1' }, data: { slipOkTestedHash: slipOkFingerprint('k', 'b') } })
+  })
+
+  it('slipOkFingerprint: sha256 hex ของข้อความ "apiKey|branchId" (ต้องตรงกับสูตร SQL ใน migration ที่ตั้งค่าให้ร้านเดิม)', () => {
+    // ค่าอ้างอิงคำนวณอิสระด้วย sha256sum ของข้อความ k|b
+    expect(slipOkFingerprint('k', 'b')).toBe('37c30a5230ea01086bc3a845c3ea5439668eecff49031e48865c675247e000cb')
+    expect(slipOkFingerprint('k', 'b')).not.toBe(slipOkFingerprint('k', 'c'))
+  })
+
+  it('get: ลูกค้า (isOwner=false) ไม่เห็นข้อมูลผู้รับเงินที่ SlipOK เห็นล่าสุด', async () => {
+    const { service, prisma } = makeService()
+    prisma.settings.findUnique.mockResolvedValue({ ...BASE_ROW, slipOkLastReceiverName: 'ธนาทร ร', slipOkLastReceiverAccount: 'xxx' })
+
+    const result = await service.get('shop1', false)
+
+    expect(result).not.toHaveProperty('slipOkLastReceiverName')
+    expect(result).not.toHaveProperty('slipOkLastReceiverAccount')
   })
 
   it('get: isOwner=true คืนทุกฟิลด์รวมค่าแรง', async () => {

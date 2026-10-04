@@ -80,6 +80,8 @@ const FIELD_LABELS: Record<string, string> = {
   promptPayId: 'เลขพร้อมเพย์',
   promptPayFirstName: 'ชื่อเจ้าของพร้อมเพย์',
   promptPayLastName: 'นามสกุลเจ้าของพร้อมเพย์',
+  extraBankAccounts: 'บัญชีธนาคารเพิ่มเติม',
+  extraPromptPays: 'พร้อมเพย์เพิ่มเติม',
   depositRate: 'อัตรามัดจำ',
   freeDeliveryMinTables: 'จำนวนโต๊ะขั้นต่ำฟรีค่าขนส่ง',
   metroProvinces: 'จังหวัดโซนใกล้เคียง',

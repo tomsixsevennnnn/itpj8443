@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { useSettingsForm, type SaveSettingsResult } from './useSettingsForm'
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   Building2,
@@ -29,34 +30,40 @@ import {
 } from 'lucide-react'
 import type { AppSettings, Category } from '../../types'
 import { orderedCategories } from '../../data'
-import LocationMap from '../../components/LocationMap'
+import LocationMap, { type LocationMapHandle } from '../../components/LocationMap'
+import PlaceSearchBox from '../../components/PlaceSearchBox'
 import PromptPayQr from '../../components/PromptPayQr'
 import { pickImageAsDataUrl } from '../../imageUpload'
 import { resolveImageUrl, type UploadImageKind } from '../../api'
 import { DEFAULT_BRAND_COLOR, applyBrandTheme } from '../../theme'
 import { deepTrim } from '../../deepTrim'
-import ProvinceInput from '../../components/ProvinceInput'
+import SuggestInput from '../../components/SuggestInput'
+import BankBadge from '../../components/BankBadge'
+import ExtraPaymentAccounts from '../../components/ExtraPaymentAccounts'
+import { bankAccountsOf, promptPaysOf } from '../../paymentChannels'
+import { THAI_BANK_NAMES, bankNameOf, isKnownBank } from '../../banks'
+import { accountMatches, nameMatches } from '../../receiverMatch'
+import { joinName, splitName } from '../../thaiName'
 import { normalizeProvince, reverseGeocode } from '../../geo'
 
 interface SettingsProps {
   settings: AppSettings
   onUpdateSettings: (patch: Partial<AppSettings>) => Promise<SaveSettingsResult>
+  /** ตามลิงก์ย่อ Google Maps ผ่าน backend — ใช้กับช่องค้นหาตำแหน่งร้าน (วางลิงก์จากปุ่ม "แชร์" ในแอป Google Maps) */
+  onResolveMapsLink?: (url: string) => Promise<string>
   onUploadImage: (kind: UploadImageKind, dataUrl: string) => Promise<string>
   onTestSlipOk: (apiKey: string, branchId: string) => Promise<{ ok: boolean; quota?: number; message?: string }>
 }
 
-const SHOP_FIELDS: { key: keyof AppSettings['shopInfo']; label: string; placeholder: string }[] = [
+/** ฟิลด์ข้อความของ shopInfo (ไม่รวมรายการบัญชีเพิ่มเติมที่เป็น array) */
+type ShopInfoTextKey = Exclude<keyof AppSettings['shopInfo'], 'extraBankAccounts' | 'extraPromptPays'>
+
+const SHOP_FIELDS: { key: ShopInfoTextKey; label: string; placeholder: string }[] = [
   { key: 'name', label: 'ชื่อร้าน (ไทย)', placeholder: 'เช่น ร้าน' },
   { key: 'nameEn', label: 'ชื่อร้าน (อังกฤษ)', placeholder: 'เช่น Pipat Phochana Catering' },
   { key: 'initials', label: 'อักษรย่อ (แสดงบนโลโก้เอกสาร)', placeholder: 'เช่น PP' },
   { key: 'phone', label: 'เบอร์โทรร้าน', placeholder: 'เช่น 034-XXX-XXX' },
   { key: 'line', label: 'Line ID ร้าน', placeholder: 'เช่น @pipatphochana' },
-]
-
-const BANK_FIELDS: { key: keyof AppSettings['shopInfo']; label: string; placeholder: string }[] = [
-  { key: 'bankName', label: 'ธนาคาร', placeholder: 'เช่น ธนาคารกสิกรไทย' },
-  { key: 'bankAccountNumber', label: 'เลขที่บัญชี', placeholder: 'เช่น 123-4-56789-0' },
-  { key: 'bankAccountName', label: 'ชื่อบัญชี', placeholder: 'เช่น นายพิพัฒน์ โภชนา' },
 ]
 
 const WAGE_FIELDS: { key: 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 'wageDishwasher'; label: string; unit: string }[] = [
@@ -92,7 +99,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; icon: typeof Building2 }[
 
 interface ShopTabProps {
   form: AppSettings
-  setShopField: (key: keyof AppSettings['shopInfo'], value: string) => void
+  setShopField: (key: ShopInfoTextKey, value: string) => void
   setBrandColor: (hex: string) => void
   logoInputRef: RefObject<HTMLInputElement | null>
   handlePickLogo: (file: File | undefined) => void
@@ -241,7 +248,8 @@ function ShopTab({ form, setShopField, setBrandColor, logoInputRef, handlePickLo
 interface FinanceTabProps {
   form: AppSettings
   setForm: Dispatch<SetStateAction<AppSettings>>
-  setShopField: (key: keyof AppSettings['shopInfo'], value: string) => void
+  setShopField: (key: ShopInfoTextKey, value: string) => void
+  setExtraPaymentAccounts: (patch: Pick<Partial<AppSettings['shopInfo']>, 'extraBankAccounts' | 'extraPromptPays'>) => void
   setNumberField: (
     key:
       | 'depositRate'
@@ -272,6 +280,7 @@ function FinanceTab({
   form,
   setForm,
   setShopField,
+  setExtraPaymentAccounts,
   setNumberField,
   showSlipOkKey,
   setShowSlipOkKey,
@@ -281,6 +290,13 @@ function FinanceTab({
   setSlipOkTestResult,
   onTestSlipOk,
 }: Readonly<FinanceTabProps>) {
+  const info = form.shopInfo
+  const last = form.slipOkLastReceiver
+  // ค่าที่ SlipOK เห็นจากสลิปล่าสุด ใช้เป็นตัวช่วยเติม/ตรวจ (เลขบัญชีและชื่อถูกปกปิด/ย่อ เติมแทนไม่ได้ ได้แค่ชื่อธนาคารและเทียบ)
+  const detectedBank = last?.bank && isKnownBank(last.bank) ? bankNameOf(last.bank) : null
+  const accountCheck = last?.account && info.bankAccountNumber ? accountMatches(info.bankAccountNumber, last.account) : null
+  const nameCheck = last?.name && info.bankAccountName ? nameMatches(info.bankAccountName, last.name) : null
+  const promptPayFullName = joinName(info.promptPayFirstName, info.promptPayLastName)
   return (
     <>
       {/* มัดจำ */}
@@ -317,22 +333,93 @@ function FinanceTab({
         <p className="text-xs text-gray-400 mb-4">
           บัญชี/QR พร้อมเพย์ให้ลูกค้าโอนมัดจำ — แสดงในใบเสนอราคาและใบจองทุกใบ
         </p>
+        {form.slipOkConnected ? (
+          <p className="mb-4 flex items-start gap-1.5 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-700">
+            <ShieldCheck size={14} className="mt-0.5 shrink-0" />
+            เชื่อม SlipOK แล้ว — ลูกค้าเห็นข้อมูลการชำระเงินด้านล่างตามที่กรอก (ช่องไหนไม่ได้กรอกจะไม่แสดง)
+          </p>
+        ) : (
+          <p className="mb-4 flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              <span className="font-semibold">ลูกค้ายังไม่เห็นข้อมูลการชำระเงินนี้</span> — ระบบแสดงให้ลูกค้าเฉพาะร้านที่เชื่อม SlipOK แล้ว
+              กรอก SlipOK API key + Branch ID ในส่วน "ตรวจสอบสลิปอัตโนมัติ (SlipOK)" ด้านล่าง กด "ทดสอบการเชื่อมต่อ" ให้ผ่าน แล้วกด "บันทึกการตั้งค่า"
+            </span>
+          </p>
+        )}
 
         <div className="grid sm:grid-cols-2 gap-4">
-          {BANK_FIELDS.map(({ key, label, placeholder }) => (
-            <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            <span>{label}</span>
+          <div>
+            <label htmlFor="bankName" className="block text-sm font-medium text-gray-700 mb-1.5">ธนาคาร</label>
+            <SuggestInput
+              id="bankName"
+              value={info.bankName}
+              options={THAI_BANK_NAMES}
+              renderIcon={name => <BankBadge bank={name} size={24} />}
+              leadingIcon={<BankBadge bank={info.bankName} size={22} />}
+              placeholder="พิมพ์แล้วเลือกธนาคาร เช่น ธนาคารกสิกรไทย"
+              onChange={value => setShopField('bankName', value)}
+            />
+            {detectedBank && info.bankName !== detectedBank && (
+              <button
+                type="button"
+                onClick={() => setShopField('bankName', detectedBank)}
+                className="mt-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100"
+              >
+                SlipOK เห็นธนาคาร {detectedBank} — กดเพื่อใช้
+              </button>
+            )}
+            {detectedBank && info.bankName === detectedBank && (
+              <p className="mt-1.5 text-[11px] text-green-700">✓ ตรงกับธนาคารที่ SlipOK เห็นจากสลิปล่าสุด</p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="bankAccountNumber" className="block text-sm font-medium text-gray-700 mb-1.5">เลขที่บัญชี</label>
             <input
-                type="text"
-                value={form.shopInfo[key]}
-                placeholder={placeholder}
-                onChange={e => setShopField(key, e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-              />
-          </label>
-            </div>
-          ))}
+              id="bankAccountNumber"
+              type="text"
+              inputMode="numeric"
+              value={info.bankAccountNumber}
+              placeholder="เช่น 123-4-56789-0"
+              onChange={e => setShopField('bankAccountNumber', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+            />
+            {last?.account && (
+              <p className={`mt-1.5 text-[11px] ${accountCheck === false ? 'text-red-600' : 'text-gray-400'}`}>
+                {accountCheck === true && '✓ ตรงกับเลขบัญชีที่ SlipOK เห็น '}
+                {accountCheck === false && '✗ ไม่ตรงกับเลขบัญชีที่ SlipOK เห็น '}
+                (SlipOK เห็น {last.account} — ปกปิดบางส่วน กรอกเลขเต็มของคุณ)
+              </p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="bankAccountName" className="block text-sm font-medium text-gray-700 mb-1.5">ชื่อบัญชี</label>
+            <input
+              id="bankAccountName"
+              type="text"
+              value={info.bankAccountName}
+              placeholder="เช่น นายพิพัฒน์ โภชนา"
+              onChange={e => setShopField('bankAccountName', e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+            />
+            {promptPayFullName && info.bankAccountName.trim() !== promptPayFullName && (
+              <button
+                type="button"
+                onClick={() => setShopField('bankAccountName', promptPayFullName)}
+                className="mt-1.5 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100"
+              >
+                ใช้ชื่อเดียวกับพร้อมเพย์: {promptPayFullName}
+              </button>
+            )}
+            {last?.name && (
+              <p className={`mt-1.5 text-[11px] ${nameCheck === false ? 'text-red-600' : 'text-gray-400'}`}>
+                {nameCheck === true && '✓ ตรงกับชื่อที่ SlipOK เห็น '}
+                {nameCheck === false && '✗ ไม่ตรงกับชื่อที่ SlipOK เห็น '}
+                (SlipOK เห็น "{last.name}" — ชื่อถูกย่อ)
+              </p>
+            )}
+            <p className="mt-1.5 text-[10px] text-gray-400">ชื่อบัญชีกับชื่อพร้อมเพย์จะเติมให้ตรงกันอัตโนมัติ ถ้ายังไม่ได้แก้แยกกัน</p>
+          </div>
         </div>
 
         <div className="mt-4 pt-4 border-t border-gray-100">
@@ -375,6 +462,19 @@ function FinanceTab({
           </label>
             </div>
           </div>
+          {info.bankAccountName.trim() && info.bankAccountName.trim() !== promptPayFullName && (
+            <button
+              type="button"
+              onClick={() => {
+                const { first, last: lastName } = splitName(info.bankAccountName)
+                setShopField('promptPayFirstName', first)
+                setShopField('promptPayLastName', lastName)
+              }}
+              className="mt-2 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-100"
+            >
+              ใช้ชื่อเดียวกับบัญชีธนาคาร: {info.bankAccountName.trim()}
+            </button>
+          )}
           {form.shopInfo.promptPayId && (
             <div className="mt-3">
               <PromptPayQr promptPayId={form.shopInfo.promptPayId} amount={100} className="w-28 h-28 rounded-xl border border-gray-200 bg-white" />
@@ -387,6 +487,12 @@ function FinanceTab({
             </div>
           )}
         </div>
+
+        <ExtraPaymentAccounts
+          extraBankAccounts={info.extraBankAccounts}
+          extraPromptPays={info.extraPromptPays}
+          onChange={setExtraPaymentAccounts}
+        />
       </div>
 
       {/* ตรวจสอบสลิปอัตโนมัติผ่าน SlipOK */}
@@ -481,8 +587,120 @@ function FinanceTab({
             </p>
           )}
         </div>
+
+        <SlipOkReceiverPanel form={form} onUseBank={name => setShopField('bankName', name)} />
       </div>
     </>
+  )
+}
+
+/**
+ * บัญชีรับเงินที่ SlipOK เห็นจากสลิปล่าสุด + วิธีจัดการบัญชีใน SlipOK — API ของ SlipOK ไม่เปิดให้ดู/เพิ่ม/แก้/ลบบัญชีผ่านโค้ด
+ * (มีแค่ตรวจสลิป เช็คโควต้า และรหัสธนาคาร) บัญชีที่ผูกกับ Branch ID ต้องจัดการในระบบของ SlipOK เอง แอปจึงช่วยได้แค่โชว์ผู้รับที่
+ * SlipOK เห็นจริงจากสลิปล่าสุดให้ owner เทียบกับบัญชีที่ตั้งไว้ในแอป (ระบบเทียบให้อัตโนมัติตอนลูกค้าแนบสลิปด้วย)
+ */
+function SlipOkReceiverPanel({ form, onUseBank }: Readonly<{ form: AppSettings; onUseBank: (name: string) => void }>) {
+  const last = form.slipOkLastReceiver
+  const info = form.shopInfo
+  // เติมได้เฉพาะ "ชื่อธนาคาร" — เลขบัญชีและชื่อบัญชีที่ SlipOK ส่งมาถูกปกปิดบางส่วน เอาไปแสดงให้ลูกค้าโอนไม่ได้ ต้องกรอกเองเต็มๆ
+  const detectedBank = last?.bank && isKnownBank(last.bank) ? bankNameOf(last.bank) : null
+  const configured = [
+    ...bankAccountsOf(info).map(b => [b.bankName, b.accountName, b.accountNumber].filter(Boolean).join(' · ')),
+    ...promptPaysOf(info).map(p => ['พร้อมเพย์', p.id, [p.firstName, p.lastName].filter(Boolean).join(' ')].filter(Boolean).join(' · ')),
+  ].filter(Boolean)
+
+  let matchBadge = (
+    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+      เทียบไม่ได้ — กรอกบัญชีรับเงินของร้านด้านบนเพื่อให้ระบบเทียบให้
+    </span>
+  )
+  if (last?.matched === true) {
+    matchBadge = (
+      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">ตรงกับบัญชีที่ตั้งไว้ในแอป</span>
+    )
+  } else if (last?.matched === false) {
+    matchBadge = (
+      <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+        ไม่ตรงกับบัญชีที่ตั้งไว้ในแอป — ตรวจสอบบัญชีใน SlipOK
+      </span>
+    )
+  }
+
+  return (
+    <div className="mt-5 space-y-3 border-t border-gray-100 pt-5">
+      <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs">
+        <p className="mb-1.5 font-semibold text-gray-600">บัญชีรับเงินที่ SlipOK เห็นล่าสุด</p>
+        {last ? (
+          <div className="space-y-1.5">
+            <p className="flex items-center gap-2 text-gray-700">
+              {last.bank && <BankBadge bank={last.bank} size={20} />}
+              <span>{[last.name, last.account, last.bank ? bankNameOf(last.bank) : ''].filter(Boolean).join(' · ') || '-'}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {matchBadge}
+              {last.at && (
+                <span className="text-[10px] text-gray-400">
+                  จากสลิปเมื่อ{' '}
+                  {new Date(last.at).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-400">ยังไม่มีข้อมูล — จะแสดงหลังมีสลิปที่ SlipOK ตรวจผ่านครั้งแรก (ชื่อและเลขบัญชีผู้รับถูกปกปิดบางส่วนตามที่ SlipOK ส่งมา)</p>
+        )}
+        {detectedBank && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {info.bankName === detectedBank ? (
+              <span className="text-[11px] text-green-700">ชื่อธนาคารที่ตั้งไว้ตรงกับที่ SlipOK เห็น ({detectedBank})</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onUseBank(detectedBank)}
+                className="rounded-full border border-orange-200 bg-white px-3 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-50"
+              >
+                ใช้ชื่อธนาคารนี้: {detectedBank}
+              </button>
+            )}
+            <span className="text-[10px] text-gray-400">เติมเฉพาะช่อง "ธนาคาร" — เลขบัญชีและชื่อบัญชีกรอกเองให้ครบ</span>
+          </div>
+        )}
+        <p className="mt-2 text-gray-500">
+          บัญชีที่ตั้งไว้ในแอป: {configured.length > 0 ? configured.join(' / ') : 'ยังไม่ได้กรอก (กรอกที่ส่วน "บัญชีรับเงิน" ด้านบน)'}
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-orange-100 bg-orange-50/60 px-4 py-3 text-xs text-gray-600">
+        <p className="mb-1.5 font-semibold text-orange-700">เพิ่ม / แก้ไข / ลบ บัญชีรับเงินที่ผูกกับ SlipOK</p>
+        <p className="mb-1.5 text-gray-500">
+          SlipOK ไม่เปิดให้จัดการบัญชีผ่านระบบอื่น ต้องทำในระบบของ SlipOK เอง (บัญชีที่ผูกกับ Branch ID ของร้านนี้):
+        </p>
+        <ol className="list-decimal list-inside space-y-1">
+          <li>
+            เข้าจัดการบัญชีผ่านแชท LINE{' '}
+            <a href="https://line.me/R/ti/p/@slipok" target="_blank" rel="noreferrer" className="text-orange-600 underline">
+              @slipok
+            </a>{' '}
+            หรือที่{' '}
+            <a href="https://slipok.com" target="_blank" rel="noreferrer" className="text-orange-600 underline">
+              slipok.com
+            </a>
+          </li>
+          <li>เพิ่ม แก้ไข หรือลบบัญชีรับเงินของสาขา (Branch ID) นี้ให้เป็นบัญชีที่ร้านรับโอนจริง</li>
+          <li>กลับมาที่นี่ กด "ทดสอบการเชื่อมต่อ" แล้วกรอกบัญชีรับเงินของร้านให้ตรงกัน</li>
+          <li>ให้ลูกค้า (หรือทดลองจองเอง) แนบสลิปจริงสักใบ แล้วดูกล่อง "บัญชีรับเงินที่ SlipOK เห็นล่าสุด" ด้านบนว่าตรงไหม</li>
+        </ol>
+        <a
+          href="https://slipok.com"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
+        >
+          <ShieldCheck size={12} />
+          เปิดหน้า SlipOK
+        </a>
+      </div>
+    </div>
   )
 }
 
@@ -520,6 +738,9 @@ interface DeliveryTabProps {
   syncingProvince: boolean
   /** จังหวัดที่หมุดร้านอยู่จริง (จาก reverse geocode) — null = ยังไม่รู้ */
   pinProvince: string | null
+  /** แผนที่ตำแหน่งร้าน — ใช้สั่งบินกล้องไปที่ผลค้นหา */
+  shopMapRef: RefObject<LocationMapHandle | null>
+  onResolveMapsLink?: (url: string) => Promise<string>
   setShopLocation: (lat: number, lng: number) => void
 }
 
@@ -540,6 +761,8 @@ function DeliveryTab({
   onSyncProvince,
   syncingProvince,
   pinProvince,
+  shopMapRef,
+  onResolveMapsLink,
   setShopLocation,
 }: Readonly<DeliveryTabProps>) {
   return (
@@ -559,7 +782,7 @@ function DeliveryTab({
           <label htmlFor="home-province" className="block text-sm font-medium text-gray-700 mb-1.5">
             จังหวัดที่ร้านตั้งอยู่ (พื้นที่ร้าน — ไม่มีค่าขนส่ง)
           </label>
-          <ProvinceInput
+          <SuggestInput
             id="home-province"
             value={form.homeProvince}
             placeholder="พิมพ์แล้วเลือกจังหวัด เช่น นครปฐม"
@@ -607,7 +830,7 @@ function DeliveryTab({
             พิมพ์ชื่อจังหวัดแล้วกด Enter เพื่อเพิ่ม — งานในจังหวัดที่ไม่อยู่ในรายการนี้ (และไม่ใช่นครปฐม) จะถูกจัดเป็น "นอกพื้นที่" อัตโนมัติ
           </p>
           <div className="flex gap-2 mb-3">
-            <ProvinceInput
+            <SuggestInput
               id="new-metro-province"
               value={newMetroProvince}
               onChange={setNewMetroProvince}
@@ -674,9 +897,19 @@ function DeliveryTab({
               ใช้ตำแหน่งปัจจุบัน
             </button>
           </div>
-          <p className="text-xs text-gray-400 mb-2">แตะบนแผนที่หรือลากหมุดเพื่อปรับตำแหน่งร้าน</p>
+          <p className="text-xs text-gray-400 mb-2">ค้นหาสถานที่ แตะบนแผนที่ หรือลากหมุดเพื่อปรับตำแหน่งร้าน</p>
+
+          <PlaceSearchBox
+            className="mb-3"
+            onResolveMapsLink={onResolveMapsLink}
+            onPick={(lat, lng) => {
+              setShopLocation(lat, lng)
+              shopMapRef.current?.flyToPosition(lat, lng)
+            }}
+          />
 
           <LocationMap
+            ref={shopMapRef}
             position={form.shopLocation}
             onPinChange={setShopLocation}
             onLocate={handleLocateShop}
@@ -1164,7 +1397,7 @@ function CategoriesTab({
   )
 }
 
-export default function Settings({ settings, onUpdateSettings, onUploadImage, onTestSlipOk }: Readonly<SettingsProps>) {
+export default function Settings({ settings, onUpdateSettings, onResolveMapsLink, onUploadImage, onTestSlipOk }: Readonly<SettingsProps>) {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useSettingsForm(settings)
   const [activeTab, setActiveTab] = useState<SettingsTab>('shop')
@@ -1179,6 +1412,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
   const [locateError, setLocateError] = useState<string | null>(null)
   const [locateNotice, setLocateNotice] = useState<string | null>(null)
   const provinceCtrlRef = useRef<AbortController | null>(null)
+  const shopMapRef = useRef<LocationMapHandle>(null)
   const [syncingProvince, setSyncingProvince] = useState(false)
   const [pinProvince, setPinProvince] = useState<string | null>(null)
   const homeProvinceRef = useRef(form.homeProvince)
@@ -1194,8 +1428,34 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
   // จริงเหมือนเดิม (ไม่งั้นปุ่มติด dirty ทั้งที่ไม่มีอะไรเปลี่ยน แถมขึ้นในประวัติการแก้ไขเป็นการแก้ไขปลอม)
   const dirty = JSON.stringify(deepTrim(form)) !== JSON.stringify(settings)
 
-  const setShopField = (key: keyof AppSettings['shopInfo'], value: string) => {
-    setForm(f => ({ ...f, shopInfo: { ...f.shopInfo, [key]: value } }))
+  const setShopField = (key: ShopInfoTextKey, value: string) => {
+    setForm(f => {
+      const next = { ...f.shopInfo, [key]: value }
+      const prev = f.shopInfo
+      // ชื่อบัญชีธนาคารกับชื่อ-นามสกุลพร้อมเพย์ มักเป็นคนเดียวกัน — พิมพ์ฝั่งหนึ่งแล้วเติมอีกฝั่งให้ "ถ้าอีกฝั่งยังว่าง หรือยังตรงกับค่าเดิมของฝั่งนี้อยู่"
+      // (ยังไม่เคยแก้แยกกัน) พอ owner แก้ฝั่งใดฝั่งหนึ่งให้ต่างกันแล้ว (เช่นพร้อมเพย์เป็นของคนละคน) จะไม่เติมทับอีก
+      if (key === 'promptPayFirstName' || key === 'promptPayLastName') {
+        const oldFull = joinName(prev.promptPayFirstName, prev.promptPayLastName)
+        if (!prev.bankAccountName.trim() || prev.bankAccountName.trim() === oldFull) {
+          next.bankAccountName = joinName(next.promptPayFirstName, next.promptPayLastName)
+        }
+      } else if (key === 'bankAccountName') {
+        const old = splitName(prev.bankAccountName)
+        const ppEmpty = !prev.promptPayFirstName.trim() && !prev.promptPayLastName.trim()
+        const ppLinked = prev.promptPayFirstName.trim() === old.first && prev.promptPayLastName.trim() === old.last
+        if (ppEmpty || ppLinked) {
+          const now = splitName(value)
+          next.promptPayFirstName = now.first
+          next.promptPayLastName = now.last
+        }
+      }
+      return { ...f, shopInfo: next }
+    })
+    setSavedAt(null)
+  }
+
+  const setExtraPaymentAccounts = (patch: Pick<Partial<AppSettings['shopInfo']>, 'extraBankAccounts' | 'extraPromptPays'>) => {
+    setForm(f => ({ ...f, shopInfo: { ...f.shopInfo, ...patch } }))
     setSavedAt(null)
   }
 
@@ -1389,8 +1649,12 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
     setSavedAt(null)
   }
 
+  // ref กันกดบันทึกซ้ำภายในจังหวะเดียวกัน (ดับเบิลคลิก) — state `saving` อัปเดตหลัง render จึงกันไม่ทัน ทำให้ส่งคำขอสองครั้งด้วย
+  // version เดียวกัน ครั้งที่สองชน 409 ทั้งที่ครั้งแรกบันทึกสำเร็จแล้ว
+  const savingGuardRef = useRef(false)
   const handleSave = async () => {
-    if (saving) return
+    if (savingGuardRef.current) return
+    savingGuardRef.current = true
     setSaving(true)
     try {
       const result = await onUpdateSettings(deepTrim(form))
@@ -1398,6 +1662,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
       if (result.settings) setForm(result.settings)
       if (result.ok) setSavedAt(Date.now())
     } finally {
+      savingGuardRef.current = false
       setSaving(false)
     }
   }
@@ -1505,6 +1770,7 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           form={form}
           setForm={setForm}
           setShopField={setShopField}
+          setExtraPaymentAccounts={setExtraPaymentAccounts}
           setNumberField={setNumberField}
           showSlipOkKey={showSlipOkKey}
           setShowSlipOkKey={setShowSlipOkKey}
@@ -1533,6 +1799,8 @@ export default function Settings({ settings, onUpdateSettings, onUploadImage, on
           onSyncProvince={() => syncHomeProvince(form.shopLocation.lat, form.shopLocation.lng, true)}
           syncingProvince={syncingProvince}
           pinProvince={pinProvince}
+          shopMapRef={shopMapRef}
+          onResolveMapsLink={onResolveMapsLink}
           setShopLocation={setShopLocation}
         />
       )}

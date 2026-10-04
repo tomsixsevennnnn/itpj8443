@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator'
+import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator'
 
 /**
  * รูปสลิปถูกอัปโหลดผ่าน POST /uploads/payment-slip ไปแล้วก่อนหน้านี้เสมอ (เขียนลง disk จริง ผ่านการตรวจ
@@ -13,4 +13,10 @@ export class UpdatePaymentSlipDto {
   })
   @MaxLength(200)
   paymentSlipUrl!: string
+
+  /** ช่องทางโอนที่ลูกค้าเลือก — "bank:<เลขบัญชีเฉพาะตัวเลข>" หรือ "pp:<เลขพร้อมเพย์เฉพาะตัวเลข>" (ดู settings.service.ts paymentChannels) */
+  @IsOptional()
+  @IsString()
+  @Matches(/^(bank|pp):\d{4,30}$/, { message: 'paymentChannelKey รูปแบบไม่ถูกต้อง' })
+  paymentChannelKey?: string
 }

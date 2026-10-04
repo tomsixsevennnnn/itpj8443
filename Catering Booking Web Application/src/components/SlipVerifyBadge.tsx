@@ -1,10 +1,15 @@
 import { AlertTriangle, CheckCircle2, HelpCircle, XCircle } from 'lucide-react'
 import type { Booking } from '../types'
+import { bankNameOf } from '../banks'
 
 interface SlipVerifyBadgeProps {
   // Booking['paymentSlipVerifyStatus'] เป็น optional field อยู่แล้ว (มี | undefined ในตัว) ไม่ต้องใส่ ? ซ้ำ
   status: Booking['paymentSlipVerifyStatus']
   message?: string
+  /** ผู้รับเงินที่ SlipOK อ่านได้จากสลิป (owner เทียบกับบัญชีร้าน) — ไม่ส่งมา/ว่าง = ไม่โชว์ */
+  receiver?: { name?: string; account?: string; bank?: string }
+  /** ช่องทางโอนที่ลูกค้าเลือกตอนแนบสลิป (ข้อความแสดงผล) — ไม่ส่งมา/ว่าง = ไม่โชว์ */
+  chosenChannel?: string
 }
 
 /** ผลตรวจสอบสลิปอัตโนมัติผ่าน SlipOK (ดู backend/src/slip-verify) — undefined = ร้านยังไม่ได้ตั้งค่า SlipOK
@@ -21,7 +26,7 @@ const STATUS_CONFIG: Record<
   UNAVAILABLE: { icon: HelpCircle, className: 'text-gray-600 bg-gray-50 border-gray-200', label: 'ยังไม่ได้ตรวจสอบอัตโนมัติ (ระบบ SlipOK ขัดข้องชั่วคราว)' },
 }
 
-export default function SlipVerifyBadge({ status, message }: Readonly<SlipVerifyBadgeProps>) {
+export default function SlipVerifyBadge({ status, message, receiver, chosenChannel }: Readonly<SlipVerifyBadgeProps>) {
   if (!status) return null
   const cfg = STATUS_CONFIG[status]
   const Icon = cfg.icon
@@ -31,6 +36,12 @@ export default function SlipVerifyBadge({ status, message }: Readonly<SlipVerify
       <div>
         <p className="font-semibold">{cfg.label}</p>
         {message && <p className="opacity-80 mt-0.5">{message}</p>}
+        {chosenChannel && <p className="mt-0.5 opacity-80">ลูกค้าเลือกโอนเข้า: {chosenChannel}</p>}
+        {(receiver?.name || receiver?.account) && (
+          <p className="mt-0.5 opacity-80">
+            ผู้รับในสลิป: {[receiver.name, receiver.account, receiver.bank ? bankNameOf(receiver.bank) : ''].filter(Boolean).join(' · ')}
+          </p>
+        )}
       </div>
     </div>
   )
