@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { Role } from '@prisma/client'
-import { CurrentUser } from '../auth/current-user.decorator'
+import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -22,7 +22,7 @@ export class PackagesController {
 
   /** owner ดูแพ็กเกจร้านตัวเอง, ลูกค้าต้องระบุ shopId ของร้านที่กำลังดู (เลือกร้านมาก่อนแล้วจากหน้ารายชื่อร้าน) */
   @Get()
-  async findAll(@CurrentUser() jwtUser: Record<string, any>, @Query() query: ListQueryDto, @Query('shopId') shopIdQ?: string) {
+  async findAll(@CurrentUser() jwtUser: JwtUser, @Query() query: ListQueryDto, @Query('shopId') shopIdQ?: string) {
     const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     const isOwner = ctx?.role === Role.OWNER
     const shopId = isOwner ? ctx?.shopId : shopIdQ
@@ -30,7 +30,7 @@ export class PackagesController {
     return this.packages.findAll(shopId, isOwner, query.page, query.limit)
   }
 
-  private async ownShopId(jwtUser: Record<string, any>): Promise<string> {
+  private async ownShopId(jwtUser: JwtUser): Promise<string> {
     const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return ctx.shopId
@@ -38,40 +38,40 @@ export class PackagesController {
 
   @Post()
   @Roles('owner')
-  async create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreatePackageDto) {
+  async create(@CurrentUser() jwtUser: JwtUser, @Body() dto: CreatePackageDto) {
     return this.packages.create(dto, jwtUser.sub, await this.ownShopId(jwtUser))
   }
 
   // ต้องอยู่ก่อน @Patch(':id') — ไม่งั้น 'reorder' จะโดนจับเป็นค่า :id แทน
   @Patch('reorder')
   @Roles('owner')
-  async reorder(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: ReorderPackagesDto) {
+  async reorder(@CurrentUser() jwtUser: JwtUser, @Body() dto: ReorderPackagesDto) {
     return this.packages.reorder(dto, await this.ownShopId(jwtUser))
   }
 
   @Patch(':id')
   @Roles('owner')
-  async update(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdatePackageDto) {
+  async update(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: UpdatePackageDto) {
     return this.packages.update(id, dto, jwtUser.sub, await this.ownShopId(jwtUser))
   }
 
   @Delete(':id')
   @Roles('owner')
-  async remove(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string) {
+  async remove(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string) {
     return this.packages.remove(id, jwtUser.sub, await this.ownShopId(jwtUser))
   }
 
   /** เพิ่ม/แก้/ลบทีละข้อในแพ็กเกจ — ทางเลือกแทนการส่ง courses ทั้งชุดผ่าน PATCH /packages/:id */
   @Post(':id/courses')
   @Roles('owner')
-  async addCourse(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: CourseInput) {
+  async addCourse(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: CourseInput) {
     return this.packages.addCourse(id, dto, await this.ownShopId(jwtUser))
   }
 
   @Patch(':id/courses/:courseId')
   @Roles('owner')
   async updateCourse(
-    @CurrentUser() jwtUser: Record<string, any>,
+    @CurrentUser() jwtUser: JwtUser,
     @Param('id') id: string,
     @Param('courseId') courseId: string,
     @Body() dto: UpdateCourseDto,
@@ -81,7 +81,7 @@ export class PackagesController {
 
   @Delete(':id/courses/:courseId')
   @Roles('owner')
-  async removeCourse(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Param('courseId') courseId: string) {
+  async removeCourse(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Param('courseId') courseId: string) {
     return this.packages.removeCourse(id, courseId, await this.ownShopId(jwtUser))
   }
 }

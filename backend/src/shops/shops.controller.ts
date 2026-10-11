@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common'
-import { CurrentUser } from '../auth/current-user.decorator'
+import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -36,35 +36,35 @@ export class ShopsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Post()
-  create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreateShopDto) {
+  create(@CurrentUser() jwtUser: JwtUser, @Body() dto: CreateShopDto) {
     return this.shops.createShop(dto, jwtUser.sub)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Patch(':id')
-  update(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdateShopDto) {
+  update(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: UpdateShopDto) {
     return this.shops.updateShop(id, dto, jwtUser.sub)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Patch(':id/status')
-  setStatus(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: SetShopStatusDto) {
+  setStatus(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: SetShopStatusDto) {
     return this.shops.setStatus(id, dto.status, jwtUser.sub)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Post(':id/owners')
-  addOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: AddOwnerDto) {
+  addOwner(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: AddOwnerDto) {
     return this.shops.addOwner(id, dto.email, jwtUser.sub)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Delete(':id/owners/:userId')
-  removeOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Param('userId') userId: string) {
+  removeOwner(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Param('userId') userId: string) {
     return this.shops.removeOwner(id, userId, jwtUser.sub)
   }
 
@@ -72,7 +72,7 @@ export class ShopsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')
   @Delete(':id')
-  delete(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: DeleteShopDto) {
+  delete(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: DeleteShopDto) {
     return this.shops.deleteShop(id, dto.confirmName, jwtUser.sub)
   }
 }

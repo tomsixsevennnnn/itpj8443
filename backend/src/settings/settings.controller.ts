@@ -1,6 +1,6 @@
 import { Body, Controller, ForbiddenException, Get, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { Role } from '@prisma/client'
-import { CurrentUser } from '../auth/current-user.decorator'
+import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -29,7 +29,7 @@ export class SettingsController {
    *  แล้วจากหน้ารายชื่อร้าน) เห็นเฉพาะฟิลด์ที่ไม่ใช่ต้นทุนภายใน — ใช้คำนวณราคา/มัดจำระหว่าง flow การจอง */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get()
-  async get(@CurrentUser() jwtUser: Record<string, any>, @Query('shopId') shopIdQ?: string) {
+  async get(@CurrentUser() jwtUser: JwtUser, @Query('shopId') shopIdQ?: string) {
     const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     const isOwner = ctx?.role === Role.OWNER
     const shopId = isOwner ? ctx?.shopId : shopIdQ
@@ -40,7 +40,7 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Patch()
   @Roles('owner')
-  async update(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: UpdateSettingsDto) {
+  async update(@CurrentUser() jwtUser: JwtUser, @Body() dto: UpdateSettingsDto) {
     const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return this.settings.update(ctx.shopId, dto, jwtUser.sub)
@@ -51,7 +51,7 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Post('slipok/test')
   @Roles('owner')
-  async testSlipOk(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: TestSlipOkDto) {
+  async testSlipOk(@CurrentUser() jwtUser: JwtUser, @Body() dto: TestSlipOkDto) {
     const result = await this.slipVerify.checkQuota(dto.apiKey, dto.branchId)
     // ผ่านแล้วจำคู่ key/branch นี้ไว้ — ร้านถึงจะนับว่า "เชื่อม SlipOK แล้ว" (ข้อมูลชำระเงินแสดงให้ลูกค้า) หลังบันทึกคู่เดียวกัน
     if (result.ok) {

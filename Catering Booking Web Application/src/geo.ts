@@ -206,13 +206,36 @@ export const formatFullAddress = (loc: EventLocation): string => {
  * ------------------------------------------------------------------ */
 const OSRM = 'https://router.project-osrm.org'
 
+/** แคชผลในหน่วยความจำของหน้าเว็บ — เซิร์ฟเวอร์ OSRM/Nominatim สาธารณะจำกัดความถี่การเรียก ไม่ยิงซ้ำคำค้น/จุด/เส้นทางเดิม
+ *  (เก็บเฉพาะผลที่สำเร็จ ผิดพลาดแล้วลองใหม่ได้) */
+const CACHE_MAX = 200
+const geoCache = new Map<string, unknown>()
+async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+  if (geoCache.has(key)) return geoCache.get(key) as T
+  const value = await load()
+  if (geoCache.size >= CACHE_MAX) geoCache.delete(geoCache.keys().next().value as string)
+  geoCache.set(key, value)
+  return value
+}
+/** ล้างแคช (ใช้ในเทสต์) */
+export const clearGeoCache = () => geoCache.clear()
+const round4 = (n: number) => n.toFixed(4)
+
 interface OsrmRouteResponse {
   code: string
   routes?: { distance: number }[]
 }
 
 /** ระยะทางถนนจริงจากจุดหนึ่งไปอีกจุดหนึ่ง (กม., เที่ยวเดียว) */
-export async function routeDistanceKm(
+export function routeDistanceKm(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  signal?: AbortSignal
+): Promise<number> {
+  return cached(`route:${[from.lat, from.lng, to.lat, to.lng].map(round4).join(',')}`, () => fetchRouteDistanceKm(from, to, signal))
+}
+
+async function fetchRouteDistanceKm(
   from: { lat: number; lng: number },
   to: { lat: number; lng: number },
   signal?: AbortSignal
@@ -267,7 +290,11 @@ const toGeoResult = (place: NominatimPlace): GeoResult => {
 }
 
 /** ค้นหาสถานที่จากชื่อหรือที่อยู่ */
-export async function searchPlaces(query: string, signal?: AbortSignal): Promise<GeoResult[]> {
+export function searchPlaces(query: string, signal?: AbortSignal): Promise<GeoResult[]> {
+  return cached(`search:${query.trim().toLowerCase()}`, () => fetchPlaces(query, signal))
+}
+
+async function fetchPlaces(query: string, signal?: AbortSignal): Promise<GeoResult[]> {
   const url =
     `${NOMINATIM}/search?format=jsonv2&addressdetails=1&limit=6` +
     `&accept-language=th&countrycodes=th&q=${encodeURIComponent(query)}`
@@ -278,7 +305,11 @@ export async function searchPlaces(query: string, signal?: AbortSignal): Promise
 }
 
 /** แปลงพิกัดกลับเป็นชื่อสถานที่/ที่อยู่ (ใช้ตอนลากหมุดหรือกดบนแผนที่) */
-export async function reverseGeocode(lat: number, lng: number, signal?: AbortSignal): Promise<GeoResult | null> {
+export function reverseGeocode(lat: number, lng: number, signal?: AbortSignal): Promise<GeoResult | null> {
+  return cached(`reverse:${round4(lat)},${round4(lng)}`, () => fetchReverse(lat, lng, signal))
+}
+
+async function fetchReverse(lat: number, lng: number, signal?: AbortSignal): Promise<GeoResult | null> {
   const url =
     `${NOMINATIM}/reverse?format=jsonv2&addressdetails=1` +
     `&accept-language=th&lat=${lat}&lon=${lng}`

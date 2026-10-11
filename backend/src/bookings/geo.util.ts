@@ -36,6 +36,19 @@ export const outsideDeliveryFeeFor = (distanceKm: number, fuelCostPerKm: number)
 
 const OSRM = 'https://router.project-osrm.org'
 
+/** เซิร์ฟเวอร์ OSRM สาธารณะมีข้อกำหนดการใช้งาน — ระบุตัวตนแอปด้วย User-Agent และจำผลไว้ ไม่ยิงซ้ำเส้นทางเดิม */
+const USER_AGENT = 'CateringBookingPlatform/1.0 (+https://github.com/tomsixsevennnnn/itpj8443)'
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const CACHE_MAX = 500
+const routeCache = new Map<string, { km: number; at: number }>()
+
+/** ปัดพิกัดที่ 4 ตำแหน่ง (~11 เมตร) ให้จุดเดิมที่ลากหมุดต่างกันนิดเดียวใช้ผลเดียวกัน */
+const cacheKey = (from: { lat: number; lng: number }, to: { lat: number; lng: number }) =>
+  [from.lat, from.lng, to.lat, to.lng].map(n => n.toFixed(4)).join(',')
+
+/** ล้างแคชเส้นทาง (ใช้ในเทสต์) */
+export const clearRouteCache = () => routeCache.clear()
+
 interface OsrmRouteResponse {
   code: string
   routes?: { distance: number }[]
@@ -50,16 +63,23 @@ export async function routeDistanceKm(
   to: { lat: number; lng: number },
   timeoutMs = 5000,
 ): Promise<number> {
+  const key = cacheKey(from, to)
+  const hit = routeCache.get(key)
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.km
+
   const url = `${OSRM}/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(url, { signal: controller.signal })
+    const res = await fetch(url, { signal: controller.signal, headers: { 'User-Agent': USER_AGENT } })
     if (!res.ok) throw new Error(`OSRM HTTP ${res.status}`)
     const data = (await res.json()) as OsrmRouteResponse
     const meters = data.routes?.[0]?.distance
     if (data.code !== 'Ok' || typeof meters !== 'number') throw new Error('OSRM: ไม่พบเส้นทาง')
-    return meters / 1000
+    const km = meters / 1000
+    if (routeCache.size >= CACHE_MAX) routeCache.delete(routeCache.keys().next().value as string)
+    routeCache.set(key, { km, at: Date.now() })
+    return km
   } finally {
     clearTimeout(timer)
   }

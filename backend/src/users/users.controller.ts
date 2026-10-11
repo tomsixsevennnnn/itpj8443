@@ -1,7 +1,7 @@
 import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
 import { Throttle } from '@nestjs/throttler'
 import { Role } from '@prisma/client'
-import { CurrentUser } from '../auth/current-user.decorator'
+import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -26,13 +26,13 @@ export class UsersController {
   // เรียกถี่ขนาดนั้นตามปกติ กันยิงรัวๆ โดยไม่จำเป็น
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('me')
-  sync(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: SyncProfileDto) {
+  sync(@CurrentUser() jwtUser: JwtUser, @Body() dto: SyncProfileDto) {
     return this.users.syncProfile(jwtUser.sub, Role.CUSTOMER, dto)
   }
 
   /** บันทึกเบอร์โทร/Line ID ที่ Auth0 ไม่มีให้ (ดูหน้า CompleteProfile ฝั่ง frontend) */
   @Patch('me')
-  updateProfile(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: UpdateProfileDto) {
+  updateProfile(@CurrentUser() jwtUser: JwtUser, @Body() dto: UpdateProfileDto) {
     return this.users.updateProfile(jwtUser.sub, dto)
   }
 
@@ -41,7 +41,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('owner', 'super_admin')
   @Get('search')
-  async search(@CurrentUser() jwtUser: Record<string, any>, @Query() query: SearchUsersDto) {
+  async search(@CurrentUser() jwtUser: JwtUser, @Query() query: SearchUsersDto) {
     const editor = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     return this.users.searchByEmail(query.email, editor?.role === Role.OWNER ? editor.shopId : null)
   }
@@ -50,7 +50,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('owner', 'super_admin')
   @Get('owners')
-  async owners(@CurrentUser() jwtUser: Record<string, any>) {
+  async owners(@CurrentUser() jwtUser: JwtUser) {
     const editor = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (editor?.role === Role.SUPER_ADMIN) return this.users.listAllOwners()
     if (!editor?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
@@ -61,7 +61,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('owner', 'super_admin')
   @Patch(':id/role')
-  async setRole(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: SetRoleDto) {
+  async setRole(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: SetRoleDto) {
     const editor = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!editor) throw new ForbiddenException('ไม่พบบัญชีผู้เรียก')
     return this.users.setRole(id, dto.role, jwtUser.sub, editor)

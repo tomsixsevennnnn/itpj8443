@@ -1,6 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common'
 import { Role } from '@prisma/client'
-import { CurrentUser } from '../auth/current-user.decorator'
+import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -21,7 +21,7 @@ export class AuditController {
 
   @Get()
   @Roles('owner', 'super_admin')
-  async findPage(@CurrentUser() jwtUser: Record<string, any>, @Query('page') pageQ?: string, @Query('pageSize') pageSizeQ?: string) {
+  async findPage(@CurrentUser() jwtUser: JwtUser, @Query('page') pageQ?: string, @Query('pageSize') pageSizeQ?: string) {
     const page = Math.max(1, Number(pageQ) || 1)
     const pageSize = Math.min(100, Math.max(1, Number(pageSizeQ) || 20))
     const editor = await resolveShopContext(this.prisma, jwtUser.sub, jwtUser.requestedShopId)

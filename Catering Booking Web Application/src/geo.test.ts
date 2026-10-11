@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { checkDelivery, deliveryFeeFor, isGoogleMapsShortLink, isGoogleMapsUrl, normalizeProvince, parseGoogleMapsUrl, zoneFor } from './geo'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { clearGeoCache, reverseGeocode, routeDistanceKm, searchPlaces, checkDelivery, deliveryFeeFor, isGoogleMapsShortLink, isGoogleMapsUrl, normalizeProvince, parseGoogleMapsUrl, zoneFor } from './geo'
 
 describe('zoneFor', () => {
   it('นครปฐม = พื้นที่ร้าน', () => {
@@ -168,5 +168,42 @@ describe('normalizeProvince', () => {
   it('ชื่อที่ไม่มีคำนำหน้า (เช่น กรุงเทพมหานคร) คงเดิม', () => {
     expect(normalizeProvince('กรุงเทพมหานคร')).toBe('กรุงเทพมหานคร')
     expect(normalizeProvince('  ราชบุรี ')).toBe('ราชบุรี')
+  })
+})
+
+describe('แคชผลค้นหา/เส้นทาง', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    clearGeoCache()
+  })
+  const json = (body: unknown) => ({ ok: true, json: async () => body }) as Response
+
+  it('ค้นหาคำเดิม (ต่างตัวพิมพ์/ช่องว่างหัวท้าย) ยิงครั้งเดียว', async () => {
+    const f = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json([{ display_name: 'A, B', lat: '1', lon: '2' }]))
+    await searchPlaces('Wat Phra')
+    const again = await searchPlaces(' wat phra ')
+    expect(again).toHaveLength(1)
+    expect(f).toHaveBeenCalledTimes(1)
+  })
+
+  it('reverse geocode จุดเดิมและเส้นทางเดิมยิงครั้งเดียว', async () => {
+    const f = vi.spyOn(globalThis, 'fetch').mockImplementation(async url =>
+      String(url).includes('osrm') ? json({ code: 'Ok', routes: [{ distance: 10000 }] }) : json({ display_name: 'X, Y', lat: '1', lon: '2' }),
+    )
+    await reverseGeocode(13.82, 100.06)
+    await reverseGeocode(13.820001, 100.06)
+    expect(await routeDistanceKm({ lat: 1, lng: 2 }, { lat: 3, lng: 4 })).toBe(10)
+    await routeDistanceKm({ lat: 1, lng: 2 }, { lat: 3, lng: 4 })
+    expect(f).toHaveBeenCalledTimes(2)
+  })
+
+  it('ผิดพลาด — ไม่จำผล ลองใหม่ได้', async () => {
+    const f = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({ ok: false, status: 429 } as Response)
+      .mockResolvedValueOnce(json([]))
+    await expect(searchPlaces('abc')).rejects.toThrow()
+    expect(await searchPlaces('abc')).toEqual([])
+    expect(f).toHaveBeenCalledTimes(2)
   })
 })

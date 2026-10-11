@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { Role } from '@prisma/client'
+import { Prisma, Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { AppChangeTopic, RealtimeService } from '../realtime/realtime.service'
 
@@ -45,8 +45,8 @@ export class AuditService {
           action,
           entityType,
           entityId,
-          before: (before ?? undefined) as any,
-          after: (after ?? undefined) as any,
+          before: (before ?? undefined) as Prisma.InputJsonValue | undefined,
+          after: (after ?? undefined) as Prisma.InputJsonValue | undefined,
         },
       })
       // แจ้งหน้าประวัติการแก้ไขที่เปิดค้างไว้เสมอ บวก topic เฉพาะเจาะจงถ้า entity นี้มีหน้าที่ต้อง refetch ทันที

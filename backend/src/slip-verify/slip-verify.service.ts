@@ -19,10 +19,29 @@ export interface SlipVerifyResult {
   receiver: SlipReceiver | null
 }
 
+/** ส่วนของคำตอบ SlipOK ที่โค้ดนี้ใช้ (ค่าอื่นเป็น unknown จนกว่าจะตรวจชนิด) */
+interface SlipOkData {
+  transRef?: unknown
+  quota?: unknown
+  receivingBank?: unknown
+  receiver?: {
+    displayName?: unknown
+    name?: unknown
+    account?: { value?: unknown }
+    proxy?: { value?: unknown }
+  }
+}
+interface SlipOkBody {
+  success?: unknown
+  code?: unknown
+  message?: unknown
+  data?: SlipOkData
+}
+
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 
 /** แกะข้อมูลผู้รับจาก data.receiver / data.receivingBank ของ SlipOK — ไม่มีข้อมูลผู้รับเลย = null */
-export function parseReceiver(data: any): SlipReceiver | null {
+export function parseReceiver(data: SlipOkData | null | undefined): SlipReceiver | null {
   const r = data?.receiver
   if (!r || typeof r !== 'object') return null
   const receiver: SlipReceiver = {
@@ -79,7 +98,7 @@ export class SlipVerifyService {
         body: form,
       })
 
-      const body: any = await res.json().catch(() => null)
+      const body = (await res.json().catch(() => null)) as SlipOkBody | null
       if (!body) {
         return { status: SlipVerifyStatus.UNAVAILABLE, message: 'เรียกระบบตรวจสอบสลิปไม่สำเร็จ (อ่านผลลัพธ์ไม่ได้)', transRef: null, receiver: null }
       }
@@ -110,7 +129,7 @@ export class SlipVerifyService {
       const res = await fetch(`https://api.slipok.com/api/line/apikey/${encodeURIComponent(branchId)}/quota`, {
         headers: { 'x-authorization': apiKey },
       })
-      const body: any = await res.json().catch(() => null)
+      const body = (await res.json().catch(() => null)) as SlipOkBody | null
       if (!body) return { ok: false, message: 'เรียกระบบ SlipOK ไม่สำเร็จ (อ่านผลลัพธ์ไม่ได้)' }
 
       if (res.ok && body.success) {

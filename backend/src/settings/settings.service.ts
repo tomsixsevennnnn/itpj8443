@@ -310,7 +310,7 @@ export class SettingsService {
             ...(patch.slipOkApiKey !== undefined ? { slipOkApiKey: encryptSecret(patch.slipOkApiKey) } : {}),
             version: { increment: 1 },
             lastEditedBy: editorAuth0Sub,
-          } as any,
+          } as Prisma.SettingsUncheckedUpdateInput,
         })
         // ชื่อร้านภาษาไทยที่ owner แก้ในหน้าตั้งค่า ต้องซิงค์กับ Shop.name ที่ super admin เห็น กันสองหน้าโชว์ชื่อไม่ตรงกัน
         if (patch.shopName !== undefined && patch.shopName !== before.shopName) {

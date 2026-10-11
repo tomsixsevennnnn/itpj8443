@@ -347,4 +347,4 @@ cd "Catering Booking Web Application"
 - **การชำระเงินมัดจำ** ลูกค้าโอนเข้าบัญชี/พร้อมเพย์ของร้านเองแล้วแนบสลิป ระบบตรวจกับธนาคารผ่าน SlipOK ไม่ใช่ payment gateway จริง (ไม่มีบัตรเครดิต ไม่มีการคืนเงินในระบบ)
 - **Backend deploy บน Railway แล้ว** (ดูหัวข้อ Deploy production) ส่วน frontend ยังต้องตั้ง service/โฮสต์แยกต่างหาก
 - **การพิมพ์เอกสาร** ใช้ระบบพิมพ์ของเบราว์เซอร์ เลือก "Save as PDF" เพื่อบันทึกเป็นไฟล์ได้
-- **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/service/DTO) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ และ lint ฝั่ง frontend รันด้วย `pnpm lint` และฝั่ง backend `pnpm lint` เช่นกัน
+- **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/service/DTO) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ และ lint ฝั่ง frontend รันด้วย `pnpm lint` และฝั่ง backend `pnpm lint` เช่นกัน (ผลลัพธ์สะอาด ไม่มี warning ใน src)

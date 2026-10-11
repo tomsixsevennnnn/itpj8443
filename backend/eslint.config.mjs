@@ -14,4 +14,9 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
+  {
+    // mock ในเทสต์ไม่คุ้มที่จะผูกชนิดเต็ม
+    files: ['**/*.spec.ts', 'jest.setup.ts'],
+    rules: { '@typescript-eslint/no-explicit-any': 'off' },
+  },
 )

@@ -2,7 +2,7 @@ import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, R
 import { Throttle } from '@nestjs/throttler'
 import type { Response } from 'express'
 import { Role } from '@prisma/client'
-import { CurrentUser } from '../auth/current-user.decorator'
+import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -25,7 +25,7 @@ export class BookingsController {
    *  ไม่ควรโชว์ใบจองของอีกร้าน) ไม่ส่ง = ทุกร้าน — ไม่ส่ง page/limit มา = คืน array เต็มเหมือนเดิม */
   @Get()
   async findAll(
-    @CurrentUser() jwtUser: Record<string, any>,
+    @CurrentUser() jwtUser: JwtUser,
     @Query() query: ListQueryDto,
     @Query('shopId') shopIdQ?: string,
   ) {
@@ -50,14 +50,14 @@ export class BookingsController {
   @Post()
   @Roles('customer')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  async create(@CurrentUser() jwtUser: Record<string, any>, @Body() dto: CreateBookingDto) {
+  async create(@CurrentUser() jwtUser: JwtUser, @Body() dto: CreateBookingDto) {
     const user = await this.syncCustomer(jwtUser)
     return this.bookings.create(user.id, `${user.name} ${user.surname}`.trim(), user.phone, dto)
   }
 
   @Patch(':id')
   @Roles('owner')
-  async updateAsOwner(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Body() dto: UpdateBookingDto) {
+  async updateAsOwner(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Body() dto: UpdateBookingDto) {
     const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     if (!ctx?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return this.bookings.updateAsOwner(id, dto, jwtUser.sub, ctx.shopId)
@@ -66,7 +66,7 @@ export class BookingsController {
   @Patch(':id/payment-slip')
   @Roles('customer')
   async uploadSlip(
-    @CurrentUser() jwtUser: Record<string, any>,
+    @CurrentUser() jwtUser: JwtUser,
     @Param('id') id: string,
     @Body() dto: UpdatePaymentSlipDto,
   ) {
@@ -79,7 +79,7 @@ export class BookingsController {
    * ไฟล์สลิปไม่ใช่ static asset สาธารณะ (ดู main.ts) ต้องผ่าน endpoint นี้เท่านั้นถึงจะอ่านได้
    */
   @Get(':id/payment-slip')
-  async getSlip(@CurrentUser() jwtUser: Record<string, any>, @Param('id') id: string, @Res() res: Response) {
+  async getSlip(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Res() res: Response) {
     const ctx = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
     const isOwner = ctx?.role === Role.OWNER
     const requesterId = isOwner ? '' : (await this.syncCustomer(jwtUser)).id
@@ -87,7 +87,7 @@ export class BookingsController {
     res.sendFile(path)
   }
 
-  private syncCustomer(jwtUser: Record<string, any>) {
+  private syncCustomer(jwtUser: JwtUser) {
     return this.users.findOrCreate({
       auth0Sub: jwtUser.sub,
       role: Role.CUSTOMER,
