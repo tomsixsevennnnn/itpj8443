@@ -213,6 +213,59 @@ backend/
 
 ---
 
+## ระบบหลายร้านและสิทธิ์ผู้ใช้
+
+- **บัญชีเดียวใช้ได้หลายบทบาท:** `User.role` ระดับระบบมีแค่ `CUSTOMER` หรือ `SUPER_ADMIN` ส่วนการเป็น **owner ของแต่ละร้าน** เก็บในตาราง `ShopMember` (คนหนึ่งเป็น owner ได้หลายร้าน และเป็นลูกค้าของร้านที่ไม่ได้เป็น owner ได้ด้วยบัญชีเดียว)
+- **ร้านที่กำลังเปิดอยู่** ส่งไปกับทุกคำขอด้วย header `X-Shop-Id` backend ตรวจ `ShopMember` ใน DB เสมอ (ส่ง header ปลอมไม่ได้สิทธิ์เพิ่ม) ดู `backend/src/auth/shop-context.ts`
+- **Super admin** เป็นคนสร้างร้านและเพิ่ม/ถอด owner (อีเมลใน `SUPER_ADMIN_EMAILS` จะเป็น super admin ตอน login ครั้งแรก) owner เลื่อน/ถอด owner คนอื่นในร้านตัวเองได้ โดยต้องเหลือ owner อย่างน้อย 1 คน
+- **ใบจองของลูกค้าแยกตามร้าน:** หน้าประวัติการจองของร้านหนึ่งไม่แสดงใบจองของอีกร้าน
+
+### กติกาใบจองที่ backend บังคับ
+
+- จองวันที่ย้อนหลัง (ก่อนวันนี้ตามเวลาไทย) ไม่ได้ และห้ามจองวันที่ร้านปิด / วันที่มีงานอยู่แล้ว
+- สถานะใบจอง (owner เปลี่ยนเอง): **ยกเลิกแล้วเปลี่ยนต่อไม่ได้**, **เสร็จสิ้นแล้ว** กลับได้แค่เป็น "ยืนยันแล้ว" ห้ามกลับรอยืนยันหรือยกเลิก (กฎอยู่ที่ `backend/src/bookings/booking-rules.ts` และสำเนาฝั่งหน้าจอ `src/bookingStatus.ts`)
+- ราคา ค่าขนส่ง และโซนพื้นที่ คำนวณที่ backend เสมอ ไม่เชื่อค่าที่ส่งมาจากเบราว์เซอร์
+
+## การชำระเงินและ SlipOK
+
+- **ข้อมูลการชำระเงิน** owner กรอกในหน้าตั้งค่า: บัญชีธนาคาร + พร้อมเพย์ (หลัก) และเพิ่มเติมได้อีกอย่างละไม่เกิน 8 รายการ (ธนาคารเดียวกันหลายบัญชี คนละธนาคาร หรือพร้อมเพย์หลายเลขได้ ครบทุกธนาคารที่ SlipOK รองรับ)
+- **ต้องกรอกให้ตรงกับบัญชีที่ผูกไว้ใน SlipOK เท่านั้น** — API ของ SlipOK ไม่มีให้ดู/เพิ่ม/แก้/ลบบัญชี (มีแค่ตรวจสลิป เช็คโควต้า รหัสธนาคาร) บัญชีที่ผูกกับ Branch ID ต้องจัดการในระบบของ SlipOK เอง
+- **ลูกค้าเห็นข้อมูลชำระเงินเฉพาะร้านที่ "เชื่อม SlipOK แล้ว"** = กรอก API key + Branch ID แล้วกด "ทดสอบการเชื่อมต่อ" ผ่านและบันทึก (เปลี่ยน key/branch ต้องทดสอบใหม่) ร้านที่ตั้ง key ไว้ก่อนมีกติกานี้ถือว่าเชื่อมแล้วโดย migration
+- **ลูกค้าเลือกช่องทางโอน** ก่อนแนบสลิป (ถ้าร้านมีหลายช่องทาง) ระบบเก็บช่องทางที่เลือกไว้ที่ใบจอง
+- **ตรวจสลิปอัตโนมัติ:** SlipOK ยืนยันกับธนาคาร แล้วระบบเทียบ "ผู้รับในสลิป" กับบัญชีที่ร้านตั้งไว้อีกชั้น (ต่อบัญชี ตรงบัญชีใดบัญชีหนึ่งก็ผ่าน) ไม่ตรง = "บัญชีผู้รับไม่ตรง" ลูกค้าแนบใหม่ได้ ส่วนสลิปที่ตรวจผ่านแล้วเปลี่ยนไม่ได้ (โค้ดอยู่ที่ `backend/src/slip-verify/`)
+
+## ตัวแปรสภาพแวดล้อม
+
+Backend (`backend/.env` หรือ Variables ของ Railway) — ขาด 3 ตัวแรกระบบจะไม่ยอมเริ่มและบอกชื่อตัวแปรที่ขาด
+
+| ตัวแปร | จำเป็น | ความหมาย |
+|---|---|---|
+| `DATABASE_URL` | ใช่ | Postgres |
+| `AUTH0_DOMAIN` / `AUTH0_AUDIENCE` | ใช่ | ตรวจ JWT จาก Auth0 |
+| `FRONTEND_ORIGIN` | แนะนำ | โดเมนฟรอนต์ที่อนุญาต CORS (คั่นด้วย `,` ได้) |
+| `UPLOADS_DIR` | production | โฟลเดอร์เก็บรูป/สลิป ต้องชี้ไปที่ Volume ถาวร (เช่น `/data/uploads`) |
+| `SUPER_ADMIN_EMAILS` | ไม่บังคับ | อีเมล super admin คนแรก (คั่นด้วย `,`) |
+| `TRUST_PROXY` | ไม่บังคับ | จำนวนชั้น proxy หน้าเซิร์ฟเวอร์ (ค่าเริ่มต้น 1 สำหรับ Railway, ใส่ 0 ตอนรันตรงบนเครื่อง dev) |
+| `PORT` | ไม่บังคับ | ค่าเริ่มต้น 3000 |
+
+Frontend: `VITE_API_BASE_URL` (URL ของ backend — ฝังตอน build), `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`
+
+## Deploy production (Railway)
+
+1. **Backend service:** Root Directory = `backend`, Build `pnpm exec prisma generate && pnpm run build`, Pre-deploy `pnpm exec prisma migrate deploy`, Start `pnpm start`, Healthcheck Path `/health`
+2. **Variables:** ตามตารางด้านบน และต่อ Postgres ของ Railway
+3. **Volume:** เพิ่ม Volume (mount `/data`) แล้วตั้ง `UPLOADS_DIR=/data/uploads` — ไม่ตั้งแล้ว redeploy รูป/สลิปจะหาย และต้องรัน backend **ตัวเดียว** (volume ต่อกับหลายตัวไม่ได้ ไฟล์จะแยกกัน)
+4. **Migration:** `prisma migrate deploy` รันตอน deploy — **สำรอง DB ก่อนทุกครั้งที่มี migration ที่ลบ/แก้คอลัมน์**
+5. **Frontend service:** Root Directory = `Catering Booking Web Application`, ตั้ง `VITE_API_BASE_URL` เป็น URL ของ backend ก่อน build แล้วเพิ่มโดเมนฟรอนต์ใน `FRONTEND_ORIGIN` ของ backend และใน Auth0 (Callback / Logout / Web Origins)
+6. **Deploy ด้วยมือ:** `railway up` ที่รากโปรเจกต์ (ถ้าขึ้น "Snapshot code timeout" รอสักครู่แล้วรันใหม่) ดู log `railway logs` ดูไฟล์ใน volume `railway ssh -- ls -la /data/uploads/slips`
+7. **ตรวจสุขภาพ:** `GET /health` (โปรเซสทำงาน) และ `GET /health/ready` (เชื่อมฐานข้อมูลได้) ไม่ต้อง login
+
+ความปลอดภัยที่ backend เปิดไว้: `helmet` (security headers), ตัวจำกัดอัตราเรียก 60 ครั้ง/นาที/IP (ใช้ `trust proxy` ให้นับ IP ผู้ใช้จริง), รับ token ทาง query string เฉพาะ `/realtime/*` (SSE) ส่วน route อื่นต้องใช้ header
+
+## การเก็บรูปและสลิป
+
+รูปเมนู โลโก้ รูปหน้าแรก และสลิปเก็บเป็นไฟล์ใน `UPLOADS_DIR` (ฐานข้อมูลเก็บแค่ path) รูปเมนู/โลโก้/หน้าแรกเปิดเป็นไฟล์สาธารณะ ส่วน **สลิปไม่สาธารณะ** อ่านได้ผ่าน `GET /bookings/:id/payment-slip` เท่านั้น (ต้อง login และเป็นเจ้าของใบจองหรือ owner ของร้านนั้น) ยังไม่มีงานเก็บกวาดไฟล์ที่ไม่ได้ใช้แล้ว (เช่น ลบร้านถาวรจะลบเฉพาะข้อมูลใน DB)
+
 ## แก้ปัญหาที่พบบ่อย
 
 ### (Windows) `pnpm : File ...\pnpm.ps1 cannot be loaded because running scripts is disabled on this system`
@@ -289,8 +342,8 @@ cd "Catering Booking Web Application"
 
 ## ข้อควรรู้
 
-- **รูปเมนูที่อัปโหลดและสลิปโอนเงิน** ถูกย่อและเก็บเป็น base64 ตรงในฐานข้อมูล ยังไม่ได้แยกไปเก็บที่ object storage (เช่น Cloudflare R2) — ใช้งานได้จริงสำหรับต้นแบบ แต่ควรย้ายก่อนใช้งานเชิงพาณิชย์ที่มีผู้ใช้จำนวนมาก
-- **การชำระเงินมัดจำ** ยังใช้วิธีลูกค้าแนบสลิปให้ร้านตรวจสอบเอง ไม่ใช่ payment gateway จริง (พร้อมเพย์/บัตรเครดิต)
-- **ระบบยังรันอยู่บนเครื่อง dev เท่านั้น** ยังไม่ได้ deploy ขึ้น production จริง (แผนคือ Vercel สำหรับ frontend และ Railway สำหรับ backend/ฐานข้อมูล)
+- **รูปเมนู โลโก้ และสลิป** เก็บเป็นไฟล์บนดิสก์ของ backend (Volume บน Railway) ยังไม่ได้แยกไปเก็บที่ object storage (เช่น Cloudflare R2) — ใช้ได้เมื่อรัน backend ตัวเดียว ถ้าจะขยายเป็นหลายตัวหรือมีผู้ใช้จำนวนมากควรย้าย
+- **การชำระเงินมัดจำ** ลูกค้าโอนเข้าบัญชี/พร้อมเพย์ของร้านเองแล้วแนบสลิป ระบบตรวจกับธนาคารผ่าน SlipOK ไม่ใช่ payment gateway จริง (ไม่มีบัตรเครดิต ไม่มีการคืนเงินในระบบ)
+- **Backend deploy บน Railway แล้ว** (ดูหัวข้อ Deploy production) ส่วน frontend ยังต้องตั้ง service/โฮสต์แยกต่างหาก
 - **การพิมพ์เอกสาร** ใช้ระบบพิมพ์ของเบราว์เซอร์ เลือก "Save as PDF" เพื่อบันทึกเป็นไฟล์ได้
-- **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/DTO validation) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ
+- **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/service/DTO) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ และยังไม่มี ESLint

@@ -10,6 +10,7 @@ import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
+import { STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 
 const PAGE_SIZE = 20
 
@@ -557,14 +558,16 @@ export default function Orders({
                       const sc = STATUS_CONFIG[s]
                       const isActive = selected.status === s
                       const isPending = statusPending?.id === selected.id && statusPending.status === s
+                      const allowed = canChangeStatus(selected.status, s)
                       return (
                         <button
                           key={s}
                           onClick={() => updateStatus(selected.id, s)}
-                          disabled={statusPending !== null}
+                          disabled={statusPending !== null || !allowed}
+                          title={allowed ? undefined : STATUS_LOCKED_HINT}
                           className={`flex items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all disabled:cursor-wait ${
                             isActive ? `${sc.bg} ${sc.text} border-2 ${sc.border}` : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                          } ${statusPending !== null && !isPending ? 'opacity-50' : ''}`}
+                          } ${(statusPending !== null && !isPending) || !allowed ? 'opacity-50' : ''} ${allowed ? '' : 'cursor-not-allowed'}`}
                         >
                           {isPending && <Loader2 size={12} className="animate-spin" />}
                           {!isPending && isActive && <Check size={12} />}
@@ -575,7 +578,8 @@ export default function Orders({
                   </div>
                   <button
                     onClick={() => setShowCancelConfirm(true)}
-                    disabled={statusPending !== null}
+                    disabled={statusPending !== null || !canChangeStatus(selected.status, 'cancelled')}
+                    title={canChangeStatus(selected.status, 'cancelled') ? undefined : STATUS_LOCKED_HINT}
                     className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 border border-red-100 transition-colors"
                   >
                     <X size={12} />

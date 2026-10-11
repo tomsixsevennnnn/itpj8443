@@ -1,6 +1,9 @@
 import { BadRequestException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { BookingsService } from './bookings.service'
 
+/** วันที่จัดงานในอนาคตเสมอ (ไม่ผูกกับปฏิทินจริง เทสต์จะไม่เก่าตามเวลา) */
+const FUTURE_DATE = new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+
 const SETTINGS = {
   deliveryFee: 2000,
   freeDeliveryMinTables: 30,
@@ -46,7 +49,7 @@ const makeService = () => {
 
 const baseDto = (overrides: Partial<any> = {}) => ({
   shopId: 'shop1',
-  date: '2026-12-01',
+  date: FUTURE_DATE,
   timeSlot: 'evening',
   tables: 10,
   guestCount: 80,
@@ -78,10 +81,20 @@ describe('BookingsService.create', () => {
     ).rejects.toThrow(BadRequestException)
   })
 
+  it('วันที่จัดงานย้อนหลัง (ก่อนวันนี้) — throw BadRequestException ไม่สร้างใบจอง', async () => {
+    const { service, prisma } = makeService()
+    prisma.package.findUnique.mockResolvedValue(PACKAGE)
+
+    await expect(service.create('c1', 'ลูกค้า', '0800000000', baseDto({ date: '2020-01-01' }))).rejects.toThrow(
+      'ไม่สามารถจองวันที่ผ่านมาแล้ว',
+    )
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
   it('วันที่เลือกอยู่ใน closedDates — throw BadRequestException', async () => {
     const { service, prisma, settingsService } = makeService()
     prisma.package.findUnique.mockResolvedValue(PACKAGE)
-    settingsService.get.mockResolvedValue({ ...SETTINGS, closedDates: ['2026-12-01'] })
+    settingsService.get.mockResolvedValue({ ...SETTINGS, closedDates: [FUTURE_DATE] })
 
     await expect(service.create('c1', 'ลูกค้า', '0800000000', baseDto())).rejects.toThrow(BadRequestException)
   })
@@ -209,6 +222,34 @@ describe('BookingsService.updateAsOwner', () => {
 
     expect(audit.log).toHaveBeenCalledWith('auth0|owner', 'booking.update', 'Booking', 'b1', before, after, 'shop1')
     expect(result).toBe(after)
+  })
+
+  it('ใบจองที่ยกเลิกแล้ว — เปลี่ยนสถานะอื่นไม่ได้ (BadRequest) ไม่แตะ DB', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', status: 'CANCELLED', shopId: 'shop1' })
+
+    await expect(service.updateAsOwner('b1', { status: 'CONFIRMED' } as any, 'auth0|owner', 'shop1')).rejects.toThrow(
+      'ไม่สามารถเปลี่ยนสถานะ',
+    )
+    expect(prisma.booking.update).not.toHaveBeenCalled()
+  })
+
+  it('งานเสร็จสิ้นแล้ว — ยกเลิกหรือกลับไปรอยืนยันไม่ได้ แต่แก้กลับเป็นยืนยันแล้วได้', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', status: 'COMPLETED', shopId: 'shop1' })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', status: 'CONFIRMED' })
+
+    await expect(service.updateAsOwner('b1', { status: 'CANCELLED' } as any, 'auth0|owner', 'shop1')).rejects.toThrow()
+    await expect(service.updateAsOwner('b1', { status: 'PENDING' } as any, 'auth0|owner', 'shop1')).rejects.toThrow()
+    await expect(service.updateAsOwner('b1', { status: 'CONFIRMED' } as any, 'auth0|owner', 'shop1')).resolves.toBeDefined()
+  })
+
+  it('แก้เฉพาะแผนกำลังคน (ไม่ส่งสถานะ) บนใบจองที่ยกเลิกแล้ว — ไม่ถูกกฎสถานะบล็อก', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', status: 'CANCELLED', shopId: 'shop1' })
+    prisma.booking.update.mockResolvedValue({ id: 'b1' })
+
+    await expect(service.updateAsOwner('b1', { staffNote: 'หมายเหตุ' } as any, 'auth0|owner', 'shop1')).resolves.toBeDefined()
   })
 
   it('อัปเดตสำเร็จ — แจ้งเตือน realtime ให้ client ที่เปิดหน้าค้างไว้ refetch', async () => {

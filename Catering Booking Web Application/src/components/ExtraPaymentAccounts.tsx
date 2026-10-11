@@ -40,8 +40,8 @@ export default function ExtraPaymentAccounts({ extraBankAccounts, extraPromptPay
           </button>
         </div>
         <p className="mb-3 text-xs text-gray-400">
-          มีหลายบัญชีผูกกับ SlipOK (ธนาคารเดียวกันคนละชื่อ/คนละเลข หรือคนละธนาคาร) เพิ่มที่นี่ให้ครบ — ลูกค้าจะเห็นทุกบัญชี และสลิปที่โอนเข้าบัญชีไหนก็ผ่านการเทียบ
-          (สูงสุด {MAX_EXTRA_PAYMENT_ACCOUNTS} บัญชี)
+          มีหลายบัญชีผูกกับ SlipOK (ธนาคารเดียวกันคนละชื่อ/คนละเลข หรือคนละธนาคาร) เพิ่มที่นี่ให้ครบ กรอกให้ตรงกับที่ผูกใน SlipOK เท่านั้น —
+          ลูกค้าจะเห็นทุกบัญชี และสลิปที่โอนเข้าบัญชีไหนก็ผ่านการเทียบ (สูงสุด {MAX_EXTRA_PAYMENT_ACCOUNTS} บัญชี)
         </p>
         <div className="space-y-3">
           {extraBankAccounts.map((a, i) => (
@@ -98,7 +98,7 @@ export default function ExtraPaymentAccounts({ extraBankAccounts, extraPromptPay
           </button>
         </div>
         <p className="mb-3 text-xs text-gray-400">
-          เบอร์โทร / เลขบัตร ปชช. / เลขวอลเล็ตอื่นๆ ที่ผูกพร้อมเพย์ไว้ — ระบบสร้าง QR ฝังยอดมัดจำให้แต่ละรายการ (สูงสุด {MAX_EXTRA_PAYMENT_ACCOUNTS} รายการ)
+          เบอร์โทร / เลขบัตร ปชช. / เลขวอลเล็ตอื่นๆ ที่ผูกพร้อมเพย์ไว้ใน SlipOK เท่านั้น — ระบบสร้าง QR ฝังยอดมัดจำให้แต่ละรายการ (สูงสุด {MAX_EXTRA_PAYMENT_ACCOUNTS} รายการ)
         </p>
         <div className="space-y-3">
           {extraPromptPays.map((p, i) => (

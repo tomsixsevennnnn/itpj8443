@@ -8,6 +8,7 @@ import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
+import { STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 import {
   BASE_SLOTS,
   BOOKING_STATUS_INFO,
@@ -439,14 +440,16 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                     const info = BOOKING_STATUS_INFO[s]
                     const isActive = popup.status === s
                     const isPending = statusPending?.id === popup.id && statusPending.status === s
+                    const allowed = canChangeStatus(popup.status, s)
                     return (
                       <button
                         key={s}
                         onClick={() => updateStatus(popup.id, s)}
-                        disabled={statusPending !== null}
+                        disabled={statusPending !== null || !allowed}
+                        title={allowed ? undefined : STATUS_LOCKED_HINT}
                         className={`flex items-center justify-center gap-1 py-2 rounded-xl text-xs font-semibold transition-all border-2 disabled:cursor-wait ${
                           isActive ? `${info.chip} ${info.border}` : 'bg-gray-50 border-transparent text-gray-500 hover:bg-gray-100'
-                        } ${statusPending !== null && !isPending ? 'opacity-50' : ''}`}
+                        } ${(statusPending !== null && !isPending) || !allowed ? 'opacity-50' : ''} ${allowed ? '' : 'cursor-not-allowed'}`}
                       >
                         {isPending && <Loader2 size={11} className="animate-spin" />}
                         {!isPending && isActive && <Check size={11} />}

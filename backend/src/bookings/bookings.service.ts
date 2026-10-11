@@ -10,6 +10,7 @@ import { UploadsService } from '../uploads/uploads.service'
 import { CreateBookingDto } from './dto/create-booking.dto'
 import { UpdateBookingDto } from './dto/update-booking.dto'
 import { outsideDeliveryFeeFor, routeDistanceKm, zoneFor, ServiceZone } from './geo.util'
+import { isPastEventDate, isStatusTransitionAllowed } from './booking-rules'
 import { evaluateChannel, matchReceiver, type ExpectedChannel, type ExpectedReceiver, type SlipReceiver } from '../slip-verify/receiver-match'
 
 /** สถานะที่ยังกินคิวอยู่ — ต้องตรงกับ OCCUPIES_QUEUE ใน frontend src/availability.ts */
@@ -150,6 +151,9 @@ export class BookingsService {
     }
 
     const settings = await this.settingsService.get(dto.shopId, true)
+    if (isPastEventDate(dto.date)) {
+      throw new BadRequestException('ไม่สามารถจองวันที่ผ่านมาแล้ว กรุณาเลือกวันที่ตั้งแต่วันนี้เป็นต้นไป')
+    }
     if (settings.closedDates.includes(dto.date)) {
       throw new BadRequestException('วันที่เลือกร้านปิด ไม่รับจอง กรุณาเลือกวันอื่น')
     }
@@ -215,6 +219,9 @@ export class BookingsService {
 
   async updateAsOwner(id: string, dto: UpdateBookingDto, editorAuth0Sub: string, shopId: string) {
     const before = await this.assertOwnedByShop(id, shopId)
+    if (dto.status && !isStatusTransitionAllowed(before.status, dto.status)) {
+      throw new BadRequestException(`ไม่สามารถเปลี่ยนสถานะใบจองจาก "${before.status}" เป็น "${dto.status}" ได้`)
+    }
     const after = await this.prisma.booking.update({
       where: { id },
       data: {

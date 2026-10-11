@@ -6,6 +6,7 @@ import { AuditModule } from './audit/audit.module'
 import { AuthModule } from './auth/auth.module'
 import { BookingsModule } from './bookings/bookings.module'
 import { GeoModule } from './geo/geo.module'
+import { HealthModule } from './health/health.module'
 import { MenusModule } from './menus/menus.module'
 import { PackagesModule } from './packages/packages.module'
 import { PrismaModule } from './prisma/prisma.module'
@@ -22,6 +23,7 @@ import { UsersModule } from './users/users.module'
     // ตั้ง @Throttle() override เฉพาะจุดเพิ่มเติมเอง (ดู BookingsController, GeoController)
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     PrismaModule,
+    HealthModule,
     AuditModule,
     AuthModule,
     UsersModule,

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { useSettingsForm, type SaveSettingsResult } from './useSettingsForm'
 import {
-  AlertTriangle,
   ArrowDown,
   ArrowUp,
   Building2,
@@ -333,20 +332,20 @@ function FinanceTab({
         <p className="text-xs text-gray-400 mb-4">
           บัญชี/QR พร้อมเพย์ให้ลูกค้าโอนมัดจำ — แสดงในใบเสนอราคาและใบจองทุกใบ
         </p>
-        {form.slipOkConnected ? (
+        {form.slipOkConnected && (
           <p className="mb-4 flex items-start gap-1.5 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-700">
             <ShieldCheck size={14} className="mt-0.5 shrink-0" />
             เชื่อม SlipOK แล้ว — ลูกค้าเห็นข้อมูลการชำระเงินด้านล่างตามที่กรอก (ช่องไหนไม่ได้กรอกจะไม่แสดง)
           </p>
-        ) : (
-          <p className="mb-4 flex items-start gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span>
-              <span className="font-semibold">ลูกค้ายังไม่เห็นข้อมูลการชำระเงินนี้</span> — ระบบแสดงให้ลูกค้าเฉพาะร้านที่เชื่อม SlipOK แล้ว
-              กรอก SlipOK API key + Branch ID ในส่วน "ตรวจสอบสลิปอัตโนมัติ (SlipOK)" ด้านล่าง กด "ทดสอบการเชื่อมต่อ" ให้ผ่าน แล้วกด "บันทึกการตั้งค่า"
-            </span>
-          </p>
         )}
+        <p className="mb-4 flex items-start gap-1.5 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          <ShieldCheck size={14} className="mt-0.5 shrink-0" />
+          <span>
+            <span className="font-semibold">กรุณากรอกให้ตรงกับบัญชีที่ผูกไว้ใน SlipOK เท่านั้น</span> (ธนาคาร เลขบัญชี ชื่อบัญชี และพร้อมเพย์) —
+            ระบบดึงข้อมูลบัญชีจาก SlipOK มาเติมให้ไม่ได้ และใช้ข้อมูลที่กรอกนี้เทียบกับสลิปที่ลูกค้าโอน ถ้ากรอกไม่ตรง สลิปที่ถูกต้องอาจถูกแจ้งว่า
+            "บัญชีผู้รับไม่ตรง" และลูกค้าจะเห็นเลขบัญชีที่ผิด
+          </span>
+        </p>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
