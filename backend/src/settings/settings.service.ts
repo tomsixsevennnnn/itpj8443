@@ -7,6 +7,7 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { UploadsService } from '../uploads/uploads.service'
 import type { ExpectedChannel, ExpectedReceiver, SlipReceiver } from '../slip-verify/receiver-match'
 import { UpdateSettingsDto } from './dto/update-settings.dto'
+import { decryptSecret, encryptSecret } from './secret-box'
 
 /** ดึง path รูป Hero/แกลเลอรีออกจาก homeContent (Json ที่ไม่มี type ผูกไว้ — โครงสร้างจริงคือ HomeContent ฝั่ง
  *  frontend src/homeContent.ts) ใช้เทียบก่อน/หลังตอนอัปเดตว่ารูปไหนถูกแทนที่/ตัดออกจนต้องลบไฟล์ทิ้ง */
@@ -112,7 +113,7 @@ export class SettingsService {
   // สร้างอัตโนมัติตรงนี้ไว้กันแค่ข้อมูลเก่า/เคส edge case เท่านั้น
   private async getRaw(shopId: string): Promise<Settings> {
     const existing = await this.prisma.settings.findUnique({ where: { shopId } })
-    if (existing) return existing
+    if (existing) return this.withPlainSecrets(existing)
 
     // เช็คก่อนเสมอว่าร้านนี้ยังมีอยู่จริงก่อนจะ auto-create Settings ให้ — กัน FK violation (P2003) ตอน shopId
     // ไม่มีจริง (เช่นร้านถูกลบไปแล้วผ่านฟีเจอร์ลบร้านถาวร แต่ client ยังมี shopId เดิมค้างอยู่ใน localStorage/
@@ -121,6 +122,11 @@ export class SettingsService {
     if (!shopExists) throw new NotFoundException('ไม่พบร้านนี้ — อาจถูกลบไปแล้ว')
 
     return this.prisma.settings.create({ data: { ...DEFAULT_SETTINGS, shopId } })
+  }
+
+  /** SlipOK API key เก็บใน DB แบบเข้ารหัส (ถ้าตั้ง SETTINGS_ENCRYPTION_KEY) — ถอดรหัสทันทีที่อ่านออกมา โค้ดส่วนอื่นเห็นเป็นข้อความปกติ */
+  private withPlainSecrets(s: Settings): Settings {
+    return s.slipOkApiKey ? { ...s, slipOkApiKey: decryptSecret(s.slipOkApiKey) } : s
   }
 
   /** "เชื่อม SlipOK แล้ว" = มี API key + Branch ID และเป็นคู่เดียวกับที่ owner กดทดสอบการเชื่อมต่อผ่านล่าสุด */
@@ -299,13 +305,18 @@ export class SettingsService {
       after = await this.prisma.$transaction(async (tx) => {
         const updated = await tx.settings.update({
           where: { id_version: { id: before.id, version: expectedVersion } },
-          data: { ...patch, version: { increment: 1 }, lastEditedBy: editorAuth0Sub } as any,
+          data: {
+            ...patch,
+            ...(patch.slipOkApiKey !== undefined ? { slipOkApiKey: encryptSecret(patch.slipOkApiKey) } : {}),
+            version: { increment: 1 },
+            lastEditedBy: editorAuth0Sub,
+          } as any,
         })
         // ชื่อร้านภาษาไทยที่ owner แก้ในหน้าตั้งค่า ต้องซิงค์กับ Shop.name ที่ super admin เห็น กันสองหน้าโชว์ชื่อไม่ตรงกัน
         if (patch.shopName !== undefined && patch.shopName !== before.shopName) {
           await tx.shop.update({ where: { id: shopId }, data: { name: patch.shopName } })
         }
-        return updated
+        return this.withPlainSecrets(updated)
       })
     } catch (err) {
       // P2025 = ไม่พบแถวที่ตรงเงื่อนไข where (id, version) — แปลว่ามีคนแก้ไปแล้วก่อนหน้านี้ (version ไม่ตรงที่ client ถืออยู่)
@@ -321,7 +332,9 @@ export class SettingsService {
     }
 
     const { auditBefore, logoReplaced } = await this.prepareImageReplacementAudit(dto, before, after)
-    await this.audit.log(editorAuth0Sub, 'settings.update', 'Settings', String(after.id), auditBefore, after, shopId)
+    // ประวัติการแก้ไขไม่เก็บ API key จริง (ความลับ) — เก็บแค่ว่ามีค่า/ไม่มี
+    const redact = (x: Settings): Settings => (x.slipOkApiKey ? { ...x, slipOkApiKey: '***' } : x)
+    await this.audit.log(editorAuth0Sub, 'settings.update', 'Settings', String(after.id), redact(auditBefore), redact(after), shopId)
 
     if (logoReplaced) await this.uploads.deleteManagedFile(before.shopLogo)
 

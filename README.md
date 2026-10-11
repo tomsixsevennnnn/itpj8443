@@ -245,6 +245,7 @@ Backend (`backend/.env` หรือ Variables ของ Railway) — ขาด 
 | `FRONTEND_ORIGIN` | แนะนำ | โดเมนฟรอนต์ที่อนุญาต CORS (คั่นด้วย `,` ได้) |
 | `UPLOADS_DIR` | production | โฟลเดอร์เก็บรูป/สลิป ต้องชี้ไปที่ Volume ถาวร (เช่น `/data/uploads`) |
 | `SUPER_ADMIN_EMAILS` | ไม่บังคับ | อีเมล super admin คนแรก (คั่นด้วย `,`) |
+| `SETTINGS_ENCRYPTION_KEY` | แนะนำ | ข้อความลับยาวๆ ใช้เข้ารหัส SlipOK API key ใน DB (AES-256-GCM) ตั้งแล้วอย่าเปลี่ยน/ทำหาย ไม่งั้นต้องกรอก key ใหม่ — key เดิมที่เป็นข้อความตรงๆ จะถูกเข้ารหัสเมื่อ owner กดบันทึกตั้งค่าครั้งถัดไป |
 | `TRUST_PROXY` | ไม่บังคับ | จำนวนชั้น proxy หน้าเซิร์ฟเวอร์ (ค่าเริ่มต้น 1 สำหรับ Railway, ใส่ 0 ตอนรันตรงบนเครื่อง dev) |
 | `PORT` | ไม่บังคับ | ค่าเริ่มต้น 3000 |
 
