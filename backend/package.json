@@ -16,6 +16,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "lint": "eslint src scripts",
     "test": "jest",
     "test:cov": "jest --coverage"
   },
@@ -41,15 +42,19 @@
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^22.0.0",
     "@types/passport-jwt": "^4.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
     "jest": "^29.7.0",
     "prisma": "^6.0.0",
     "ts-jest": "^29.2.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.71.1"
   }
 }

@@ -14,6 +14,8 @@ export type AppChangeTopic = 'settings' | 'catalog' | 'users' | 'audit' | 'shop'
 export function useAppStream(enabled: boolean, getToken: () => Promise<string>, onChanged: (topic: AppChangeTopic) => void) {
   const onChangedRef = useRef(onChanged)
   onChangedRef.current = onChanged
+  const getTokenRef = useRef(getToken)
+  getTokenRef.current = getToken
 
   useEffect(() => {
     if (!enabled) return
@@ -22,7 +24,7 @@ export function useAppStream(enabled: boolean, getToken: () => Promise<string>, 
     let reopenTimer: ReturnType<typeof setTimeout> | null = null
 
     const open = () => {
-      getToken()
+      getTokenRef.current()
         .then(token => {
           if (cancelled) return
           source = new EventSource(appStreamUrl(token))

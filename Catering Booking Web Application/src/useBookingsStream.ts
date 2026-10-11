@@ -14,6 +14,8 @@ const REOPEN_MS = 10 * 60_000
 export function useBookingsStream(enabled: boolean, getToken: () => Promise<string>, onChanged: () => void) {
   const onChangedRef = useRef(onChanged)
   onChangedRef.current = onChanged
+  const getTokenRef = useRef(getToken)
+  getTokenRef.current = getToken
 
   useEffect(() => {
     if (!enabled) return
@@ -22,7 +24,7 @@ export function useBookingsStream(enabled: boolean, getToken: () => Promise<stri
     let reopenTimer: ReturnType<typeof setTimeout> | null = null
 
     const open = () => {
-      getToken()
+      getTokenRef.current()
         .then(token => {
           if (cancelled) return
           source = new EventSource(bookingsStreamUrl(token))
