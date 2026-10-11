@@ -1445,6 +1445,7 @@ export default function App() {
           const fresh = await api.settings(token, activeShopId ?? undefined)
           setSettings(fresh)
           result = { ok: false, settings: fresh }
+          // eslint-disable-next-line preserve-caught-error -- ข้อความนี้แสดงให้ผู้ใช้เห็น ไม่ต้องผูก error เดิม
           throw new Error('มีการแก้ไขค่าตั้งค่าจากที่อื่นไปแล้ว ระบบโหลดค่าล่าสุดมาให้แล้ว กรุณาตรวจสอบและบันทึกใหม่อีกครั้ง')
         }
         throw err

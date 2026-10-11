@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Role, ShopStatus } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { UploadsService } from '../uploads/uploads.service'
 import { DEFAULT_SETTINGS } from '../settings/settings.service'
 import { CreateShopDto } from './dto/create-shop.dto'
 import { UpdateShopDto } from './dto/update-shop.dto'
@@ -28,6 +29,7 @@ export class ShopsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly uploads: UploadsService,
   ) {}
 
   /** เฉพาะ super admin เรียกได้ — เห็นทุกร้านข้ามระบบ พร้อมจำนวน owner/booking และยอดขายรวมของแต่ละร้าน (สรุป
@@ -172,6 +174,24 @@ export class ShopsService {
     return user
   }
 
+  /** path ไฟล์ที่อัปโหลดทั้งหมดของร้าน: สลิป, รูปเมนู, โลโก้, รูป Hero/แกลเลอรีหน้าแรก (เฉพาะ path ใน /uploads/) */
+  private async collectUploadedFiles(shopId: string): Promise<string[]> {
+    const [bookings, menus, settings] = await Promise.all([
+      this.prisma.booking.findMany({ where: { shopId, paymentSlipUrl: { not: null } }, select: { paymentSlipUrl: true } }),
+      this.prisma.menuItem.findMany({ where: { shopId, image: { not: null } }, select: { image: true } }),
+      this.prisma.settings.findUnique({ where: { shopId }, select: { shopLogo: true, homeContent: true } }),
+    ])
+    const home = (settings?.homeContent ?? {}) as { heroImage?: unknown; gallery?: unknown }
+    const all: unknown[] = [
+      ...bookings.map(b => b.paymentSlipUrl),
+      ...menus.map(m => m.image),
+      settings?.shopLogo,
+      home.heroImage,
+      ...(Array.isArray(home.gallery) ? home.gallery : []),
+    ]
+    return [...new Set(all.filter((v): v is string => typeof v === 'string' && v.startsWith('/uploads/')))]
+  }
+
   /**
    * ลบร้านถาวร — ทำลายข้อมูลจริงของร้านนี้ทั้งหมด (booking/เมนู/แพ็กเกจ/settings/audit log ผูก onDelete: Cascade
    * ไว้ที่ Shop อยู่แล้วในระดับ DB) กู้คืนไม่ได้ จึงบังคับให้พิมพ์ชื่อร้านมายืนยันตรงตัวเป๊ะก่อนเสมอ (เช็คซ้ำฝั่ง
@@ -185,7 +205,13 @@ export class ShopsService {
       throw new BadRequestException('ข้อความยืนยันไม่ตรงกับชื่อร้าน กรุณาพิมพ์ให้ตรงตัวเป๊ะ')
     }
 
+    // รวบรวมไฟล์ของร้านนี้ไว้ก่อน (ลบร้านแล้ว cascade ลบแถวใน DB หมด จะไม่รู้แล้วว่าไฟล์ไหนเป็นของร้านนี้)
+    const files = await this.collectUploadedFiles(id)
+
     await this.prisma.shop.delete({ where: { id } })
+
+    // ลบไฟล์หลังลบร้านสำเร็จเท่านั้น — deleteManagedFile ไม่ throw ลบไม่ได้ก็แค่ log
+    for (const f of files) await this.uploads.deleteManagedFile(f)
 
     // shopId ต้องเป็น null เท่านั้น (ไม่ใช่ id ร้านที่เพิ่งลบไป) — AuditLog.shopId ผูก onDelete: Cascade กับ Shop
     // ไว้ด้วย ถ้าใส่ id ร้านที่ลบไปแล้ว ประวัติการลบนี้เองจะถูก cascade ลบตามไปทันที ไม่เหลือหลักฐานอะไรเลย

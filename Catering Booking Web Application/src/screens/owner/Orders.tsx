@@ -615,7 +615,7 @@ export default function Orders({
                 <button
                   onClick={async () => {
                     setCancelling(true)
-                    let ok = false
+                    let ok: boolean
                     try {
                       ok = await updateStatus(selected.id, 'cancelled')
                     } finally {

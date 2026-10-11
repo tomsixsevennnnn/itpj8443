@@ -265,7 +265,7 @@ Frontend: `VITE_API_BASE_URL` (URL ของ backend — ฝังตอน buil
 
 ## การเก็บรูปและสลิป
 
-รูปเมนู โลโก้ รูปหน้าแรก และสลิปเก็บเป็นไฟล์ใน `UPLOADS_DIR` (ฐานข้อมูลเก็บแค่ path) รูปเมนู/โลโก้/หน้าแรกเปิดเป็นไฟล์สาธารณะ ส่วน **สลิปไม่สาธารณะ** อ่านได้ผ่าน `GET /bookings/:id/payment-slip` เท่านั้น (ต้อง login และเป็นเจ้าของใบจองหรือ owner ของร้านนั้น) ยังไม่มีงานเก็บกวาดไฟล์ที่ไม่ได้ใช้แล้ว (เช่น ลบร้านถาวรจะลบเฉพาะข้อมูลใน DB)
+รูปเมนู โลโก้ รูปหน้าแรก และสลิปเก็บเป็นไฟล์ใน `UPLOADS_DIR` (ฐานข้อมูลเก็บแค่ path) รูปเมนู/โลโก้/หน้าแรกเปิดเป็นไฟล์สาธารณะ ส่วน **สลิปไม่สาธารณะ** อ่านได้ผ่าน `GET /bookings/:id/payment-slip` เท่านั้น (ต้อง login และเป็นเจ้าของใบจองหรือ owner ของร้านนั้น) ลบร้านถาวรจะลบไฟล์ของร้านนั้นออกจาก volume ด้วย แต่ยังไม่มีงานกวาดไฟล์กำพร้าที่หลุดจากกรณีอื่น
 
 ## แก้ปัญหาที่พบบ่อย
 
@@ -347,4 +347,4 @@ cd "Catering Booking Web Application"
 - **การชำระเงินมัดจำ** ลูกค้าโอนเข้าบัญชี/พร้อมเพย์ของร้านเองแล้วแนบสลิป ระบบตรวจกับธนาคารผ่าน SlipOK ไม่ใช่ payment gateway จริง (ไม่มีบัตรเครดิต ไม่มีการคืนเงินในระบบ)
 - **Backend deploy บน Railway แล้ว** (ดูหัวข้อ Deploy production) ส่วน frontend ยังต้องตั้ง service/โฮสต์แยกต่างหาก
 - **การพิมพ์เอกสาร** ใช้ระบบพิมพ์ของเบราว์เซอร์ เลือก "Save as PDF" เพื่อบันทึกเป็นไฟล์ได้
-- **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/service/DTO) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ และยังไม่มี ESLint
+- **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/service/DTO) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ และ lint ฝั่ง frontend รันด้วย `pnpm lint` (ฝั่ง backend ยังไม่มี ESLint)

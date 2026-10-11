@@ -12,15 +12,17 @@ const makeService = () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
-    settings: { create: jest.fn(), update: jest.fn() },
+    settings: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
     user: { findFirst: jest.fn(), findUnique: jest.fn() },
     shopMember: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
-    booking: { groupBy: jest.fn() },
+    booking: { groupBy: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    menuItem: { findMany: jest.fn().mockResolvedValue([]) },
     // $transaction รองรับทั้งแบบ callback (createShop/updateShop) และแบบ array ของ promise (deleteShop)
     $transaction: jest.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma))),
   } as any
   const audit = { log: jest.fn() } as any
-  return { service: new ShopsService(prisma, audit), prisma, audit }
+  const uploads = { deleteManagedFile: jest.fn() } as any
+  return { service: new ShopsService(prisma, audit, uploads), prisma, audit, uploads }
 }
 
 describe('ShopsService', () => {
@@ -299,6 +301,29 @@ describe('ShopsService', () => {
   })
 
   describe('deleteShop', () => {
+    it('ลบร้านแล้วลบไฟล์รูป/สลิป/โลโก้/หน้าแรกของร้านนั้นด้วย (ไม่ซ้ำ ไม่แตะค่าที่ไม่ใช่ไฟล์ในระบบ)', async () => {
+      const { service, prisma, uploads } = makeService()
+      prisma.shop.findUnique.mockResolvedValue({ id: 'shop1', name: 'ร้านเอ' })
+      prisma.booking.findMany.mockResolvedValue([{ paymentSlipUrl: '/uploads/slips/a.jpg' }])
+      prisma.menuItem.findMany.mockResolvedValue([{ image: '/uploads/menus/m.jpg' }, { image: 'https://x.com/y.jpg' }])
+      prisma.settings.findUnique.mockResolvedValue({
+        shopLogo: '/uploads/logos/l.png',
+        homeContent: { heroImage: '/uploads/home/h.jpg', gallery: ['/uploads/home/g.jpg', '/uploads/menus/m.jpg'] },
+      })
+
+      await service.deleteShop('shop1', 'ร้านเอ', 'auth0|admin')
+
+      const deleted = uploads.deleteManagedFile.mock.calls.map((c: string[]) => c[0]).sort()
+      expect(deleted).toEqual(['/uploads/home/g.jpg', '/uploads/home/h.jpg', '/uploads/logos/l.png', '/uploads/menus/m.jpg', '/uploads/slips/a.jpg'])
+    })
+
+    it('ชื่อยืนยันไม่ตรง — ไม่ลบไฟล์ใดๆ', async () => {
+      const { service, prisma, uploads } = makeService()
+      prisma.shop.findUnique.mockResolvedValue({ id: 'shop1', name: 'ร้านเอ' })
+      await expect(service.deleteShop('shop1', 'ผิด', 'auth0|admin')).rejects.toThrow(BadRequestException)
+      expect(uploads.deleteManagedFile).not.toHaveBeenCalled()
+    })
+
     it('ไม่พบร้าน — throw NotFoundException', async () => {
       const { service, prisma } = makeService()
       prisma.shop.findUnique.mockResolvedValue(null)
