@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { AppState, Auth0Provider } from '@auth0/auth0-react'
 import App from './App'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
 
 const audience = import.meta.env.VITE_AUTH0_AUDIENCE
@@ -27,7 +28,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       cacheLocation="localstorage"
       useRefreshTokens
     >
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </Auth0Provider>
   </React.StrictMode>,
 )
