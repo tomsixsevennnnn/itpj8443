@@ -628,7 +628,8 @@ function SlipOkReceiverPanel({ form, onUseBank }: Readonly<{ form: AppSettings; 
   return (
     <div className="mt-5 space-y-3 border-t border-gray-100 pt-5">
       <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs">
-        <p className="mb-1.5 font-semibold text-gray-600">บัญชีรับเงินที่ SlipOK เห็นล่าสุด</p>
+        <p className="mb-0.5 font-semibold text-gray-600">ผู้รับเงินที่ SlipOK อ่านได้จากสลิปล่าสุด</p>
+        <p className="mb-1.5 text-[10px] text-gray-400">ข้อมูลจาก SlipOK (ได้มาตอนตรวจสลิปเท่านั้น — SlipOK ไม่เปิดให้ดึงรายชื่อบัญชีที่ผูกไว้)</p>
         {last ? (
           <div className="space-y-1.5">
             <p className="flex items-center gap-2 text-gray-700">
@@ -664,8 +665,13 @@ function SlipOkReceiverPanel({ form, onUseBank }: Readonly<{ form: AppSettings; 
             <span className="text-[10px] text-gray-400">เติมเฉพาะช่อง "ธนาคาร" — เลขบัญชีและชื่อบัญชีกรอกเองให้ครบ</span>
           </div>
         )}
-        <p className="mt-2 text-gray-500">
-          บัญชีที่ตั้งไว้ในแอป: {configured.length > 0 ? configured.join(' / ') : 'ยังไม่ได้กรอก (กรอกที่ส่วน "บัญชีรับเงิน" ด้านบน)'}
+      </div>
+
+      <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 text-xs">
+        <p className="mb-0.5 font-semibold text-gray-600">บัญชีที่คุณกรอกไว้ในหน้านี้</p>
+        <p className="mb-1.5 text-[10px] text-gray-400">ข้อมูลที่ตั้งเองในส่วน "ข้อมูลการชำระเงิน" ด้านบน ไม่ได้ดึงมาจาก SlipOK — ใช้เทียบกับผู้รับในสลิป และแสดงให้ลูกค้าโอน</p>
+        <p className="text-gray-700">
+          {configured.length > 0 ? configured.join(' / ') : 'ยังไม่ได้กรอก (กรอกที่ส่วน "ข้อมูลการชำระเงิน" ด้านบน)'}
         </p>
       </div>
 
@@ -681,13 +687,13 @@ function SlipOkReceiverPanel({ form, onUseBank }: Readonly<{ form: AppSettings; 
               @slipok
             </a>{' '}
             หรือที่{' '}
-            <a href="https://slipok.com" target="_blank" rel="noreferrer" className="text-orange-600 underline">
+            <a href="https://app.slipok.com/" target="_blank" rel="noreferrer" className="text-orange-600 underline">
               slipok.com
             </a>
           </li>
           <li>เพิ่ม แก้ไข หรือลบบัญชีรับเงินของสาขา (Branch ID) นี้ให้เป็นบัญชีที่ร้านรับโอนจริง</li>
           <li>กลับมาที่นี่ กด "ทดสอบการเชื่อมต่อ" แล้วกรอกบัญชีรับเงินของร้านให้ตรงกัน</li>
-          <li>ให้ลูกค้า (หรือทดลองจองเอง) แนบสลิปจริงสักใบ แล้วดูกล่อง "บัญชีรับเงินที่ SlipOK เห็นล่าสุด" ด้านบนว่าตรงไหม</li>
+          <li>ให้ลูกค้า (หรือทดลองจองเอง) แนบสลิปจริงสักใบ แล้วดูกล่อง "ผู้รับเงินที่ SlipOK อ่านได้จากสลิปล่าสุด" ด้านบนว่าตรงกับบัญชีที่ตั้งไว้ไหม</li>
         </ol>
         <a
           href="https://slipok.com"
