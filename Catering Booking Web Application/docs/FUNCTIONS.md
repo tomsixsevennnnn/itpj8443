@@ -147,7 +147,7 @@ derive จาก `bookings` จริงผ่าน `buildNotifications()` (`sr
 
 ### 2.11 `BookingHistory.tsx` — การชำระเงินและสลิป
 
-แสดงเฉพาะใบจองของร้านที่เปิดอยู่ (`GET /bookings?shopId=`); ส่วนชำระมัดจำใช้ `PaymentChannels.tsx` แสดงช่องทางโอน (บัญชีธนาคารพร้อมโลโก้ `BankBadge`/พร้อมเพย์ `PromptPayQr`) ที่ลูกค้า **เลือกได้** (คีย์ `bank:<เลข>`/`pp:<เลข>` จาก `paymentChannels.ts`) — ถ้าร้านมีหลายช่องทางต้องเลือกก่อนส่งสลิป; ร้านที่ยังไม่เชื่อม SlipOK backend ส่งข้อมูลชำระเงินว่าง จึงไม่แสดงช่องทางโอน; ขั้นตอนส่งสลิป: อัปโหลดไฟล์ `POST /uploads/payment-slip` (ได้ path) แล้ว `PATCH /bookings/:id/payment-slip` พร้อม `paymentChannelKey`; ผลตรวจแสดงด้วย `SlipVerifyBadge` และ `SlipLoadStatus` (สถานะโหลดรูปสลิป); สลิปที่ตรวจผ่านแล้วเปลี่ยนไม่ได้
+แสดงเฉพาะใบจองของร้านที่เปิดอยู่ (`GET /bookings?shopId=`); ส่วนชำระมัดจำใช้ `PaymentChannels.tsx` แสดงช่องทางโอน (บัญชีธนาคารพร้อมโลโก้ `BankBadge`/พร้อมเพย์ `PromptPayQr`) ที่ลูกค้า **เลือกได้** (คีย์ `bank:<เลข>`/`pp:<เลข>` จาก `paymentChannels.ts`) — ถ้าร้านมีหลายช่องทางต้องเลือกก่อนส่งสลิป; ร้านที่ยังไม่เชื่อม SlipOK backend ส่งข้อมูลชำระเงินว่าง จึงไม่แสดงช่องทางโอน; ขั้นตอนส่งสลิป: อัปโหลดไฟล์ `POST /uploads/payment-slip` (ได้ path) แล้ว `PATCH /bookings/:id/payment-slip` พร้อม `paymentChannelKey`; หลังจองสำเร็จ `App.tsx` จดรหัสใบจองใหม่ (`justBookedId`) แล้ว `BookingHistory` เปิด detail ของใบนั้นอัตโนมัติ (ใช้กลไก `openBookingId` เดียวกับการกดการ์ดแจ้งเตือน) พร้อมแถบ "จองสำเร็จ — โอนมัดจำ…" เลื่อนมาที่ส่วนชำระ และปุ่ม "ไว้ชำระภายหลัง" (ทำเฉพาะเมื่อร้านมีช่องทางโอนให้ลูกค้าเห็น `hasPaymentChannel`; เคลียร์เมื่อออกจากหน้าประวัติ); ผลตรวจแสดงด้วย `SlipVerifyBadge` และ `SlipLoadStatus` (สถานะโหลดรูปสลิป); สลิปที่ตรวจผ่านแล้วเปลี่ยนไม่ได้
 
 ---
 

@@ -12,6 +12,7 @@ import { DEFAULT_NOTIF_SEEN_AT, unreadNotificationCount } from './notifications'
 import { roleFromAuth0User } from './auth'
 import { useLocationSync } from './useLocationSync'
 import type { SaveSettingsResult } from './screens/owner/useSettingsForm'
+import { hasPaymentChannel } from './paymentChannels'
 import { firstIncompleteStep, loadBookingDraft, missingBookingField, saveBookingDraft } from './bookingDraft'
 import { api, setActiveShopId, type BackendUser, type CreatePackageInput, type ShopAdmin, type UpdatePackageInput, type UploadImageKind } from './api'
 import { usePolling } from './usePolling'
@@ -597,6 +598,9 @@ export default function App() {
   // ใบจองที่คลิกมาจากการ์ดแจ้งเตือน — พอ Orders/BookingHistory เจอใบจองนี้ในหน้าตัวเองแล้วจะเปิด detail ให้อัตโนมัติ
   // แล้วเคลียร์ค่านี้ทิ้งทันที (onOpenBookingIdHandled) กันเปิดซ้ำเวลากลับมาหน้าเดิมทีหลังโดยไม่ได้ตั้งใจ
   const [pendingNotifBookingId, setPendingNotifBookingId] = useState<string | null>(null)
+  /** ใบจองที่เพิ่งจองสำเร็จ — หน้าประวัติการจองเปิดรายละเอียดให้ทันทีพร้อมแถบ "โอนมัดจำ" (เฉพาะร้านที่มีช่องทางโอนให้ลูกค้าเห็น)
+   *  เคลียร์ทิ้งเมื่อออกจากหน้าประวัติหรือกด "ไว้ชำระภายหลัง" */
+  const [justBookedId, setJustBookedId] = useState<string | null>(null)
 
   // ชื่อ tab เบราว์เซอร์ — title ใน index.html มาจาก .figma/make/site.json (static ตอน build)
   // ก่อน login หน้า Login เป็นคนดึง/ตั้ง title เอง (ดู screens/Login.tsx) ส่วนนี้ sync ต่อหลัง login โหลดเสร็จ
@@ -976,6 +980,11 @@ export default function App() {
     }
   }, [stableNavigate, user, settings.shopInfo, notifCount, settings.categoryOrder, settings.categories, stableOpenNotificationBooking])
 
+  // ออกจากหน้าประวัติการจองแล้ว ไม่ต้องจำว่าใบไหนเพิ่งจอง (กันแถบ "โอนมัดจำ" โผล่ค้างตอนกลับมาเปิดทีหลัง)
+  useEffect(() => {
+    if (screen !== 'history') setJustBookedId(null)
+  }, [screen])
+
   /** หลัง login สำเร็จ (และกรอกโปรไฟล์ครบถ้าเป็นลูกค้า) พาไปหน้าเริ่มต้นตาม role ทันที */
   const effectiveScreen: Screen = computeEffectiveScreen(screen, isAuthenticated && !needsProfile, role)
 
@@ -1109,6 +1118,12 @@ export default function App() {
         { date: created.date, timeSlot: created.timeSlot, tables: created.tables, status: created.status },
         ...prev,
       ])
+      // จองสำเร็จแล้วพาลูกค้าไปที่ส่วนโอนมัดจำของใบนี้เลย (Cart เรียก navigate('history') ต่อ แล้วหน้าประวัติเปิดรายละเอียดให้)
+      // ร้านที่ลูกค้าไม่เห็นช่องทางโอน (ยังไม่เชื่อม SlipOK/ไม่ได้กรอกบัญชี) ไม่ต้อง — ไปหน้าประวัติตามปกติ
+      if (hasPaymentChannel(settings.shopInfo)) {
+        setPendingNotifBookingId(created.id)
+        setJustBookedId(created.id)
+      }
       // ไม่ล้างข้อมูลจองตรงนี้ — Cart เรียก navigate('history') ต่อทันทีหลังสำเร็จ ซึ่งล้างให้อยู่แล้ว (ล้างตรงนี้ทำให้หน้าสรุป
       // ว่างเปล่าแวบหนึ่งจนตัวพากลับขั้นแรกเด้งทำงาน)
     })
@@ -1280,6 +1295,8 @@ export default function App() {
       handleFetchPaymentSlip={handleFetchPaymentSlip}
       pendingNotifBookingId={pendingNotifBookingId}
       setPendingNotifBookingId={setPendingNotifBookingId}
+      justBookedId={justBookedId}
+      setJustBookedId={setJustBookedId}
       notifPageSeenAt={notifPageSeenAt}
     />
   )

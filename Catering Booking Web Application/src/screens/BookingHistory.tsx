@@ -19,6 +19,10 @@ interface BookingHistoryProps {
   /** ใบจองที่ต้องเปิด detail ให้อัตโนมัติ (มาจากคลิกการ์ดแจ้งเตือน) */
   openBookingId?: string | null
   onOpenBookingIdHandled?: () => void
+  /** ใบจองที่เพิ่งจองสำเร็จ — โชว์แถบ "จองสำเร็จ โอนมัดจำ…" เหนือส่วนช่องทางโอนใน detail (ไม่มี = ไม่โชว์) */
+  justBookedId?: string | null
+  /** ลูกค้ากด "ไว้ชำระภายหลัง" หรือปิดหน้าต่าง — ให้ผู้เรียกลืมสถานะ "เพิ่งจอง" */
+  onJustBookedDismiss?: () => void
 }
 
 const STATUS_CONFIG = {
@@ -43,6 +47,8 @@ export default function BookingHistory({
   onFetchPaymentSlip,
   openBookingId,
   onOpenBookingIdHandled,
+  justBookedId,
+  onJustBookedDismiss,
 }: Readonly<BookingHistoryProps>) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -56,6 +62,7 @@ export default function BookingHistory({
   const [slipDraft, setSlipDraft] = useState<{ id: string; dataUrl: string } | null>(null)
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
   const slipInputRef = useRef<HTMLInputElement>(null)
+  const justBookedRef = useRef<HTMLDivElement>(null)
 
   const hasPayment = hasPaymentChannel(settings.shopInfo)
   /** ช่องทางโอนที่ลูกค้าเลือกได้ — มีช่องทางเดียวไม่ต้องเลือก (ใช้ช่องทางนั้นให้เอง) มีหลายช่องทางต้องเลือกก่อนส่งสลิป */
@@ -74,6 +81,7 @@ export default function BookingHistory({
   }
 
   const closeDetail = () => {
+    if (justBookedId) onJustBookedDismiss?.()
     setDetailId(null)
     setSlipDraft(null)
     setSlipError(null)
@@ -89,6 +97,13 @@ export default function BookingHistory({
     onOpenBookingIdHandled?.()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openBookingId, bookings])
+
+  /** เพิ่งจองสำเร็จ — เลื่อน detail ไปที่แถบ "โอนมัดจำ" ให้ลูกค้าเห็นช่องทางโอนทันที */
+  useEffect(() => {
+    if (!justBookedId || detailId !== justBookedId) return
+    const t = setTimeout(() => justBookedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    return () => clearTimeout(t)
+  }, [justBookedId, detailId])
 
   /** เลือกรูปสลิป — ย่อขนาดแล้วพักไว้เป็นตัวอย่าง ยังไม่บันทึกจนกว่าจะกด "ส่ง" */
   const handlePickSlip = async (bookingId: string, file: File | undefined) => {
@@ -408,6 +423,24 @@ export default function BookingHistory({
                 <span className="font-bold text-gray-800">ราคารวม</span>
                 <span className="text-xl font-bold text-orange-600">{detailBooking.totalPrice.toLocaleString()} ฿</span>
               </div>
+
+              {/* เพิ่งจองสำเร็จ — เลื่อนมาที่นี่ให้อัตโนมัติ บอกขั้นตอนต่อไป (โอนมัดจำแล้วแนบสลิป) ปิดได้ด้วย "ไว้ชำระภายหลัง" */}
+              {hasPayment && justBookedId === detailBooking.id && !detailBooking.paymentSlip && detailBooking.status === 'pending' && (
+                <div ref={justBookedRef} className="scroll-mt-24 rounded-2xl border border-green-200 bg-green-50 p-4">
+                  <p className="text-sm font-bold text-green-800">จองสำเร็จ — เหลืออีกขั้นเดียว</p>
+                  <p className="mt-1 text-xs text-green-700">
+                    โอนมัดจำ {bookingPricing(detailBooking, settings.depositRate).deposit.toLocaleString()} ฿ ตามช่องทางด้านล่าง แล้วแนบสลิป ร้านจะตรวจสอบและยืนยันใบจองให้
+                    (วันนี้ยังจองไว้ให้คุณอยู่ แต่ร้านจะยืนยันเมื่อได้รับมัดจำแล้ว)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={closeDetail}
+                    className="mt-3 rounded-full border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-800 hover:bg-green-100"
+                  >
+                    ไว้ชำระภายหลัง
+                  </button>
+                </div>
+              )}
 
               {/* ร้านยังไม่เปิดช่องทางโอนในระบบ (ยังไม่เชื่อม SlipOK หรือยังไม่ได้กรอกบัญชี) — บอกลูกค้าให้ติดต่อร้าน แทนที่จะไม่เห็นอะไรเลย */}
               {!hasPayment && (

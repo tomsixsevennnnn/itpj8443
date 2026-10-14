@@ -253,6 +253,8 @@ export function OwnerScreens({
 }
 
 export interface CustomerScreensProps {
+  justBookedId: string | null
+  setJustBookedId: Dispatch<SetStateAction<string | null>>
   navContext: NavContextValue
   actionError: string | null
   setActionError: Dispatch<SetStateAction<string | null>>
@@ -285,7 +287,7 @@ export function CustomerScreens({
   navContext, actionError, setActionError, role, navigate, effectiveScreen, availability, handleSelectDateTime,
   settings, booking, handleSetTables, handleSetLocation, handleResolveMapsLink, packages, handleSelectPackage,
   handleSetMenus, handleConfirm, locationRecalculating, bookings, handleUpdateBooking, handleFetchPaymentSlip, pendingNotifBookingId,
-  setPendingNotifBookingId, notifPageSeenAt,
+  setPendingNotifBookingId, notifPageSeenAt, justBookedId, setJustBookedId,
 }: Readonly<CustomerScreensProps>) {
   return (
     <NavProvider value={navContext}>
@@ -371,6 +373,8 @@ export function CustomerScreens({
           onFetchPaymentSlip={handleFetchPaymentSlip}
           openBookingId={pendingNotifBookingId}
           onOpenBookingIdHandled={() => setPendingNotifBookingId(null)}
+          justBookedId={justBookedId}
+          onJustBookedDismiss={() => setJustBookedId(null)}
         />
       )}
       {effectiveScreen === 'notifications' && <Notifications bookings={bookings} notifSeenAt={notifPageSeenAt} />}
