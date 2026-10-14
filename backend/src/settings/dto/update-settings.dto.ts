@@ -1,18 +1,21 @@
-import { Type } from 'class-transformer'
+import { Transform, Type } from 'class-transformer'
 import { ArrayMaxSize, IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator'
 
 /** จำนวนสูงสุดของบัญชีเพิ่มเติมแต่ละชนิด (ธนาคาร/พร้อมเพย์) — ต้องตรงกับ MAX_EXTRA_PAYMENT_ACCOUNTS ฝั่ง frontend */
 export const MAX_EXTRA_PAYMENT_ACCOUNTS = 8
 
+/** เลขบัญชี/เลขพร้อมเพย์เก็บเป็นตัวเลขล้วน — ตัดขีดคั่น/ช่องว่าง/ตัวอักษรออกก่อน validate (ข้อมูลเดิมที่เคยมีขีดคั่นจึงบันทึกซ้ำได้โดยไม่ error) */
+const digitsOnly = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.replace(/\D/g, '') : value)
+
 export class ExtraBankAccountDto {
   @IsString() @MaxLength(100) bankName!: string
-  @IsString() @MaxLength(40) accountNumber!: string
+  @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'เลขบัญชีต้องเป็นตัวเลขเท่านั้น' }) @MaxLength(40) accountNumber!: string
   @IsString() @MaxLength(100) accountName!: string
 }
 
 export class ExtraPromptPayDto {
-  /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — ตัวเลขและขีดคั่นเท่านั้น (เหมือน promptPayId หลัก) */
-  @IsString() @Matches(/^[0-9-]*$/, { message: 'พร้อมเพย์ต้องเป็นตัวเลข (และขีดคั่นได้)' }) @MaxLength(30) id!: string
+  /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — ตัวเลขล้วนเท่านั้น (เหมือน promptPayId หลัก) */
+  @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'พร้อมเพย์ต้องเป็นตัวเลขเท่านั้น' }) @MaxLength(30) id!: string
   @IsString() @MaxLength(100) firstName!: string
   @IsString() @MaxLength(100) lastName!: string
 }
@@ -31,10 +34,10 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString() shopLoginTagline?: string
 
   @IsOptional() @IsString() bankName?: string
-  @IsOptional() @IsString() bankAccountNumber?: string
+  @IsOptional() @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'เลขบัญชีต้องเป็นตัวเลขเท่านั้น' }) bankAccountNumber?: string
   @IsOptional() @IsString() bankAccountName?: string
-  /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — เก็บได้ทั้งมีขีดคั่นหรือไม่มี (promptpay-qr ฝั่ง frontend จะตัดอักขระที่ไม่ใช่ตัวเลขออกเองตอนสร้าง QR) */
-  @IsOptional() @IsString() @Matches(/^[0-9-]*$/, { message: 'promptPayId ต้องเป็นตัวเลข (และขีดคั่นได้)' }) promptPayId?: string
+  /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — ตัวเลขล้วนเท่านั้น (ตัดขีดคั่นออกให้ก่อนบันทึก) */
+  @IsOptional() @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'promptPayId ต้องเป็นตัวเลขเท่านั้น' }) promptPayId?: string
   @IsOptional() @IsString() promptPayFirstName?: string
   @IsOptional() @IsString() promptPayLastName?: string
   @IsOptional() @IsArray() @ArrayMaxSize(MAX_EXTRA_PAYMENT_ACCOUNTS) @ValidateNested({ each: true }) @Type(() => ExtraBankAccountDto) extraBankAccounts?: ExtraBankAccountDto[]

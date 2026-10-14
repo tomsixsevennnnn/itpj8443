@@ -1,5 +1,8 @@
 import type { BankAccount, PromptPayAccount, ShopInfo } from './types'
 
+/** เลขบัญชี/เลขพร้อมเพย์กรอกได้เฉพาะตัวเลข — ตัดอักขระอื่น (ขีดคั่น ช่องว่าง ตัวอักษร) ออกทันทีที่พิมพ์/วาง */
+export const digitsOnly = (value: string): string => value.replace(/\D/g, '')
+
 /** จำนวนสูงสุดของบัญชีเพิ่มเติมแต่ละชนิด (ธนาคาร/พร้อมเพย์) — ต้องตรงกับ MAX_EXTRA_PAYMENT_ACCOUNTS ฝั่ง backend (update-settings.dto.ts) */
 export const MAX_EXTRA_PAYMENT_ACCOUNTS = 8
 

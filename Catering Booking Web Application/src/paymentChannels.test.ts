@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bankAccountsOf, bankChannelKey, channelKeysOf, hasPaymentChannel, promptPayChannelKey, promptPaysOf } from './paymentChannels'
+import { bankAccountsOf, bankChannelKey, channelKeysOf, digitsOnly, hasPaymentChannel, promptPayChannelKey, promptPaysOf } from './paymentChannels'
 
 const EMPTY = {
   bankName: '',
@@ -91,5 +91,14 @@ describe('channel keys (ตรงกับที่ backend สร้าง)', (
       extraPromptPays: [{ id: '0891110000', firstName: 'ก', lastName: 'ข' }],
     }
     expect(channelKeysOf(info)).toEqual(['bank:1111111111', 'bank:2222222222', 'pp:0861230000', 'pp:0891110000'])
+  })
+})
+
+describe('digitsOnly', () => {
+  it('ตัดขีดคั่น ช่องว่าง และตัวอักษรออก เหลือแต่ตัวเลข', () => {
+    expect(digitsOnly('123-4-56789-0')).toBe('1234567890')
+    expect(digitsOnly(' 081 234 5678 ')).toBe('0812345678')
+    expect(digitsOnly('abc')).toBe('')
+    expect(digitsOnly('')).toBe('')
   })
 })

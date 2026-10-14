@@ -40,7 +40,7 @@ import { deepTrim } from '../../deepTrim'
 import SuggestInput from '../../components/SuggestInput'
 import BankBadge from '../../components/BankBadge'
 import ExtraPaymentAccounts from '../../components/ExtraPaymentAccounts'
-import { bankAccountsOf, promptPaysOf } from '../../paymentChannels'
+import { bankAccountsOf, digitsOnly, promptPaysOf } from '../../paymentChannels'
 import { THAI_BANK_NAMES, bankNameOf, isKnownBank } from '../../banks'
 import { accountMatches, nameMatches } from '../../receiverMatch'
 import { joinName, splitName } from '../../thaiName'
@@ -380,8 +380,8 @@ function FinanceTab({
               type="text"
               inputMode="numeric"
               value={info.bankAccountNumber}
-              placeholder="เช่น 123-4-56789-0"
-              onChange={e => setShopField('bankAccountNumber', e.target.value)}
+              placeholder="เฉพาะตัวเลข เช่น 1234567890"
+              onChange={e => setShopField('bankAccountNumber', digitsOnly(e.target.value))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
             {last?.account && (
@@ -431,9 +431,10 @@ function FinanceTab({
           <input
             id="promptPayId"
             type="text"
+            inputMode="numeric"
             value={form.shopInfo.promptPayId}
-            placeholder="เช่น 0812345678"
-            onChange={e => setShopField('promptPayId', e.target.value)}
+            placeholder="เฉพาะตัวเลข เช่น 0812345678"
+            onChange={e => setShopField('promptPayId', digitsOnly(e.target.value))}
             className="w-full max-w-xs border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
           />
           <div className="grid sm:grid-cols-2 gap-4 mt-3 max-w-md">

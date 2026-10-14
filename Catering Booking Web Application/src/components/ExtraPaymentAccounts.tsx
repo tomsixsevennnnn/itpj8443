@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { THAI_BANK_NAMES } from '../banks'
-import { MAX_EXTRA_PAYMENT_ACCOUNTS } from '../paymentChannels'
+import { MAX_EXTRA_PAYMENT_ACCOUNTS, digitsOnly } from '../paymentChannels'
 import type { BankAccount, PromptPayAccount } from '../types'
 import BankBadge from './BankBadge'
 import SuggestInput from './SuggestInput'
@@ -60,7 +60,7 @@ export default function ExtraPaymentAccounts({ extraBankAccounts, extraPromptPay
                 value={a.accountNumber}
                 placeholder="เลขที่บัญชี"
                 aria-label={`เลขที่บัญชีธนาคารเพิ่มเติมที่ ${i + 1}`}
-                onChange={e => updateBank(i, { accountNumber: e.target.value })}
+                onChange={e => updateBank(i, { accountNumber: digitsOnly(e.target.value) })}
                 className={INPUT}
               />
               <input
@@ -109,7 +109,7 @@ export default function ExtraPaymentAccounts({ extraBankAccounts, extraPromptPay
                 value={p.id}
                 placeholder="เลขพร้อมเพย์"
                 aria-label={`เลขพร้อมเพย์เพิ่มเติมที่ ${i + 1}`}
-                onChange={e => updatePromptPay(i, { id: e.target.value.replace(/[^0-9-]/g, '') })}
+                onChange={e => updatePromptPay(i, { id: digitsOnly(e.target.value) })}
                 className={INPUT}
               />
               <input
