@@ -1,18 +1,9 @@
 import { Transform, Type } from 'class-transformer'
-import { ArrayMaxSize, IsArray, IsInt, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator'
+import { ArrayMaxSize, IsArray, IsInt, IsISO8601, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator'
+import { MAX_NUMBER, NAME_MESSAGE, NAME_PATTERN, digitsOnly, lettersOnly } from '../../common/input-rules'
 
 /** จำนวนสูงสุดของบัญชีเพิ่มเติมแต่ละชนิด (ธนาคาร/พร้อมเพย์) — ต้องตรงกับ MAX_EXTRA_PAYMENT_ACCOUNTS ฝั่ง frontend */
 export const MAX_EXTRA_PAYMENT_ACCOUNTS = 8
-
-/** เลขบัญชี/เลขพร้อมเพย์เก็บเป็นตัวเลขล้วน — ตัดขีดคั่น/ช่องว่าง/ตัวอักษรออกก่อน validate (ข้อมูลเดิมที่เคยมีขีดคั่นจึงบันทึกซ้ำได้โดยไม่ error) */
-const digitsOnly = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.replace(/\D/g, '') : value)
-
-/** ชื่อบัญชี/ชื่อ-นามสกุลรับเฉพาะตัวอักษร (ไทย/อังกฤษ/ภาษาอื่น รวมสระและวรรณยุกต์) กับช่องว่าง — ตัดตัวเลขและอักษรพิเศษออก
- *  ยุบช่องว่างซ้ำและตัดหัวท้ายก่อน validate (ข้อมูลเดิมที่มีจุด/ขีด/ตัวเลขจึงบันทึกซ้ำได้โดยไม่ error) */
-const NAME_PATTERN = /^[\p{L}\p{M} ]*$/u
-const lettersOnly = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.replace(/[^\p{L}\p{M}\s]/gu, '').replace(/\s+/g, ' ').trim() : value
-const NAME_MESSAGE = 'ชื่อต้องเป็นตัวอักษรเท่านั้น (ห้ามตัวเลขหรืออักษรพิเศษ)'
 
 export class ExtraBankAccountDto {
   @IsString() @MaxLength(100) bankName!: string
@@ -31,16 +22,16 @@ export class UpdateSettingsDto {
   /** version ของ settings ที่ client โหลดมาตอนเปิดหน้า — กันสองแท็บ/สองคนแก้ทับกันเงียบๆ (ดู settings.service.ts) */
   @IsInt() expectedVersion!: number
 
-  @IsOptional() @IsString() shopName?: string
-  @IsOptional() @IsString() shopNameEn?: string
-  @IsOptional() @IsString() shopInitials?: string
-  @IsOptional() @IsString() shopAddress?: string
-  @IsOptional() @IsString() shopPhone?: string
-  @IsOptional() @IsString() shopLine?: string
+  @IsOptional() @IsString() @MaxLength(100) shopName?: string
+  @IsOptional() @IsString() @MaxLength(100) shopNameEn?: string
+  @IsOptional() @IsString() @MaxLength(10) shopInitials?: string
+  @IsOptional() @IsString() @MaxLength(300) shopAddress?: string
+  @IsOptional() @IsString() @MaxLength(30) shopPhone?: string
+  @IsOptional() @IsString() @MaxLength(50) shopLine?: string
   @IsOptional() @IsString() shopLogo?: string
-  @IsOptional() @IsString() shopLoginTagline?: string
+  @IsOptional() @IsString() @MaxLength(150) shopLoginTagline?: string
 
-  @IsOptional() @IsString() bankName?: string
+  @IsOptional() @IsString() @MaxLength(100) bankName?: string
   @IsOptional() @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'เลขบัญชีต้องเป็นตัวเลขเท่านั้น' }) bankAccountNumber?: string
   @IsOptional() @Transform(lettersOnly) @IsString() @Matches(NAME_PATTERN, { message: NAME_MESSAGE }) bankAccountName?: string
   /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — ตัวเลขล้วนเท่านั้น (ตัดขีดคั่นออกให้ก่อนบันทึก) */
@@ -55,10 +46,10 @@ export class UpdateSettingsDto {
   @IsOptional() @IsString() @MaxLength(100) slipOkBranchId?: string
 
   @IsOptional() @IsNumber() @Min(0) @Max(1) depositRate?: number
-  @IsOptional() @IsInt() @Min(0) deliveryFee?: number
+  @IsOptional() @IsInt() @Min(0) @Max(MAX_NUMBER) deliveryFee?: number
   @IsOptional() @IsInt() @Min(0) freeDeliveryMinTables?: number
-  @IsOptional() @IsArray() @IsString({ each: true }) metroProvinces?: string[]
-  @IsOptional() @IsString() homeProvince?: string
+  @IsOptional() @IsArray() @ArrayMaxSize(80) @IsString({ each: true }) @MaxLength(100, { each: true }) metroProvinces?: string[]
+  @IsOptional() @IsString() @MaxLength(100) homeProvince?: string
   @IsOptional() @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'brandColor ต้องเป็นรหัสสี hex เช่น #F97316' }) brandColor?: string
 
   @IsOptional() @IsInt() @Min(0) wageChef?: number
@@ -70,13 +61,13 @@ export class UpdateSettingsDto {
   @IsOptional() @IsInt() @Min(1) tablesPerSupport?: number
   @IsOptional() @IsInt() @Min(0) staffRemainderThreshold?: number
 
-  @IsOptional() @IsString() slotMorningHours?: string
-  @IsOptional() @IsString() slotNoonHours?: string
-  @IsOptional() @IsString() slotEveningHours?: string
+  @IsOptional() @IsString() @MaxLength(30) slotMorningHours?: string
+  @IsOptional() @IsString() @MaxLength(30) slotNoonHours?: string
+  @IsOptional() @IsString() @MaxLength(30) slotEveningHours?: string
 
-  @IsOptional() @IsInt() @Min(1) quotationValidDays?: number
-  @IsOptional() @IsArray() @IsString({ each: true }) quotationTerms?: string[]
-  @IsOptional() @IsArray() @IsString({ each: true }) bookingTerms?: string[]
+  @IsOptional() @IsInt() @Min(1) @Max(MAX_NUMBER) quotationValidDays?: number
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(500, { each: true }) quotationTerms?: string[]
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(500, { each: true }) bookingTerms?: string[]
 
   /** ประเภทอาหารทั้งหมดของร้าน (id/label/labelEn/icon/gradient) — โครงสร้างคือ Category[] ฝั่ง frontend ไม่ deep-validate ที่นี่ */
   @IsOptional() @IsArray() categories?: unknown[]
@@ -85,12 +76,14 @@ export class UpdateSettingsDto {
   /** วันที่ร้านปิด ไม่รับจอง รูปแบบ "YYYY-MM-DD" */
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(1000)
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true, message: 'closedDates ต้องเป็นวันที่รูปแบบ YYYY-MM-DD' })
+  @IsISO8601({ strict: true, strictSeparator: true }, { each: true, message: 'closedDates ต้องเป็นวันที่ที่มีอยู่จริง' })
   closedDates?: string[]
 
   @IsOptional() @IsNumber() shopLocationLat?: number
   @IsOptional() @IsNumber() shopLocationLng?: number
-  @IsOptional() @IsNumber() @Min(0) fuelCostPerKm?: number
+  @IsOptional() @IsNumber() @Min(0) @Max(MAX_NUMBER) fuelCostPerKm?: number
 
   /** เนื้อหาหน้าแรก (Hero/การ์ดจุดเด่น/ขั้นตอน/แกลเลอรี/CTA) — โครงสร้างคือ HomeContent ฝั่ง frontend ไม่ deep-validate ที่นี่ */
   @IsOptional() homeContent?: unknown

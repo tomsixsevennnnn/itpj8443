@@ -5,6 +5,7 @@ import DishTile from '../../components/DishTile'
 import type { AppSettings, MenuItem, Package } from '../../types'
 import { categoryMapOf, orderedCategories } from '../../data'
 import { pickImageAsDataUrl } from '../../imageUpload'
+import { MAX_NUMBER, TEXT_LIMITS, clampInt } from '../../inputRules'
 import { resolveImageUrl, type UploadImageKind } from '../../api'
 
 interface MenusProps {
@@ -343,6 +344,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                 <input
                   id="menu-name"
                   type="text"
+                  maxLength={TEXT_LIMITS.menuName}
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="เช่น ปลากะพงนึ่งมะนาว"
@@ -370,6 +372,7 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
                   <span>คำอธิบาย</span>
                   <textarea
                     rows={2}
+                    maxLength={TEXT_LIMITS.description}
                     value={form.description}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                     placeholder="เช่น ปลากะพงนึ่งราดน้ำมะนาวพริกสด"
@@ -384,11 +387,12 @@ export default function Menus({ menus, packages, settings, onSaveMenu, onDeleteM
             <input
                   type="number"
                   min="0"
+                  max={MAX_NUMBER}
                   step="1"
                   inputMode="numeric"
                   value={form.costPrice}
                   // ราคาทุนเก็บเป็นจำนวนเต็มบาท (backend/DB เป็น Int) — ปัดเป็นจำนวนเต็มตั้งแต่ตอนพิมพ์ กัน backend ปฏิเสธ 400
-                  onChange={e => setForm(f => ({ ...f, costPrice: Math.max(0, Math.round(Number(e.target.value)) || 0) }))}
+                  onChange={e => setForm(f => ({ ...f, costPrice: clampInt(Math.round(Number(e.target.value)), 0) }))}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                 />
           </label>

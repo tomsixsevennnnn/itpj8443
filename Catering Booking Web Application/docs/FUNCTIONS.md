@@ -482,7 +482,7 @@ throttle 10/นาที: `POST /uploads/menu-image`, `shop-logo`, `content-imag
 
 | DTO | Field และกฎ |
 |---|---|
-| `CreateBookingDto` | `shopId: string`, `date` (รูปแบบ `YYYY-MM-DD`), `timeSlot: string`, `tables: int 1–500`, `guestCount: int ≥1`, `packageId: string` (**ไม่มี `totalPrice`/`pricePerTable`/`deliveryFee`/`packageName` แล้ว** — backend คำนวณเอง), `location: string`, `locationDetail?: unknown`, `menus: string[]`, `lineId?: string` |
+| `CreateBookingDto` | (กฎการกรอกทุกช่องดู `REQUIREMENTS.md` 6.8; ตัวช่วยร่วมอยู่ที่ `backend/src/common/input-rules.ts`) `shopId: string`, `date` (รูปแบบ `YYYY-MM-DD`), `timeSlot: string`, `tables: int 1–500`, `guestCount: int ≥1`, `packageId: string` (**ไม่มี `totalPrice`/`pricePerTable`/`deliveryFee`/`packageName` แล้ว** — backend คำนวณเอง), `location: string`, `locationDetail?: unknown`, `menus: string[]`, `lineId?: string` |
 | `UpdateBookingDto` | `status?: BookingStatus`, `staffAuto/staffActual?: unknown`, `staffNote?: string` |
 | `UpdatePaymentSlipDto` | `paymentSlipUrl` ต้องเป็น path จาก `POST /uploads/payment-slip` (`/uploads/slips/<id>.png\|jpg\|jpeg\|webp`, ≤ 200 ตัวอักษร), `paymentChannelKey?` รูปแบบ `bank:<เลข 4–30 หลัก>` หรือ `pp:<…>` |
 | `CreateMenuItemDto`/`UpdateMenuItemDto` | เพิ่ม `costPrice?: int` จากเดิม |

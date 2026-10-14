@@ -4,6 +4,7 @@ import type { AppSettings, Category, MenuItem, Package, PackageCourse } from '..
 import { categoryMapOf, orderedCategories, requiredCourses } from '../../data'
 import type { CreatePackageInput, UpdatePackageInput } from '../../api'
 import { deepTrim } from '../../deepTrim'
+import { MAX_NUMBER, TEXT_LIMITS, clampInt } from '../../inputRules'
 
 interface PackagesProps {
   packages: Package[]
@@ -308,15 +309,16 @@ export default function Packages({
                 <div className="space-y-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">ข้อมูลแพ็กเกจ</p>
                   {[
-                    { key: 'name' as const, label: 'ชื่อแพ็กเกจ', placeholder: 'เช่น โต๊ะจีน 2,000' },
-                    { key: 'description' as const, label: 'คำอธิบาย', placeholder: 'รายละเอียดแพ็กเกจ' },
-                    { key: 'badge' as const, label: 'ป้ายกำกับ', placeholder: 'เช่น แนะนำ (ไม่บังคับ)' },
-                  ].map(({ key, label, placeholder }) => (
+                    { key: 'name' as const, label: 'ชื่อแพ็กเกจ', placeholder: 'เช่น โต๊ะจีน 2,000', maxLength: TEXT_LIMITS.packageName },
+                    { key: 'description' as const, label: 'คำอธิบาย', placeholder: 'รายละเอียดแพ็กเกจ', maxLength: TEXT_LIMITS.description },
+                    { key: 'badge' as const, label: 'ป้ายกำกับ', placeholder: 'เช่น แนะนำ (ไม่บังคับ)', maxLength: TEXT_LIMITS.badge },
+                  ].map(({ key, label, placeholder, maxLength }) => (
                     <div key={key}>
                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
             <span>{label}</span>
             <input
                         type="text"
+                        maxLength={maxLength}
                         placeholder={placeholder}
                         value={form[key]}
                         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
@@ -330,8 +332,10 @@ export default function Packages({
             <span>ราคา/โต๊ะ (฿)</span>
             <input
                       type="number"
+                      min={0}
+                      max={MAX_NUMBER}
                       value={form.pricePerTable}
-                      onChange={e => setForm(f => ({ ...f, pricePerTable: Number(e.target.value) }))}
+                      onChange={e => setForm(f => ({ ...f, pricePerTable: clampInt(e.target.value, 0) }))}
                       className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
                     />
           </label>
@@ -453,6 +457,7 @@ export default function Packages({
             <span>ไอคอน</span>
             <input
                                     type="text"
+                                    maxLength={20}
                                     value={course.icon ?? ''}
                                     placeholder={cat?.icon ?? '🍽️'}
                                     onChange={e => patchCourse(index, { icon: e.target.value })}
@@ -465,6 +470,7 @@ export default function Packages({
             <span>ชื่อข้อที่แสดง</span>
             <input
                                     type="text"
+                                    maxLength={TEXT_LIMITS.courseTitle}
                                     value={course.title}
                                     onChange={e => patchCourse(index, { title: e.target.value })}
                                     className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-orange-400"

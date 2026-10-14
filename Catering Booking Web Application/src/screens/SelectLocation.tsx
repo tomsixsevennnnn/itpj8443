@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar'
 import LocationMap, { type LocationMapHandle } from '../components/LocationMap'
 import { useNav } from '../NavContext'
 import type { EventLocation, LocationDetail, ShopLocation } from '../types'
+import { TEXT_LIMITS } from '../inputRules'
 import {
   PRESET_LOCATIONS,
   checkDelivery,
@@ -39,15 +40,16 @@ interface SelectLocationProps {
 /** กลางกรุงเทพฯ — ใช้เป็นจุดเริ่มต้นเมื่อยังไม่เคยเลือกสถานที่ */
 const DEFAULT_CENTER = { lat: 13.7466, lng: 100.5396 }
 
-const DETAIL_FIELDS: { key: keyof LocationDetail; label: string; placeholder: string; textarea?: boolean }[] = [
-  { key: 'houseNo', label: 'บ้านเลขที่', placeholder: 'เช่น 99/9' },
-  { key: 'building', label: 'อาคาร / ชั้น', placeholder: 'เช่น อาคาร A ชั้น 3' },
-  { key: 'village', label: 'หมู่บ้าน / ซอย', placeholder: 'เช่น หมู่บ้านปัญญา ซอย 5' },
-  { key: 'landmark', label: 'จุดสังเกต', placeholder: 'เช่น ตรงข้ามปั๊ม ปตท.' },
+const DETAIL_FIELDS: { key: keyof LocationDetail; label: string; placeholder: string; maxLength: number; textarea?: boolean }[] = [
+  { key: 'houseNo', label: 'บ้านเลขที่', placeholder: 'เช่น 99/9', maxLength: TEXT_LIMITS.locationShort },
+  { key: 'building', label: 'อาคาร / ชั้น', placeholder: 'เช่น อาคาร A ชั้น 3', maxLength: TEXT_LIMITS.locationShort },
+  { key: 'village', label: 'หมู่บ้าน / ซอย', placeholder: 'เช่น หมู่บ้านปัญญา ซอย 5', maxLength: TEXT_LIMITS.locationShort },
+  { key: 'landmark', label: 'จุดสังเกต', placeholder: 'เช่น ตรงข้ามปั๊ม ปตท.', maxLength: TEXT_LIMITS.locationNote },
   {
     key: 'accessNote',
     label: 'รายละเอียดการเข้าถึงสถานที่',
     placeholder: 'เช่น รถบรรทุกเข้าได้ ประตูหลังเปิด 15:00 น. ต้องแลกบัตรที่ รปภ.',
+    maxLength: TEXT_LIMITS.locationNote,
     textarea: true,
   },
 ]
@@ -460,12 +462,13 @@ export default function SelectLocation({
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">รายละเอียดเพิ่มเติม</p>
                 <div className="space-y-3">
-                  {DETAIL_FIELDS.map(({ key, label, placeholder, textarea }) => (
+                  {DETAIL_FIELDS.map(({ key, label, placeholder, maxLength, textarea }) => (
                     <div key={key}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
                       {textarea ? (
                         <textarea
                           rows={2}
+                          maxLength={maxLength}
                           value={detail[key]}
                           onChange={e => setDetail(d => ({ ...d, [key]: e.target.value }))}
                           placeholder={placeholder}
@@ -474,6 +477,7 @@ export default function SelectLocation({
                       ) : (
                         <input
                           type="text"
+                          maxLength={maxLength}
                           value={detail[key]}
                           onChange={e => setDetail(d => ({ ...d, [key]: e.target.value }))}
                           placeholder={placeholder}

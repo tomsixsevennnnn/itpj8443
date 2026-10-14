@@ -94,6 +94,7 @@ stateDiagram-v2
 | ตรวจสลิปอัตโนมัติ | ยืนยันกับธนาคารผ่าน SlipOK แล้วเทียบผู้รับกับบัญชีร้านรายช่องทาง (หลายบัญชี + พร้อมเพย์) สลิปที่ผ่านแล้วเปลี่ยนไม่ได้ | `slip-verify/` |
 | ความลับของร้าน | SlipOK API key เข้ารหัส AES-256-GCM ใน DB (เมื่อตั้ง `SETTINGS_ENCRYPTION_KEY`) และไม่เก็บค่าจริงใน audit log | `settings/secret-box.ts` |
 | สิทธิ์ข้อมูลการเงิน | ลูกค้าเห็นข้อมูลชำระเงินเฉพาะร้านที่เชื่อม SlipOK แล้ว และไม่เห็นค่าแรง/ข้อมูลต้นทุน | `settings.service.ts` (`toClient`) |
+| ตรวจสอบข้อมูลที่กรอก | Validation สองชั้น: หน้าจอตัดอักขระต้องห้ามตอนพิมพ์ (UX) + backend ตรวจซ้ำด้วย DTO (`class-validator`) และทำความสะอาดข้อมูล (`class-transformer`) — เบอร์โทร, ชื่อ (ตัวอักษรล้วน), Line ID, เลขบัญชี (ตัวเลขล้วน), เพดานตัวเลข, ความยาวข้อความ, วันที่มีจริง | `src/inputRules.ts`, `backend/src/common/input-rules.ts` |
 | ความปลอดภัย HTTP | helmet, rate limit, `trust proxy`, ตรวจตัวแปรสภาพแวดล้อมตอนเริ่ม, token ทาง query รับเฉพาะ `/realtime` | `main.ts`, `jwt.strategy.ts`, `config/` |
 | ความน่าเชื่อถือ | `/health` และ `/health/ready` (ตรวจ DB), graceful shutdown, แคชเส้นทาง OSRM ลดภาระบริการสาธารณะ | `health/`, `geo.util.ts` |
 | ประสบการณ์ผู้ใช้ | อัปเดตแบบ realtime ผ่าน SSE, เก็บแบบร่างการจองข้ามการรีเฟรช, แจ้งเมื่อราคาเปลี่ยน, ErrorBoundary กันหน้าขาว | `useBookingsStream.ts`, `bookingDraft.ts` |

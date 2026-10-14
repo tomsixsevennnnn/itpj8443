@@ -40,7 +40,8 @@ import { deepTrim } from '../../deepTrim'
 import SuggestInput from '../../components/SuggestInput'
 import BankBadge from '../../components/BankBadge'
 import ExtraPaymentAccounts from '../../components/ExtraPaymentAccounts'
-import { bankAccountsOf, digitsOnly, lettersOnly, promptPaysOf } from '../../paymentChannels'
+import { bankAccountsOf, promptPaysOf } from '../../paymentChannels'
+import { MAX_NUMBER, TEXT_LIMITS, clampInt, clampNumber, digitsOnly, lettersOnly } from '../../inputRules'
 import { THAI_BANK_NAMES, bankNameOf, isKnownBank } from '../../banks'
 import { accountMatches, nameMatches } from '../../receiverMatch'
 import { joinName, splitName } from '../../thaiName'
@@ -65,6 +66,20 @@ const SHOP_FIELDS: { key: ShopInfoTextKey; label: string; placeholder: string }[
   { key: 'phone', label: 'เบอร์โทรร้าน', placeholder: 'เช่น 034-XXX-XXX' },
   { key: 'line', label: 'Line ID ร้าน', placeholder: 'เช่น @pipatphochana' },
 ]
+
+/** ความยาวสูงสุดของช่องข้อมูลร้านแต่ละช่อง — ต้องตรงกับ @MaxLength ใน update-settings.dto.ts */
+const SHOP_FIELD_MAX: Record<ShopInfoTextKey, number> = {
+  name: TEXT_LIMITS.shopName,
+  nameEn: TEXT_LIMITS.shopName,
+  initials: TEXT_LIMITS.shopInitials,
+  phone: 30,
+  line: 50,
+  address: TEXT_LIMITS.shopAddress,
+  loginTagline: TEXT_LIMITS.shopTagline,
+} as Record<ShopInfoTextKey, number>
+
+/** จำนวนเงื่อนไขเพิ่มเติมสูงสุดต่อเอกสาร (ต้องตรงกับ ArrayMaxSize ใน backend) */
+const MAX_TERMS = 20
 
 const WAGE_FIELDS: { key: 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 'wageDishwasher'; label: string; unit: string }[] = [
   { key: 'wageChef', label: 'ค่าแรงพ่อครัว', unit: 'บาท/คน/งาน' },
@@ -175,6 +190,7 @@ function ShopTab({ form, setShopField, setBrandColor, logoInputRef, handlePickLo
             <span>{label}</span>
             <input
                 type="text"
+                maxLength={SHOP_FIELD_MAX[key]}
                 value={form.shopInfo[key]}
                 placeholder={placeholder}
                 onChange={e => setShopField(key, e.target.value)}
@@ -192,6 +208,7 @@ function ShopTab({ form, setShopField, setBrandColor, logoInputRef, handlePickLo
               value={form.shopInfo.address}
               placeholder="เช่น อ.เมืองนครปฐม จ.นครปฐม 73000"
               rows={2}
+              maxLength={TEXT_LIMITS.shopAddress}
               onChange={e => setShopField('address', e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all mt-1.5"
             />
@@ -203,6 +220,7 @@ function ShopTab({ form, setShopField, setBrandColor, logoInputRef, handlePickLo
             <span>คำโปรยหน้า Login</span>
             <input
             type="text"
+            maxLength={TEXT_LIMITS.shopTagline}
             value={form.shopInfo.loginTagline}
             placeholder="เช่น ระบบจองจัดเลี้ยงนอกสถานที่"
             onChange={e => setShopField('loginTagline', e.target.value)}
@@ -863,8 +881,9 @@ function DeliveryTab({
             <input
               type="number"
               min={0}
+              max={MAX_NUMBER}
               value={form.deliveryFee}
-              onChange={e => setNumberField('deliveryFee', Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+              onChange={e => setNumberField('deliveryFee', clampInt(e.target.value, 0))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </label>
@@ -1025,9 +1044,10 @@ function DeliveryTab({
             <input
             type="number"
             min={0}
+            max={MAX_NUMBER}
             step="0.5"
             value={form.fuelCostPerKm}
-            onChange={e => setNumberField('fuelCostPerKm', Math.max(0, Number(e.target.value) || 0))}
+            onChange={e => setNumberField('fuelCostPerKm', clampNumber(e.target.value, 0))}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
           </label>
@@ -1214,6 +1234,8 @@ function BookingTab({
         <div className="flex gap-2 mb-3">
           <input
             type="date"
+            min="2000-01-01"
+            max="2100-12-31"
             value={newClosedDate}
             onChange={e => setNewClosedDate(e.target.value)}
             className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
@@ -1270,8 +1292,9 @@ function BookingTab({
               id="quotationValidDays"
               type="number"
               min={1}
+              max={MAX_NUMBER}
               value={form.quotationValidDays}
-              onChange={e => setNumberField('quotationValidDays', Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+              onChange={e => setNumberField('quotationValidDays', clampInt(e.target.value, 1))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             <span className="text-xs text-gray-400 whitespace-nowrap">วัน</span>
@@ -1290,6 +1313,7 @@ function BookingTab({
               <input
                 id={`term-${field}`}
                 type="text"
+                maxLength={TEXT_LIMITS.term}
                 value={value}
                 onChange={e => setValue(e.target.value)}
                 onKeyDown={e => {
@@ -1304,7 +1328,7 @@ function BookingTab({
               <button
                 type="button"
                 onClick={() => addTerm(field, value, () => setValue(''))}
-                disabled={!value.trim()}
+                disabled={!value.trim() || form[field].length >= MAX_TERMS}
                 className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
               >
                 <Plus size={14} />
@@ -1313,6 +1337,7 @@ function BookingTab({
             </div>
             <div className="space-y-1.5">
               {form[field].length === 0 && <p className="text-xs text-gray-400">ยังไม่มีเงื่อนไขเพิ่มเติม</p>}
+              {form[field].length >= MAX_TERMS && <p className="text-xs text-amber-600">ครบ {MAX_TERMS} ข้อแล้ว ลบข้อเดิมก่อนถึงจะเพิ่มได้</p>}
               {form[field].map((term, i) => (
                 <div key={i} className="flex items-start gap-2 bg-gray-50 rounded-xl px-3.5 py-2.5">
                   <span className="flex-1 text-sm text-gray-700">• {term}</span>
@@ -1577,7 +1602,9 @@ export default function Settings({ settings, onUpdateSettings, onResolveMapsLink
 
   /** เพิ่มวันหยุดร้าน (ปิด ไม่รับจอง) — เรียงวันที่จากใกล้ไปไกลให้ดูง่าย */
   const addClosedDate = () => {
-    if (!newClosedDate || form.closedDates.includes(newClosedDate)) {
+    // ต้องเป็นวันที่ที่มีอยู่จริง (backend ตรวจซ้ำ — ช่อง type=date ของเบราว์เซอร์บางตัวพิมพ์เองแล้วหลุดค่าแปลกๆ มาได้)
+    const isRealDate = /^\d{4}-\d{2}-\d{2}$/.test(newClosedDate) && new Date(`${newClosedDate}T00:00:00Z`).toISOString().slice(0, 10) === newClosedDate
+    if (!isRealDate || form.closedDates.includes(newClosedDate)) {
       setNewClosedDate('')
       return
     }
@@ -1595,8 +1622,9 @@ export default function Settings({ settings, onUpdateSettings, onResolveMapsLink
 
   /** เพิ่ม/ลบข้อความเงื่อนไขทีละบรรทัด — ใช้ร่วมกันทั้งใบเสนอราคาและใบจอง */
   const addTerm = (field: 'quotationTerms' | 'bookingTerms', text: string, clear: () => void) => {
-    const line = text.trim()
+    const line = text.trim().slice(0, TEXT_LIMITS.term)
     if (!line) return
+    if (form[field].length >= MAX_TERMS) return // ครบจำนวนสูงสุดแล้ว (ตรงกับ ArrayMaxSize ใน backend)
     setForm(f => ({ ...f, [field]: [...f[field], line] }))
     clear()
     setSavedAt(null)
