@@ -390,7 +390,7 @@ endpoint ส่วนใหญ่อยู่หลัง `@UseGuards(JwtAuthGua
 
 | Endpoint | บทบาท | ตรรกะ |
 |---|---|---|
-| `POST /users/me` | login แล้ว (throttle 20/นาที) | sync/สร้างบัญชีจาก JWT + ข้อมูลที่ frontend ส่ง (`findOrCreate` ด้วย `auth0Sub`); อีเมลใน `SUPER_ADMIN_EMAILS` ถูกตั้งเป็น SUPER_ADMIN |
+| `POST /users/me` | login แล้ว (throttle 20/นาที) | sync/สร้างบัญชีจาก JWT + ข้อมูลที่ frontend ส่ง (`findOrCreate` ด้วย `auth0Sub`); อีเมลใน `SUPER_ADMIN_EMAILS` ถูกตั้งเป็น SUPER_ADMIN; ชื่อ/นามสกุลจาก Google เขียนเฉพาะเมื่อช่องใน DB ว่าง (ค่าที่ผู้ใช้กรอกเองเป็นข้อมูลหลัก ไม่ถูกทับ) ส่วนอีเมล/รูปอัปเดตตาม Google ทุกครั้ง; **หลัง sync เรียก `claimOwnerInvites`:** ถ้ามีคำเชิญ (`ShopInvite`) อยู่ในระบบ ถามอีเมลจาก Auth0 `/userinfo` (`auth/userinfo.ts`) และถ้า `email_verified` ตรงกับคำเชิญ สร้าง `ShopMember` ลบคำเชิญ บันทึก audit แล้วคืน memberships ล่าสุด (ไม่มีคำเชิญเลย = ไม่เรียก Auth0) |
 | `PATCH /users/me` | login แล้ว | แก้โปรไฟล์ตัวเอง (ชื่อ/นามสกุล/เบอร์/Line ID) |
 | `GET /users/search?email=` | owner, super_admin | ค้นหาผู้ใช้ที่เคย login แล้วด้วยอีเมล (ไม่ต้องพิมพ์ครบ, สูงสุด 20 คน) |
 | `GET /users/owners` | owner, super_admin | owner ของร้านที่เปิดอยู่ (owner) / owner ข้ามทุกร้าน 1 แถวต่อ 1 สมาชิกภาพ (super admin) |
@@ -401,10 +401,11 @@ endpoint ส่วนใหญ่อยู่หลัง `@UseGuards(JwtAuthGua
 | Endpoint | บทบาท | ตรรกะ |
 |---|---|---|
 | `GET /shops/public`, `GET /shops/:slug/public` | ไม่ต้อง login | ร้านที่เปิดให้บริการ (ACTIVE) สำหรับหน้าเลือกร้าน/เข้าร้านด้วย slug (ค้น case-insensitive) |
-| `GET /shops` | super_admin | ทุกร้านพร้อมจำนวน owner/ใบจอง และยอดขายรวม (ไม่นับใบที่ยกเลิก) |
-| `POST /shops` | super_admin | สร้างร้าน + `Settings` เริ่มต้น + `ShopMember` ของ owner (ต้องเคย login มาแล้ว) ในทรานแซกชันเดียว |
+| `GET /shops` | super_admin | ทุกร้านพร้อมจำนวน owner/ใบจอง ยอดขายรวม (ไม่นับใบที่ยกเลิก) และ `invites[]` (คำเชิญที่ยังไม่มีคนรับ) |
+| `POST /shops` | super_admin | สร้างร้าน + `Settings` เริ่มต้นในทรานแซกชันเดียว แล้วผูก `ShopMember` ของ owner (อีเมลเคย login แล้ว) หรือสร้าง `ShopInvite` (ยังไม่เคย login) |
 | `PATCH /shops/:id`, `PATCH /shops/:id/status` | super_admin | แก้ชื่อ/slug (ชื่อซิงค์ไป `Settings.shopName`), ระงับ/เปิดใช้งาน |
-| `POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId` | super_admin | เพิ่ม/ถอด owner (ห้ามถอดคนสุดท้าย) |
+| `POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId` | super_admin | เพิ่ม/ถอด owner — `POST` กับอีเมลที่ยังไม่เคย login สร้างคำเชิญล่วงหน้าแทนและคืน `{ invited: true, email, shopId }` (เชิญซ้ำ → 409) |
+| `DELETE /shops/:id/invites/:inviteId` | super_admin | ยกเลิกคำเชิญที่ยังไม่มีคนรับ (audit `shop.uninvite`) |
 | `DELETE /shops/:id` | super_admin | ลบถาวร ต้องส่ง `confirmName` ตรงกับชื่อร้านเป๊ะ — เก็บรายการไฟล์ของร้าน ลบร้าน (cascade) แล้วลบไฟล์รูป/สลิป/โลโก้/หน้าแรกจากดิสก์ บันทึก audit `shop.delete` ด้วย `shopId = null` |
 
 

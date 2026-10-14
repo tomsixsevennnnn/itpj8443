@@ -125,14 +125,17 @@ export default function Login({ shopId, onChangeShop }: Readonly<LoginProps>) {
             </div>
           </div>
 
-          {/* Owner login — เข้าระบบแยกด้วย username/password ของร้าน ไม่ใช่ Google */}
+          {/* Owner login — เข้าระบบแยกด้วย username/password ของร้าน (เจ้าของร้านที่ถูกเพิ่มด้วยอีเมล Google กดปุ่ม Google ด้านบนได้เลย) */}
           <button
             onClick={loginAsOwner}
             disabled={isLoading}
             className="w-full text-center text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
           >
-            เข้าระบบในฐานะเจ้าของร้าน
+            เข้าระบบในฐานะเจ้าของร้าน (username/password)
           </button>
+          <p className="text-center text-[11px] text-gray-400 mt-1">
+            เจ้าของร้านที่ได้รับเชิญด้วยอีเมล Google กดปุ่ม "เข้าสู่ระบบด้วย Google" ด้านบนได้เลย
+          </p>
 
           {/* เลือกร้านผิด — กลับไปหน้ารายชื่อร้านใหม่ */}
           <button

@@ -366,6 +366,8 @@ export interface ShopAdmin {
   createdAt: string
   _count?: { owners: number; bookings: number }
   totalRevenue?: number
+  /** คำเชิญเป็นเจ้าของร้านที่ยังไม่มีคนรับ (อีเมลที่ยังไม่เคย login) — ได้สิทธิ์เองตอน login ครั้งแรก */
+  invites?: { id: string; email: string; createdAt: string }[]
 }
 
 export interface CourseInput {
@@ -600,7 +602,7 @@ export const api = {
   /** super admin เท่านั้น — รายชื่อร้านทั้งหมดในระบบพร้อมจำนวน owner ของแต่ละร้าน */
   shopsList: (token: string) => request<ShopAdmin[]>(token, '/shops'),
 
-  /** สร้างร้านใหม่ + ผูก owner คนแรกทันที — ownerEmail ต้องเป็นอีเมลของ user ที่เคย login เข้าระบบมาแล้วอย่างน้อย 1 ครั้ง */
+  /** สร้างร้านใหม่ + ผูก owner คนแรก — ownerEmail ที่เคย login แล้วผูกทันที ที่ยังไม่เคย login สร้างเป็นคำเชิญล่วงหน้า */
   createShop: (token: string, input: { name: string; ownerEmail: string }) =>
     request<ShopAdmin>(token, '/shops', { method: 'POST', body: JSON.stringify(input) }),
 
@@ -611,9 +613,17 @@ export const api = {
   setShopStatus: (token: string, id: string, status: 'ACTIVE' | 'SUSPENDED') =>
     request<ShopAdmin>(token, `/shops/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
-  /** เพิ่ม owner คนใหม่เข้าร้านที่มีอยู่แล้ว — email ต้องเป็น user ที่เคย login เข้าระบบมาแล้วและยังไม่มีร้านอื่นผูกอยู่ */
+  /** เพิ่ม owner คนใหม่เข้าร้านที่มีอยู่แล้ว — ถ้าอีเมลเคย login แล้วผูกทันที ถ้ายังไม่เคย login สร้างเป็นคำเชิญ
+   *  (`invited: true`) คนนั้นได้สิทธิ์เองตอน login ครั้งแรก */
   addShopOwner: (token: string, id: string, email: string) =>
-    request<BackendUser>(token, `/shops/${id}/owners`, { method: 'POST', body: JSON.stringify({ email }) }),
+    request<BackendUser | { invited: true; email: string; shopId: string }>(token, `/shops/${id}/owners`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  /** ยกเลิกคำเชิญเป็นเจ้าของร้านที่ยังไม่มีคนรับ */
+  removeShopInvite: (token: string, id: string, inviteId: string) =>
+    request<{ id: string }>(token, `/shops/${id}/invites/${inviteId}`, { method: 'DELETE' }),
 
   /** ถอด owner ออกจากร้าน (กลับไปเป็นลูกค้าธรรมดา) */
   removeShopOwner: (token: string, id: string, userId: string) =>

@@ -1,4 +1,5 @@
-import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
+import type { Request } from 'express'
 import { Throttle } from '@nestjs/throttler'
 import { Role } from '@prisma/client'
 import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
@@ -26,8 +27,11 @@ export class UsersController {
   // เรียกถี่ขนาดนั้นตามปกติ กันยิงรัวๆ โดยไม่จำเป็น
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('me')
-  sync(@CurrentUser() jwtUser: JwtUser, @Body() dto: SyncProfileDto) {
-    return this.users.syncProfile(jwtUser.sub, Role.CUSTOMER, dto)
+  async sync(@CurrentUser() jwtUser: JwtUser, @Body() dto: SyncProfileDto, @Req() req: Request) {
+    const user = await this.users.syncProfile(jwtUser.sub, Role.CUSTOMER, dto)
+    // คำเชิญเป็นเจ้าของร้านที่ super admin ใส่อีเมลไว้ล่วงหน้า — ได้สิทธิ์ตอน login ครั้งแรก (ถ้ามีสิทธิ์ใหม่ อ่านผู้ใช้ซ้ำให้ memberships ล่าสุด)
+    const claimed = await this.users.claimOwnerInvites(jwtUser.sub, req.headers.authorization)
+    return claimed ? ((await this.users.findWithMemberships(jwtUser.sub)) ?? user) : user
   }
 
   /** บันทึกเบอร์โทร/Line ID ที่ Auth0 ไม่มีให้ (ดูหน้า CompleteProfile ฝั่ง frontend) */

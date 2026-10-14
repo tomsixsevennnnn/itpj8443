@@ -77,7 +77,8 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 - **สิทธิ์ต่อร้าน:** `User.role` ระดับระบบมีแค่ `CUSTOMER` หรือ `SUPER_ADMIN` ส่วนการเป็น owner เก็บที่ตาราง `ShopMember(userId, shopId)` — บัญชีเดียวเป็น owner ได้หลายร้านและเป็นลูกค้าของร้านที่ไม่ได้เป็น owner ได้
 - **ร้านที่กำลังใช้งาน** ส่งไปกับทุกคำขอด้วย header `X-Shop-Id` backend ดูว่าผู้เรียกมี `ShopMember` ของร้านนั้นหรือไม่ — มี = OWNER ของร้านนั้น, ไม่มี = CUSTOMER, `SUPER_ADMIN` = ข้ามร้านเสมอ ส่ง header ปลอมไม่ได้สิทธิ์เพิ่ม
 - **Super Admin คนแรก:** อีเมลใน `SUPER_ADMIN_EMAILS` ถูกตั้งเป็น SUPER_ADMIN ตอน login ครั้งแรก
-- **ผู้ใช้ต้อง login เข้าเว็บอย่างน้อย 1 ครั้ง** ก่อนจะถูกเพิ่มเป็น owner ของร้านได้ (ระบบหาจากอีเมลในตาราง `User`)
+- **เพิ่มเจ้าของร้านด้วยอีเมล (แม้ยังไม่เคย login):** Super Admin ใส่อีเมลตอนสร้างร้าน/เพิ่ม owner — ถ้าอีเมลนั้นเคย login แล้ว ผูก `ShopMember` ทันที ถ้ายังไม่เคย ระบบเก็บเป็น **คำเชิญล่วงหน้า** (`ShopInvite` มีแค่อีเมลกับร้าน) แล้วให้สิทธิ์อัตโนมัติตอนเจ้าของ login ครั้งแรก — ตรวจอีเมลจาก Auth0 `/userinfo` ด้วย token ของผู้เรียกเอง (ไม่เชื่ออีเมลที่หน้าเว็บส่งมา) และต้อง `email_verified = true` เท่านั้น เจ้าของร้านเข้าด้วย Google (ปุ่มเดียวกับลูกค้า) หรือ username/password ก็ได้ เพราะบทบาทตัดสินจาก DB
+- **ข้อมูลโปรไฟล์ของ owner:** owner กรอกหน้า "ข้อมูลเพิ่มเติม" (ชื่อ นามสกุล เบอร์ Line ID) ตอน login ครั้งแรกเหมือนลูกค้า ข้อมูลที่กรอกเป็นข้อมูลหลัก ส่วนชื่อ/รูป/อีเมลจาก Google เป็นข้อมูลสำรอง (ชื่อจาก Google ใช้เมื่อช่องนั้นว่างเท่านั้น)
 - ข้อมูลโปรไฟล์ที่ Auth0 ไม่มีให้ (เบอร์โทร, Line ID) ขอครั้งแรกผ่านหน้า **CompleteProfile** แล้วบันทึกที่ backend (`PATCH /users/me`)
 - token ทาง query string (`?access_token=`) รับเฉพาะ `/realtime/*` (SSE ใส่ header ไม่ได้) route อื่นต้องใช้ header
 
@@ -120,7 +121,7 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 
 ### 3.3 Super Admin (ผู้ดูแลระบบ — ข้ามร้าน)
 
-หน้าเดียว (`SuperAdmin.tsx`): สร้างร้านใหม่ (ชื่อร้าน + อีเมล owner), แก้ชื่อ/path (slug) ร้าน, **ระงับ/เปิดใช้งาน** ร้าน, เพิ่ม/ถอด owner ของแต่ละร้าน, แต่งตั้ง/ถอด Super Admin, ดูสรุปจำนวน owner/ใบจอง/ยอดขายรวมต่อร้าน, ดูประวัติการแก้ไขข้ามร้าน และ **ลบร้านถาวร** (พิมพ์ `Delete {ชื่อร้าน}` ยืนยัน ลบข้อมูลทั้งหมดของร้านรวมถึงไฟล์รูป/สลิปบนดิสก์ — กู้คืนไม่ได้)
+หน้าเดียว (`SuperAdmin.tsx`): สร้างร้านใหม่ (ชื่อร้าน + อีเมล owner — ยังไม่เคย login ก็ได้ จะแสดงเป็น "รอ login ครั้งแรก" และยกเลิกคำเชิญได้), แก้ชื่อ/path (slug) ร้าน, **ระงับ/เปิดใช้งาน** ร้าน, เพิ่ม/ถอด owner ของแต่ละร้าน, แต่งตั้ง/ถอด Super Admin, ดูสรุปจำนวน owner/ใบจอง/ยอดขายรวมต่อร้าน, ดูประวัติการแก้ไขข้ามร้าน และ **ลบร้านถาวร** (พิมพ์ `Delete {ชื่อร้าน}` ยืนยัน ลบข้อมูลทั้งหมดของร้านรวมถึงไฟล์รูป/สลิปบนดิสก์ — กู้คืนไม่ได้)
 
 ### 3.4 สรุปสิทธิ์ระดับ API (backend)
 
@@ -128,8 +129,9 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 |---|---|---|---|---|
 | `GET /shops/public`, `GET /shops/:slug/public` | ไม่ต้อง login | | | รายชื่อ/ข้อมูลร้านที่เปิดให้บริการ |
 | `GET /shops`, `POST /shops`, `PATCH /shops/:id`, `PATCH /shops/:id/status`, `DELETE /shops/:id` | ❌ | ❌ | ✅ | ลบร้านต้องส่งชื่อยืนยัน |
-| `POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId` | ❌ | ❌ | ✅ | |
-| `POST /users/me`, `PATCH /users/me` | ✅ | ✅ | ✅ | sync/แก้โปรไฟล์ตัวเอง |
+| `POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId` | ❌ | ❌ | ✅ | อีเมลที่ยังไม่เคย login → สร้างคำเชิญล่วงหน้า (`invited: true`) |
+| `DELETE /shops/:id/invites/:inviteId` | ❌ | ❌ | ✅ | ยกเลิกคำเชิญที่ยังไม่มีคนรับ |
+| `POST /users/me`, `PATCH /users/me` | ✅ | ✅ | ✅ | sync/แก้โปรไฟล์ตัวเอง; `POST` ยังรับสิทธิ์ owner จากคำเชิญ (ถ้ามี) |
 | `GET /users/search?email=`, `GET /users/owners`, `PATCH /users/:id/role` | ❌ | ✅ (ร้านตัวเอง: CUSTOMER ↔ OWNER) | ✅ (CUSTOMER ↔ SUPER_ADMIN เท่านั้น) | ตั้ง/ถอด owner ของร้านโดย super admin ทำผ่าน `/shops/:id/owners` |
 | `GET /bookings` | ✅ ของตัวเองใน `?shopId=` | ✅ ทั้งร้าน | | รองรับ `?page=&limit=` |
 | `GET /bookings/availability` | ✅ | ✅ | | คิวไม่มีข้อมูลส่วนตัว |
@@ -312,9 +314,10 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 
 ## 7. Data Model สรุป (Prisma schema, `backend/prisma/schema.prisma`)
 
-- **Shop** — `id, name, slug(unique), status(ACTIVE|SUSPENDED), createdAt` → มี `Settings` (1:1), `ShopMember`, `Booking`, `MenuItem`, `Package`, `BookingCounter`, `AuditLog` (ลบร้าน = cascade)
+- **Shop** — `id, name, slug(unique), status(ACTIVE|SUSPENDED), createdAt` → มี `Settings` (1:1), `ShopMember`, `ShopInvite`, `Booking`, `MenuItem`, `Package`, `BookingCounter`, `AuditLog` (ลบร้าน = cascade)
 - **User** — `id, auth0Sub(unique), role(CUSTOMER|OWNER|SUPER_ADMIN), name, surname, phone, lineId, email, avatar, createdAt` (บทบาท owner ต่อร้านอยู่ที่ `ShopMember`)
 - **ShopMember** — `userId, shopId` unique คู่ (owner ของร้าน)
+- **ShopInvite** — `shopId, email (ตัวพิมพ์เล็ก), createdAt` unique คู่ `(shopId, email)` คำเชิญเป็น owner ของคนที่ยังไม่เคย login (ลบเมื่อมีผู้รับสิทธิ์)
 - **MenuItem** — `shopId, name, category, description, image?, imagePosition?, imageScale?, costPrice?, active, updatedAt, lastEditedBy?` เชื่อม `PackageCourse` (many-to-many)
 - **Package** — `shopId, name, pricePerTable, menuLimit, description, features[], badge?, sortOrder, deletedAt?, updatedAt, lastEditedBy?` → `PackageCourse`
 - **PackageCourse** — `packageId, no, title, icon?, category, choose (0 = รวมมาให้, >0 = เลือกกี่อย่าง), items[]`

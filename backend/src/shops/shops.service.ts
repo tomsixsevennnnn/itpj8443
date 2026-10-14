@@ -39,7 +39,10 @@ export class ShopsService {
     const [shops, revenueByShop] = await Promise.all([
       this.prisma.shop.findMany({
         orderBy: { createdAt: 'desc' },
-        include: { _count: { select: { members: true, bookings: true } } },
+        include: {
+          _count: { select: { members: true, bookings: true } },
+          invites: { select: { id: true, email: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
+        },
       }),
       this.prisma.booking.groupBy({
         by: ['shopId'],
@@ -77,16 +80,13 @@ export class ShopsService {
   }
 
   /**
-   * สร้างร้านใหม่ + ผูก owner คนแรกให้ทันทีในทรานแซกชันเดียว — owner ต้องเคย login เข้าระบบมาก่อนอย่างน้อย 1
-   * ครั้งแล้ว (มีแถวใน User ตารางจาก syncProfile) ถึงจะหาเจอด้วยอีเมล ยังไม่เคย login มาก่อนเลยสร้างร้านให้ไม่ได้
-   * เพราะไม่มี auth0Sub ให้ผูก — ต้องให้ user คนนั้น login เข้าเว็บครั้งนึงก่อน (เป็น CUSTOMER ธรรมดา) แล้วค่อยมาสร้างร้าน
+   * สร้างร้านใหม่ + ผูก owner คนแรกในทรานแซกชันเดียว — ถ้าอีเมลนี้เคย login แล้ว (มีแถวใน User) ผูก ShopMember ทันที
+   * ถ้ายังไม่เคย login สร้างเป็นคำเชิญล่วงหน้า (ShopInvite) แทน: คนนั้น login ครั้งแรก (อีเมลที่ Auth0 ยืนยันแล้ว) ได้สิทธิ์เองอัตโนมัติ
    */
   async createShop(dto: CreateShopDto, editorAuth0Sub: string) {
-    const owner = await this.prisma.user.findFirst({ where: { email: { equals: dto.ownerEmail, mode: 'insensitive' } } })
-    if (!owner) {
-      throw new NotFoundException('ไม่พบผู้ใช้นี้ในระบบ — ต้องให้เจ้าของร้านคนนี้ login เข้าเว็บอย่างน้อย 1 ครั้งก่อน')
-    }
-    if (owner.role === Role.SUPER_ADMIN) {
+    const ownerEmail = dto.ownerEmail.trim().toLowerCase()
+    const owner = await this.prisma.user.findFirst({ where: { email: { equals: ownerEmail, mode: 'insensitive' } } })
+    if (owner?.role === Role.SUPER_ADMIN) {
       throw new BadRequestException('ผู้ใช้นี้เป็น super admin ไม่สามารถตั้งเป็นเจ้าของร้านได้')
     }
 
@@ -101,7 +101,8 @@ export class ShopsService {
     const shop = await this.prisma.$transaction(async (tx) => {
       const created = await tx.shop.create({ data: { name: dto.name, slug } })
       await tx.settings.create({ data: { ...DEFAULT_SETTINGS, shopId: created.id, shopName: dto.name } })
-      await tx.shopMember.create({ data: { userId: owner.id, shopId: created.id } })
+      if (owner) await tx.shopMember.create({ data: { userId: owner.id, shopId: created.id } })
+      else await tx.shopInvite.create({ data: { shopId: created.id, email: ownerEmail } })
       return created
     })
 
@@ -144,21 +145,37 @@ export class ShopsService {
     return after
   }
 
-  /** ผูก owner เพิ่มเข้าร้านที่มีอยู่แล้ว (เช่นเพิ่มผู้ช่วยดูแลร้าน) — ผู้ใช้ต้อง login มาก่อนแล้ว เป็น owner ร้านอื่นอยู่แล้วก็ได้
-   *  (1 คนเป็น owner ได้หลายร้าน) แต่ต้องไม่ใช่ owner ร้านนี้อยู่แล้ว */
+  /** ผูก owner เพิ่มเข้าร้านที่มีอยู่แล้ว (เช่นเพิ่มผู้ช่วยดูแลร้าน) — เป็น owner ร้านอื่นอยู่แล้วก็ได้ (1 คนเป็น owner ได้หลายร้าน)
+   *  แต่ต้องไม่ใช่ owner ร้านนี้อยู่แล้ว ถ้าอีเมลนี้ยังไม่เคย login สร้างเป็นคำเชิญล่วงหน้าแทน (คืน { invited: true }) */
   async addOwner(shopId: string, email: string, editorAuth0Sub: string) {
     const shop = await this.prisma.shop.findUnique({ where: { id: shopId } })
     if (!shop) throw new NotFoundException('ไม่พบร้านนี้')
 
-    const user = await this.prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } })
-    if (!user) throw new NotFoundException('ไม่พบผู้ใช้นี้ในระบบ — ต้อง login เข้าเว็บอย่างน้อย 1 ครั้งก่อน')
+    const normalized = email.trim().toLowerCase()
+    const user = await this.prisma.user.findFirst({ where: { email: { equals: normalized, mode: 'insensitive' } } })
+    if (!user) {
+      const invited = await this.prisma.shopInvite.findUnique({ where: { shopId_email: { shopId, email: normalized } } })
+      if (invited) throw new ConflictException('อีเมลนี้ถูกเชิญเป็นเจ้าของร้านนี้ไว้แล้ว รอเจ้าของร้าน login ครั้งแรก')
+      await this.prisma.shopInvite.create({ data: { shopId, email: normalized } })
+      await this.audit.log(editorAuth0Sub, 'shop.invite', 'Shop', shopId, undefined, { email: normalized }, shopId)
+      return { invited: true as const, email: normalized, shopId }
+    }
     if (user.role === Role.SUPER_ADMIN) throw new ConflictException('ผู้ใช้นี้เป็น super admin ไม่สามารถเพิ่มเป็นเจ้าของร้านได้')
     const existing = await this.prisma.shopMember.findUnique({ where: { userId_shopId: { userId: user.id, shopId } } })
     if (existing) throw new ConflictException('ผู้ใช้นี้เป็นเจ้าของร้านนี้อยู่แล้ว')
 
     await this.prisma.shopMember.create({ data: { userId: user.id, shopId } })
     await this.audit.log(editorAuth0Sub, 'shop.addOwner', 'Shop', shopId, undefined, { userId: user.id, email }, shopId)
-    return { ...user, role: Role.OWNER, shopId }
+    return { ...user, role: Role.OWNER, shopId, invited: false as const }
+  }
+
+  /** ยกเลิกคำเชิญที่ยังไม่มีคนรับ (เชิญผิดอีเมล) */
+  async removeInvite(shopId: string, inviteId: string, editorAuth0Sub: string) {
+    const invite = await this.prisma.shopInvite.findFirst({ where: { id: inviteId, shopId } })
+    if (!invite) throw new NotFoundException('ไม่พบคำเชิญนี้')
+    await this.prisma.shopInvite.delete({ where: { id: invite.id } })
+    await this.audit.log(editorAuth0Sub, 'shop.uninvite', 'Shop', shopId, { email: invite.email }, undefined, shopId)
+    return { id: invite.id }
   }
 
   /** ถอด owner ออกจากร้านนี้ (ลบ ShopMember — ยังเป็น owner ร้านอื่นและลูกค้าได้ตามปกติ) — super admin เท่านั้น ไม่บังคับต้องเหลือ owner อย่างน้อย

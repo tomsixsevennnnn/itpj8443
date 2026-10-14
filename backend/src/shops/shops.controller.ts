@@ -68,6 +68,13 @@ export class ShopsController {
     return this.shops.removeOwner(id, userId, jwtUser.sub)
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('super_admin')
+  @Delete(':id/invites/:inviteId')
+  removeInvite(@CurrentUser() jwtUser: JwtUser, @Param('id') id: string, @Param('inviteId') inviteId: string) {
+    return this.shops.removeInvite(id, inviteId, jwtUser.sub)
+  }
+
   /** ลบร้านถาวร — ต้องพิมพ์ชื่อร้านมายืนยันตรงตัวเป๊ะใน body เท่านั้นถึงจะลบได้ (ดู ShopsService.deleteShop) */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('super_admin')

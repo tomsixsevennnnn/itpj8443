@@ -92,6 +92,13 @@ export function SuperAdminScreen({
             setOwnersAdmin(owners)
           })
         }
+        onRemoveInvite={(shopId, inviteId) =>
+          runAction(async () => {
+            const token = await withToken()
+            await api.removeShopInvite(token, shopId, inviteId)
+            setShopsAdmin(await api.shopsList(token))
+          })
+        }
         onUpdateShop={(id, input) =>
           runAction(async () => {
             const token = await withToken()

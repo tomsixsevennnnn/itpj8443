@@ -32,6 +32,7 @@ interface SuperAdminProps {
   onSetShopStatus: (id: string, status: 'ACTIVE' | 'SUSPENDED') => Promise<void>
   onAddOwner: (id: string, email: string) => Promise<void>
   onRemoveOwner: (shopId: string, userId: string) => Promise<void>
+  onRemoveInvite: (shopId: string, inviteId: string) => Promise<void>
   onUpdateShop: (id: string, input: { name: string; slug?: string }) => Promise<void>
   onDeleteShop: (id: string, confirmName: string) => Promise<void>
   onSearchUser: (email: string) => Promise<BackendUser[]>
@@ -51,6 +52,7 @@ export default function SuperAdmin({
   onSetShopStatus,
   onAddOwner,
   onRemoveOwner,
+  onRemoveInvite,
   onUpdateShop,
   onDeleteShop,
   onSearchUser,
@@ -71,6 +73,7 @@ export default function SuperAdmin({
 
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [removingOwnerId, setRemovingOwnerId] = useState<string | null>(null)
+  const [removingInviteId, setRemovingInviteId] = useState<string | null>(null)
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -121,6 +124,15 @@ export default function SuperAdmin({
       await onRemoveOwner(shopId, userId)
     } finally {
       setRemovingOwnerId(null)
+    }
+  }
+
+  const handleRemoveInvite = async (shopId: string, inviteId: string) => {
+    setRemovingInviteId(inviteId)
+    try {
+      await onRemoveInvite(shopId, inviteId)
+    } finally {
+      setRemovingInviteId(null)
     }
   }
 
@@ -212,7 +224,7 @@ export default function SuperAdmin({
                 สร้างร้านใหม่
               </h2>
               <p className="text-xs text-gray-400 mb-4">
-                อีเมลเจ้าของร้านต้องเคย login เข้าระบบมาก่อนอย่างน้อย 1 ครั้ง (เป็นลูกค้าธรรมดา) ถึงจะผูกเป็นเจ้าของร้านได้
+                ใส่อีเมลเจ้าของร้านได้เลย แม้ยังไม่เคย login — เจ้าของร้านกด "เข้าสู่ระบบด้วย Google" ด้วยอีเมลนี้ครั้งแรก ระบบให้สิทธิ์เจ้าของร้านเอง (ต้องเป็นอีเมลที่ยืนยันแล้ว เช่น Gmail)
               </p>
               <div className="flex flex-wrap gap-2">
                 <input
@@ -333,6 +345,35 @@ export default function SuperAdmin({
                         </span>
                       </div>
 
+                      {/* คำเชิญที่ยังไม่มีคนรับ — อีเมลที่ยังไม่เคย login ได้สิทธิ์เองตอน login ครั้งแรก ยกเลิกได้ถ้าเชิญผิด */}
+                      {(shop.invites ?? []).length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          {(shop.invites ?? []).map(invite => (
+                            <div
+                              key={invite.id}
+                              className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm text-gray-700 truncate">{invite.email}</p>
+                                <p className="text-[11px] text-amber-600">รอ login ครั้งแรกเพื่อรับสิทธิ์เจ้าของร้าน</p>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveInvite(shop.id, invite.id)}
+                                disabled={removingInviteId === invite.id}
+                                className="flex items-center gap-1 text-[11px] font-semibold text-red-500 hover:text-red-600 disabled:opacity-50 flex-shrink-0"
+                              >
+                                {removingInviteId === invite.id ? (
+                                  <Loader2 size={11} className="animate-spin" />
+                                ) : (
+                                  <UserMinus size={11} />
+                                )}
+                                ยกเลิกคำเชิญ
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {/* เจ้าของร้านนี้ทั้งหมด — ถอดออกได้ทีละคน (กลับไปเป็นลูกค้าธรรมดา) */}
                       {owners.some(o => o.shop?.id === shop.id) && (
                         <div className="mt-3 space-y-1.5">
@@ -405,7 +446,7 @@ export default function SuperAdmin({
                         <div className="flex gap-2 mt-3">
                           <input
                             type="email"
-                            placeholder="อีเมล owner คนใหม่"
+                            placeholder="อีเมล owner คนใหม่ (ยังไม่เคย login ก็เชิญได้)"
                             value={addOwnerEmail}
                             onChange={e => setAddOwnerEmail(e.target.value)}
                             className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"

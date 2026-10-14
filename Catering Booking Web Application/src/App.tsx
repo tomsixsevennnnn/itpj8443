@@ -441,7 +441,7 @@ function activeShopIdFor(backendUser: BackendUser | null, selectedShopId: string
 function computeNeedsProfile(isAuthenticated: boolean, role: AppRoleForPath, backendUser: BackendUser | null): boolean {
   return (
     isAuthenticated &&
-    role === 'customer' &&
+    role !== 'super_admin' &&
     backendUser !== null &&
     (!backendUser.name || !backendUser.surname || !backendUser.phone)
   )
@@ -1190,7 +1190,7 @@ export default function App() {
               const token = await withToken()
               const updated = await api.updateProfile(token, profile)
               setBackendUser(updated)
-              navigate('home')
+              navigate(defaultScreenFor(role))
             })
           }
         />

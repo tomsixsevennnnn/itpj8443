@@ -15,6 +15,7 @@ const makeService = () => {
     settings: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
     user: { findFirst: jest.fn(), findUnique: jest.fn() },
     shopMember: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
+    shopInvite: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn(), create: jest.fn(), delete: jest.fn() },
     booking: { groupBy: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     menuItem: { findMany: jest.fn().mockResolvedValue([]) },
     // $transaction รองรับทั้งแบบ callback (createShop/updateShop) และแบบ array ของ promise (deleteShop)
@@ -73,13 +74,16 @@ describe('ShopsService', () => {
   })
 
   describe('createShop', () => {
-    it('ไม่พบผู้ใช้ตามอีเมล — throw NotFoundException', async () => {
+    it('ยังไม่เคย login (ไม่พบผู้ใช้ตามอีเมล) — สร้างร้านพร้อมคำเชิญล่วงหน้า (อีเมลตัวพิมพ์เล็ก) ไม่สร้าง ShopMember', async () => {
       const { service, prisma } = makeService()
       prisma.user.findFirst.mockResolvedValue(null)
+      prisma.shop.findUnique.mockResolvedValue(null)
+      prisma.shop.create.mockResolvedValue({ id: 'shop1', name: 'ร้านใหม่', slug: 'ร้านใหม่' })
 
-      await expect(
-        service.createShop({ name: 'ร้านใหม่', ownerEmail: 'nobody@example.com' } as any, 'auth0|admin'),
-      ).rejects.toThrow(NotFoundException)
+      await service.createShop({ name: 'ร้านใหม่', ownerEmail: ' New.Owner@Gmail.com ' } as any, 'auth0|admin')
+
+      expect(prisma.shopInvite.create).toHaveBeenCalledWith({ data: { shopId: 'shop1', email: 'new.owner@gmail.com' } })
+      expect(prisma.shopMember.create).not.toHaveBeenCalled()
     })
 
     it('ผู้ใช้เป็น super admin — throw BadRequestException', async () => {
@@ -226,6 +230,23 @@ describe('ShopsService', () => {
     })
   })
 
+  describe('removeInvite', () => {
+    it('ไม่พบคำเชิญของร้านนี้ — throw NotFoundException', async () => {
+      const { service, prisma } = makeService()
+      prisma.shopInvite.findFirst.mockResolvedValue(null)
+      await expect(service.removeInvite('shop1', 'i1', 'auth0|admin')).rejects.toThrow(NotFoundException)
+    })
+
+    it('ลบคำเชิญที่ยังไม่มีคนรับ และบันทึก audit', async () => {
+      const { service, prisma, audit } = makeService()
+      prisma.shopInvite.findFirst.mockResolvedValue({ id: 'i1', email: 'x@example.com' })
+      await service.removeInvite('shop1', 'i1', 'auth0|admin')
+      expect(prisma.shopInvite.findFirst).toHaveBeenCalledWith({ where: { id: 'i1', shopId: 'shop1' } })
+      expect(prisma.shopInvite.delete).toHaveBeenCalledWith({ where: { id: 'i1' } })
+      expect(audit.log).toHaveBeenCalledWith('auth0|admin', 'shop.uninvite', 'Shop', 'shop1', { email: 'x@example.com' }, undefined, 'shop1')
+    })
+  })
+
   describe('addOwner', () => {
     it('ไม่พบร้าน — throw NotFoundException', async () => {
       const { service, prisma } = makeService()
@@ -234,12 +255,26 @@ describe('ShopsService', () => {
       await expect(service.addOwner('no-id', 'x@example.com', 'auth0|admin')).rejects.toThrow(NotFoundException)
     })
 
-    it('ไม่พบผู้ใช้ตามอีเมล — throw NotFoundException', async () => {
-      const { service, prisma } = makeService()
+    it('ยังไม่เคย login — สร้างคำเชิญล่วงหน้า คืน invited: true และบันทึก audit', async () => {
+      const { service, prisma, audit } = makeService()
       prisma.shop.findUnique.mockResolvedValue({ id: 'shop1' })
       prisma.user.findFirst.mockResolvedValue(null)
 
-      await expect(service.addOwner('shop1', 'nobody@example.com', 'auth0|admin')).rejects.toThrow(NotFoundException)
+      const result = await service.addOwner('shop1', 'Nobody@Example.com', 'auth0|admin')
+
+      expect(result).toEqual({ invited: true, email: 'nobody@example.com', shopId: 'shop1' })
+      expect(prisma.shopInvite.create).toHaveBeenCalledWith({ data: { shopId: 'shop1', email: 'nobody@example.com' } })
+      expect(audit.log).toHaveBeenCalledWith('auth0|admin', 'shop.invite', 'Shop', 'shop1', undefined, { email: 'nobody@example.com' }, 'shop1')
+    })
+
+    it('เชิญอีเมลเดิมซ้ำ — throw ConflictException ไม่สร้างซ้ำ', async () => {
+      const { service, prisma } = makeService()
+      prisma.shop.findUnique.mockResolvedValue({ id: 'shop1' })
+      prisma.user.findFirst.mockResolvedValue(null)
+      prisma.shopInvite.findUnique.mockResolvedValue({ id: 'i1' })
+
+      await expect(service.addOwner('shop1', 'nobody@example.com', 'auth0|admin')).rejects.toThrow(ConflictException)
+      expect(prisma.shopInvite.create).not.toHaveBeenCalled()
     })
 
     it('ผู้ใช้เป็น super admin — throw ConflictException', async () => {

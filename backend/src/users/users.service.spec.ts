@@ -1,6 +1,10 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { Role } from '@prisma/client'
+import { fetchVerifiedIdentity } from '../auth/userinfo'
 import { UsersService } from './users.service'
+
+jest.mock('../auth/userinfo')
+const mockedIdentity = fetchVerifiedIdentity as jest.MockedFunction<typeof fetchVerifiedIdentity>
 
 const makeService = () => {
   const prisma = {
@@ -12,7 +16,9 @@ const makeService = () => {
       findMany: jest.fn(),
       count: jest.fn(),
     },
-    shopMember: { findMany: jest.fn(), create: jest.fn(), delete: jest.fn(), count: jest.fn() },
+    shopMember: { findMany: jest.fn(), create: jest.fn(), createMany: jest.fn(), delete: jest.fn(), count: jest.fn() },
+    shopInvite: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn(), deleteMany: jest.fn() },
+    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
   } as any
   const audit = { log: jest.fn() } as any
   return { service: new UsersService(prisma, audit), prisma, audit }
@@ -36,6 +42,69 @@ const MEMBERSHIPS_INCLUDE_EXPECTED = {
 }
 
 describe('UsersService', () => {
+  describe('claimOwnerInvites', () => {
+    beforeEach(() => mockedIdentity.mockReset())
+
+    it('ไม่มีคำเชิญเลยในระบบ — ไม่เรียก Auth0 และคืน false', async () => {
+      const { service } = makeService()
+      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
+      expect(mockedIdentity).not.toHaveBeenCalled()
+    })
+
+    it('super admin ไม่รับสิทธิ์เจ้าของร้านจากคำเชิญ', async () => {
+      const { service, prisma } = makeService()
+      prisma.shopInvite.count.mockResolvedValue(1)
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.SUPER_ADMIN })
+      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
+      expect(mockedIdentity).not.toHaveBeenCalled()
+    })
+
+    it('อีเมลยังไม่ถูก Auth0 ยืนยัน หรือถามไม่ได้ — ไม่ให้สิทธิ์ คำเชิญยังอยู่', async () => {
+      const { service, prisma } = makeService()
+      prisma.shopInvite.count.mockResolvedValue(1)
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
+      mockedIdentity.mockResolvedValueOnce({ email: 'owner@gmail.com', emailVerified: false })
+      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
+      mockedIdentity.mockResolvedValueOnce(null)
+      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
+      expect(prisma.shopMember.createMany).not.toHaveBeenCalled()
+      expect(prisma.shopInvite.deleteMany).not.toHaveBeenCalled()
+    })
+
+    it('อีเมลยืนยันแล้วแต่ไม่มีคำเชิญตรงกัน — คืน false', async () => {
+      const { service, prisma } = makeService()
+      prisma.shopInvite.count.mockResolvedValue(1)
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
+      mockedIdentity.mockResolvedValue({ email: 'someone@gmail.com', emailVerified: true })
+      prisma.shopInvite.findMany.mockResolvedValue([])
+      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
+    })
+
+    it('อีเมลยืนยันแล้วและตรงคำเชิญ (ไม่สนตัวพิมพ์) — สร้าง ShopMember ทุกร้านที่เชิญ ลบคำเชิญ บันทึก audit', async () => {
+      const { service, prisma, audit } = makeService()
+      prisma.shopInvite.count.mockResolvedValue(2)
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
+      mockedIdentity.mockResolvedValue({ email: 'Owner@Gmail.com', emailVerified: true })
+      prisma.shopInvite.findMany.mockResolvedValue([
+        { id: 'i1', shopId: 'shopA', email: 'owner@gmail.com' },
+        { id: 'i2', shopId: 'shopB', email: 'owner@gmail.com' },
+      ])
+
+      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(true)
+
+      expect(prisma.shopInvite.findMany).toHaveBeenCalledWith({ where: { email: 'owner@gmail.com' } })
+      expect(prisma.shopMember.createMany).toHaveBeenCalledWith({
+        data: [
+          { userId: 'u1', shopId: 'shopA' },
+          { userId: 'u1', shopId: 'shopB' },
+        ],
+        skipDuplicates: true,
+      })
+      expect(prisma.shopInvite.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['i1', 'i2'] } } })
+      expect(audit.log).toHaveBeenCalledTimes(2)
+    })
+  })
+
   it('setRole: ป้องกันไม่ให้ owner คนสุดท้ายของร้านถูก demote เป็น customer', async () => {
     const { service, prisma } = makeService()
     prisma.user.findUnique.mockResolvedValue(userWith('u1', Role.CUSTOMER, ['shop1']))

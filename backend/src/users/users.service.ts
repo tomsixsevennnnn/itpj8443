@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { Role, type Shop, type User } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { resolveShopContext, type ShopContext } from '../auth/shop-context'
+import { fetchVerifiedIdentity } from '../auth/userinfo'
 import { PrismaService } from '../prisma/prisma.service'
 import { SyncProfileDto } from './dto/sync-profile.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
@@ -52,6 +53,8 @@ const superAdminEmails = (): Set<string> =>
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name)
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -115,6 +118,43 @@ export class UsersService {
       },
       include: MEMBERSHIPS_INCLUDE,
     })
+  }
+
+  /** ผู้ใช้พร้อมร้านที่เป็น owner อยู่ (shape เดียวกับที่ syncProfile คืน) — ใช้อ่านซ้ำหลังรับสิทธิ์จากคำเชิญ */
+  findWithMemberships(auth0Sub: string) {
+    return this.prisma.user.findUnique({ where: { auth0Sub }, include: MEMBERSHIPS_INCLUDE })
+  }
+
+  /**
+   * รับสิทธิ์เจ้าของร้านจากคำเชิญล่วงหน้า (ShopInvite) — เรียกหลัง sync ตอน login: ถ้าอีเมลของผู้เรียก (ถามจาก Auth0
+   * ไม่ใช่ที่ frontend ส่ง) ยืนยันแล้วและตรงกับคำเชิญของร้านใด สร้าง ShopMember ให้แล้วลบคำเชิญ
+   * ไม่มีคำเชิญเลยในระบบ = ไม่เรียก Auth0 (ผู้ใช้ส่วนใหญ่ไม่เสียเวลาเพิ่ม) เรียก Auth0 ไม่ได้ = ข้ามไป คำเชิญยังอยู่ ลองใหม่รอบ login ถัดไป
+   * super admin ไม่รับ (เป็นเจ้าของร้านไม่ได้) คืน true ถ้ามีสิทธิ์ใหม่เกิดขึ้น
+   */
+  async claimOwnerInvites(auth0Sub: string, authorization?: string): Promise<boolean> {
+    if ((await this.prisma.shopInvite.count()) === 0) return false
+    const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { id: true, role: true } })
+    if (!user || user.role === Role.SUPER_ADMIN) return false
+
+    const identity = await fetchVerifiedIdentity(authorization)
+    if (!identity) {
+      this.logger.warn(`รับสิทธิ์จากคำเชิญไม่ได้ (auth0Sub=${auth0Sub}): ถามอีเมลจาก Auth0 /userinfo ไม่สำเร็จ — ตรวจว่า access token มี scope openid และ AUTH0_DOMAIN ถูกต้อง`)
+      return false
+    }
+    if (!identity.emailVerified) return false
+    const email = identity.email.trim().toLowerCase()
+
+    const invites = await this.prisma.shopInvite.findMany({ where: { email } })
+    if (invites.length === 0) return false
+
+    await this.prisma.$transaction([
+      this.prisma.shopMember.createMany({ data: invites.map((i) => ({ userId: user.id, shopId: i.shopId })), skipDuplicates: true }),
+      this.prisma.shopInvite.deleteMany({ where: { id: { in: invites.map((i) => i.id) } } }),
+    ])
+    for (const invite of invites) {
+      await this.audit.log(auth0Sub, 'shop.addOwner', 'Shop', invite.shopId, undefined, { userId: user.id, email, via: 'invite' }, invite.shopId)
+    }
+    return true
   }
 
   updateProfile(auth0Sub: string, dto: UpdateProfileDto) {
