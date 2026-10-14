@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarOff,
   Check,
+  Copy,
   Clock,
   Eye,
   EyeOff,
@@ -513,7 +514,7 @@ function FinanceTab({
                 @slipok
               </a>
             </li>
-            <li>กรอกข้อมูลธุรกิจ/ร้าน + บัญชีธนาคารที่รับเงินจริงผ่านแชท LINE นั้น</li>
+            <li>กรอกข้อมูลธุรกิจ/ร้าน + บัญชีธนาคารที่รับเงินจริงผ่านแชท LINE นั้น — กรอก <b>ตามข้อมูลในส่วน "ข้อมูลการชำระเงิน" ด้านบนทุกบัญชี</b> (กรอกข้อมูลการเงินด้านบนให้ครบก่อน)</li>
             <li>เลือกช่องทางตรวจสอบเป็น "API" (ไม่ใช่แบบแชทบอทเฉยๆ)</li>
             <li>ระบบจะออก API key + Branch ID ให้ตรงจุดนี้ — เอามากรอกด้านล่างแล้วกด "ทดสอบการเชื่อมต่อ" ก่อนบันทึกได้เลย</li>
           </ol>
@@ -594,7 +595,7 @@ function FinanceTab({
 }
 
 /**
- * บัญชีรับเงินที่ SlipOK เห็นจากสลิปล่าสุด + วิธีจัดการบัญชีใน SlipOK — API ของ SlipOK ไม่เปิดให้ดู/เพิ่ม/แก้/ลบบัญชีผ่านโค้ด
+ * ข้อมูลการเงินที่ต้องนำไปกรอกใน SlipOK (ต้นฉบับคือที่ owner ตั้งไว้ในแอป) + ผู้รับที่ SlipOK เห็นจากสลิปล่าสุดไว้ตรวจว่าตรงกัน — API ของ SlipOK ไม่เปิดให้ดู/เพิ่ม/แก้/ลบบัญชีผ่านโค้ด
  * (มีแค่ตรวจสลิป เช็คโควต้า และรหัสธนาคาร) บัญชีที่ผูกกับ Branch ID ต้องจัดการในระบบของ SlipOK เอง แอปจึงช่วยได้แค่โชว์ผู้รับที่
  * SlipOK เห็นจริงจากสลิปล่าสุดให้ owner เทียบกับบัญชีที่ตั้งไว้ในแอป (ระบบเทียบให้อัตโนมัติตอนลูกค้าแนบสลิปด้วย)
  */
@@ -603,10 +604,43 @@ function SlipOkReceiverPanel({ form, onUseBank }: Readonly<{ form: AppSettings; 
   const info = form.shopInfo
   // เติมได้เฉพาะ "ชื่อธนาคาร" — เลขบัญชีและชื่อบัญชีที่ SlipOK ส่งมาถูกปกปิดบางส่วน เอาไปแสดงให้ลูกค้าโอนไม่ได้ ต้องกรอกเองเต็มๆ
   const detectedBank = last?.bank && isKnownBank(last.bank) ? bankNameOf(last.bank) : null
-  const configured = [
-    ...bankAccountsOf(info).map(b => [b.bankName, b.accountName, b.accountNumber].filter(Boolean).join(' · ')),
-    ...promptPaysOf(info).map(p => ['พร้อมเพย์', p.id, [p.firstName, p.lastName].filter(Boolean).join(' ')].filter(Boolean).join(' · ')),
-  ].filter(Boolean)
+  // บัญชีที่ owner ตั้งไว้ในแอป (ต้นฉบับ) — แสดงให้เอาไปกรอกใน SlipOK ให้ตรงกัน พร้อมปุ่มคัดลอก
+  const copyRows = [
+    ...bankAccountsOf(info).map((b, i) => ({
+      key: `bank-${i}`,
+      title: `บัญชีธนาคาร${bankAccountsOf(info).length > 1 ? ` ${i + 1}` : ''}`,
+      lines: [
+        { label: 'ธนาคาร', value: b.bankName },
+        { label: 'เลขบัญชี', value: b.accountNumber },
+        { label: 'ชื่อบัญชี', value: b.accountName },
+      ],
+      text: [`ธนาคาร: ${b.bankName}`, `เลขบัญชี: ${b.accountNumber}`, `ชื่อบัญชี: ${b.accountName}`].join('\n'),
+    })),
+    ...promptPaysOf(info).map((p, i) => {
+      const name = [p.firstName, p.lastName].filter(Boolean).join(' ')
+      return {
+        key: `pp-${i}`,
+        title: `พร้อมเพย์${promptPaysOf(info).length > 1 ? ` ${i + 1}` : ''}`,
+        lines: [
+          { label: 'เลขพร้อมเพย์', value: p.id },
+          { label: 'ชื่อ-นามสกุล', value: name },
+        ],
+        text: [`เลขพร้อมเพย์: ${p.id}`, `ชื่อ-นามสกุล: ${name}`].join('\n'),
+      }
+    }),
+  ]
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const copy = (key: string, text: string) => {
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => {
+        setCopiedKey(key)
+        setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 1500)
+      })
+      .catch(() => {
+        // คัดลอกไม่ได้ (เบราว์เซอร์บล็อก clipboard) — ผู้ใช้ยังเลือกข้อความเองได้
+      })
+  }
 
   let matchBadge = (
     <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
@@ -627,9 +661,70 @@ function SlipOkReceiverPanel({ form, onUseBank }: Readonly<{ form: AppSettings; 
 
   return (
     <div className="mt-5 space-y-3 border-t border-gray-100 pt-5">
+      <div className="rounded-xl border border-orange-100 bg-orange-50/60 px-4 py-3 text-xs text-gray-600">
+        <p className="mb-0.5 font-semibold text-orange-700">นำข้อมูลการเงินนี้ไปกรอกใน SlipOK ให้ตรงกัน</p>
+        <p className="mb-2 text-gray-500">
+          กรอกส่วน "ข้อมูลการชำระเงิน" ด้านบนให้ครบก่อน แล้วนำบัญชีด้านล่างไปเพิ่มในบัญชีรับเงินของสาขา (Branch ID) นี้ใน SlipOK{' '}
+          <b>ให้ตรงกันทุกตัวอักษร</b> ระบบจะเทียบผู้รับในสลิปกับบัญชีเหล่านี้ (SlipOK ไม่เปิดให้เพิ่ม/แก้บัญชีผ่านระบบอื่น ต้องทำในระบบของ SlipOK เอง)
+        </p>
+        {copyRows.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-orange-200 bg-white px-3 py-2 text-gray-500">
+            ยังไม่ได้กรอกข้อมูลการชำระเงิน — กรอกบัญชีธนาคารหรือพร้อมเพย์ในส่วน "ข้อมูลการชำระเงิน" ด้านบนก่อน รายการที่ต้องไปกรอกใน SlipOK จะแสดงที่นี่
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {copyRows.map(row => (
+              <li key={row.key} className="flex items-start justify-between gap-3 rounded-lg border border-orange-100 bg-white px-3 py-2">
+                <div className="min-w-0">
+                  <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-600">{row.title}</p>
+                  {row.lines.map(line => (
+                    <p key={line.label} className="text-gray-700">
+                      <span className="text-gray-400">{line.label}: </span>
+                      {line.value || <span className="text-gray-300">-</span>}
+                    </p>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => copy(row.key, row.text)}
+                  className="flex flex-shrink-0 items-center gap-1 rounded-full border border-orange-200 bg-white px-2.5 py-1 text-[11px] font-medium text-orange-700 transition-colors hover:bg-orange-50"
+                >
+                  {copiedKey === row.key ? <Check size={11} /> : <Copy size={11} />}
+                  {copiedKey === row.key ? 'คัดลอกแล้ว' : 'คัดลอก'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <ol className="mt-3 list-decimal list-inside space-y-1">
+          <li>
+            เข้าจัดการบัญชีผ่านแชท LINE{' '}
+            <a href="https://line.me/R/ti/p/@slipok" target="_blank" rel="noreferrer" className="text-orange-600 underline">
+              @slipok
+            </a>{' '}
+            หรือที่{' '}
+            <a href="https://app.slipok.com/" target="_blank" rel="noreferrer" className="text-orange-600 underline">
+              slipok.com
+            </a>
+          </li>
+          <li>เพิ่ม แก้ไข หรือลบบัญชีรับเงินของสาขา (Branch ID) นี้ ให้เหลือเฉพาะบัญชีตามรายการด้านบน</li>
+          <li>กลับมาที่นี่ กด "ทดสอบการเชื่อมต่อ" แล้วบันทึกการตั้งค่า</li>
+          <li>ให้ลูกค้า (หรือทดลองจองเอง) แนบสลิปจริงสักใบ แล้วดูกล่อง "ผู้รับเงินที่ SlipOK อ่านได้จากสลิปล่าสุด" ด้านล่างว่าตรงกับบัญชีด้านบนไหม</li>
+        </ol>
+        <a
+          href="https://app.slipok.com/"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
+        >
+          <ShieldCheck size={12} />
+          เปิดหน้า SlipOK
+        </a>
+      </div>
+
       <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-xs">
         <p className="mb-0.5 font-semibold text-gray-600">ผู้รับเงินที่ SlipOK อ่านได้จากสลิปล่าสุด</p>
-        <p className="mb-1.5 text-[10px] text-gray-400">ข้อมูลจาก SlipOK (ได้มาตอนตรวจสลิปเท่านั้น — SlipOK ไม่เปิดให้ดึงรายชื่อบัญชีที่ผูกไว้)</p>
+        <p className="mb-1.5 text-[10px] text-gray-400">ข้อมูลจาก SlipOK ใช้ตรวจว่ากรอกใน SlipOK ตรงกับด้านบนแล้ว (ได้มาตอนตรวจสลิปเท่านั้น — SlipOK ไม่เปิดให้ดึงรายชื่อบัญชีที่ผูกไว้)</p>
         {last ? (
           <div className="space-y-1.5">
             <p className="flex items-center gap-2 text-gray-700">
@@ -665,45 +760,6 @@ function SlipOkReceiverPanel({ form, onUseBank }: Readonly<{ form: AppSettings; 
             <span className="text-[10px] text-gray-400">เติมเฉพาะช่อง "ธนาคาร" — เลขบัญชีและชื่อบัญชีกรอกเองให้ครบ</span>
           </div>
         )}
-      </div>
-
-      <div className="rounded-xl border border-gray-100 bg-white px-4 py-3 text-xs">
-        <p className="mb-0.5 font-semibold text-gray-600">บัญชีที่คุณกรอกไว้ในหน้านี้</p>
-        <p className="mb-1.5 text-[10px] text-gray-400">ข้อมูลที่ตั้งเองในส่วน "ข้อมูลการชำระเงิน" ด้านบน ไม่ได้ดึงมาจาก SlipOK — ใช้เทียบกับผู้รับในสลิป และแสดงให้ลูกค้าโอน</p>
-        <p className="text-gray-700">
-          {configured.length > 0 ? configured.join(' / ') : 'ยังไม่ได้กรอก (กรอกที่ส่วน "ข้อมูลการชำระเงิน" ด้านบน)'}
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-orange-100 bg-orange-50/60 px-4 py-3 text-xs text-gray-600">
-        <p className="mb-1.5 font-semibold text-orange-700">เพิ่ม / แก้ไข / ลบ บัญชีรับเงินที่ผูกกับ SlipOK</p>
-        <p className="mb-1.5 text-gray-500">
-          SlipOK ไม่เปิดให้จัดการบัญชีผ่านระบบอื่น ต้องทำในระบบของ SlipOK เอง (บัญชีที่ผูกกับ Branch ID ของร้านนี้):
-        </p>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>
-            เข้าจัดการบัญชีผ่านแชท LINE{' '}
-            <a href="https://line.me/R/ti/p/@slipok" target="_blank" rel="noreferrer" className="text-orange-600 underline">
-              @slipok
-            </a>{' '}
-            หรือที่{' '}
-            <a href="https://app.slipok.com/" target="_blank" rel="noreferrer" className="text-orange-600 underline">
-              slipok.com
-            </a>
-          </li>
-          <li>เพิ่ม แก้ไข หรือลบบัญชีรับเงินของสาขา (Branch ID) นี้ให้เป็นบัญชีที่ร้านรับโอนจริง</li>
-          <li>กลับมาที่นี่ กด "ทดสอบการเชื่อมต่อ" แล้วกรอกบัญชีรับเงินของร้านให้ตรงกัน</li>
-          <li>ให้ลูกค้า (หรือทดลองจองเอง) แนบสลิปจริงสักใบ แล้วดูกล่อง "ผู้รับเงินที่ SlipOK อ่านได้จากสลิปล่าสุด" ด้านบนว่าตรงกับบัญชีที่ตั้งไว้ไหม</li>
-        </ol>
-        <a
-          href="https://slipok.com"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-orange-600"
-        >
-          <ShieldCheck size={12} />
-          เปิดหน้า SlipOK
-        </a>
       </div>
     </div>
   )
