@@ -310,7 +310,7 @@ export default function BookingHistory({
         <div className="fixed inset-0 bg-black/60 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-auto overflow-hidden print-area">
             {/* Toolbar */}
-            <div className="no-print flex items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100 sticky top-0">
+            <div className="no-print flex items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
               <div className="min-w-0">
                 <p className="font-semibold text-gray-800 text-sm truncate">{DOC_LABEL[docView.type]}</p>
                 <p className="text-xs text-gray-400 font-mono">{docNumber(docBooking, docView.type)}</p>
@@ -368,7 +368,7 @@ export default function BookingHistory({
       {detailBooking && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 flex items-center justify-between sticky top-0">
+            <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 flex items-center justify-between sticky top-0 z-10">
               <div>
                 <h3 className="text-lg font-bold text-white">รายละเอียดการจอง</h3>
                 <p className="text-orange-100 text-sm">{docNumber(detailBooking, 'booking')}</p>
