@@ -1515,29 +1515,10 @@ export default function Settings({ settings, onUpdateSettings, onResolveMapsLink
   // จริงเหมือนเดิม (ไม่งั้นปุ่มติด dirty ทั้งที่ไม่มีอะไรเปลี่ยน แถมขึ้นในประวัติการแก้ไขเป็นการแก้ไขปลอม)
   const dirty = JSON.stringify(deepTrim(form)) !== JSON.stringify(settings)
 
+  // แต่ละช่องแก้อิสระต่อกัน — ชื่อบัญชีธนาคารกับชื่อ-นามสกุลพร้อมเพย์ไม่ซิงค์กันเอง (บัญชีกับพร้อมเพย์อาจเป็นของคนละคน)
+  // ถ้าต้องการให้เหมือนกัน กดปุ่ม "ใช้ชื่อเดียวกับ..." ใต้ช่องเอง
   const setShopField = (key: ShopInfoTextKey, value: string) => {
-    setForm(f => {
-      const next = { ...f.shopInfo, [key]: value }
-      const prev = f.shopInfo
-      // ชื่อบัญชีธนาคารกับชื่อ-นามสกุลพร้อมเพย์ มักเป็นคนเดียวกัน — พิมพ์ฝั่งหนึ่งแล้วเติมอีกฝั่งให้ "ถ้าอีกฝั่งยังว่าง หรือยังตรงกับค่าเดิมของฝั่งนี้อยู่"
-      // (ยังไม่เคยแก้แยกกัน) พอ owner แก้ฝั่งใดฝั่งหนึ่งให้ต่างกันแล้ว (เช่นพร้อมเพย์เป็นของคนละคน) จะไม่เติมทับอีก
-      if (key === 'promptPayFirstName' || key === 'promptPayLastName') {
-        const oldFull = joinName(prev.promptPayFirstName, prev.promptPayLastName)
-        if (!prev.bankAccountName.trim() || prev.bankAccountName.trim() === oldFull) {
-          next.bankAccountName = joinName(next.promptPayFirstName, next.promptPayLastName)
-        }
-      } else if (key === 'bankAccountName') {
-        const old = splitName(prev.bankAccountName)
-        const ppEmpty = !prev.promptPayFirstName.trim() && !prev.promptPayLastName.trim()
-        const ppLinked = prev.promptPayFirstName.trim() === old.first && prev.promptPayLastName.trim() === old.last
-        if (ppEmpty || ppLinked) {
-          const now = splitName(value)
-          next.promptPayFirstName = now.first
-          next.promptPayLastName = now.last
-        }
-      }
-      return { ...f, shopInfo: next }
-    })
+    setForm(f => ({ ...f, shopInfo: { ...f.shopInfo, [key]: value } }))
     setSavedAt(null)
   }
 
