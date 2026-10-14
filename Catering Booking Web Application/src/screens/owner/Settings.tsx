@@ -40,7 +40,7 @@ import { deepTrim } from '../../deepTrim'
 import SuggestInput from '../../components/SuggestInput'
 import BankBadge from '../../components/BankBadge'
 import ExtraPaymentAccounts from '../../components/ExtraPaymentAccounts'
-import { bankAccountsOf, digitsOnly, promptPaysOf } from '../../paymentChannels'
+import { bankAccountsOf, digitsOnly, lettersOnly, promptPaysOf } from '../../paymentChannels'
 import { THAI_BANK_NAMES, bankNameOf, isKnownBank } from '../../banks'
 import { accountMatches, nameMatches } from '../../receiverMatch'
 import { joinName, splitName } from '../../thaiName'
@@ -399,7 +399,7 @@ function FinanceTab({
               type="text"
               value={info.bankAccountName}
               placeholder="เช่น นายพิพัฒน์ โภชนา"
-              onChange={e => setShopField('bankAccountName', e.target.value)}
+              onChange={e => setShopField('bankAccountName', lettersOnly(e.target.value))}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
             {promptPayFullName && info.bankAccountName.trim() !== promptPayFullName && (
@@ -445,7 +445,7 @@ function FinanceTab({
                 type="text"
                 value={form.shopInfo.promptPayFirstName}
                 placeholder="เช่น พิพัฒน์"
-                onChange={e => setShopField('promptPayFirstName', e.target.value)}
+                onChange={e => setShopField('promptPayFirstName', lettersOnly(e.target.value))}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
           </label>
@@ -457,7 +457,7 @@ function FinanceTab({
                 type="text"
                 value={form.shopInfo.promptPayLastName}
                 placeholder="เช่น โภชนา"
-                onChange={e => setShopField('promptPayLastName', e.target.value)}
+                onChange={e => setShopField('promptPayLastName', lettersOnly(e.target.value))}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
           </label>

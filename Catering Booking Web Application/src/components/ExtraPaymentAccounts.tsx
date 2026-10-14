@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { THAI_BANK_NAMES } from '../banks'
-import { MAX_EXTRA_PAYMENT_ACCOUNTS, digitsOnly } from '../paymentChannels'
+import { MAX_EXTRA_PAYMENT_ACCOUNTS, digitsOnly, lettersOnly } from '../paymentChannels'
 import type { BankAccount, PromptPayAccount } from '../types'
 import BankBadge from './BankBadge'
 import SuggestInput from './SuggestInput'
@@ -68,7 +68,7 @@ export default function ExtraPaymentAccounts({ extraBankAccounts, extraPromptPay
                 value={a.accountName}
                 placeholder="ชื่อบัญชี"
                 aria-label={`ชื่อบัญชีธนาคารเพิ่มเติมที่ ${i + 1}`}
-                onChange={e => updateBank(i, { accountName: e.target.value })}
+                onChange={e => updateBank(i, { accountName: lettersOnly(e.target.value) })}
                 className={INPUT}
               />
               <button
@@ -117,7 +117,7 @@ export default function ExtraPaymentAccounts({ extraBankAccounts, extraPromptPay
                 value={p.firstName}
                 placeholder="ชื่อ"
                 aria-label={`ชื่อเจ้าของพร้อมเพย์เพิ่มเติมที่ ${i + 1}`}
-                onChange={e => updatePromptPay(i, { firstName: e.target.value })}
+                onChange={e => updatePromptPay(i, { firstName: lettersOnly(e.target.value) })}
                 className={INPUT}
               />
               <input
@@ -125,7 +125,7 @@ export default function ExtraPaymentAccounts({ extraBankAccounts, extraPromptPay
                 value={p.lastName}
                 placeholder="นามสกุล"
                 aria-label={`นามสกุลเจ้าของพร้อมเพย์เพิ่มเติมที่ ${i + 1}`}
-                onChange={e => updatePromptPay(i, { lastName: e.target.value })}
+                onChange={e => updatePromptPay(i, { lastName: lettersOnly(e.target.value) })}
                 className={INPUT}
               />
               <button

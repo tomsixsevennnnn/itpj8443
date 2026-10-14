@@ -7,17 +7,24 @@ export const MAX_EXTRA_PAYMENT_ACCOUNTS = 8
 /** เลขบัญชี/เลขพร้อมเพย์เก็บเป็นตัวเลขล้วน — ตัดขีดคั่น/ช่องว่าง/ตัวอักษรออกก่อน validate (ข้อมูลเดิมที่เคยมีขีดคั่นจึงบันทึกซ้ำได้โดยไม่ error) */
 const digitsOnly = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.replace(/\D/g, '') : value)
 
+/** ชื่อบัญชี/ชื่อ-นามสกุลรับเฉพาะตัวอักษร (ไทย/อังกฤษ/ภาษาอื่น รวมสระและวรรณยุกต์) กับช่องว่าง — ตัดตัวเลขและอักษรพิเศษออก
+ *  ยุบช่องว่างซ้ำและตัดหัวท้ายก่อน validate (ข้อมูลเดิมที่มีจุด/ขีด/ตัวเลขจึงบันทึกซ้ำได้โดยไม่ error) */
+const NAME_PATTERN = /^[\p{L}\p{M} ]*$/u
+const lettersOnly = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.replace(/[^\p{L}\p{M}\s]/gu, '').replace(/\s+/g, ' ').trim() : value
+const NAME_MESSAGE = 'ชื่อต้องเป็นตัวอักษรเท่านั้น (ห้ามตัวเลขหรืออักษรพิเศษ)'
+
 export class ExtraBankAccountDto {
   @IsString() @MaxLength(100) bankName!: string
   @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'เลขบัญชีต้องเป็นตัวเลขเท่านั้น' }) @MaxLength(40) accountNumber!: string
-  @IsString() @MaxLength(100) accountName!: string
+  @Transform(lettersOnly) @IsString() @Matches(NAME_PATTERN, { message: NAME_MESSAGE }) @MaxLength(100) accountName!: string
 }
 
 export class ExtraPromptPayDto {
   /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — ตัวเลขล้วนเท่านั้น (เหมือน promptPayId หลัก) */
   @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'พร้อมเพย์ต้องเป็นตัวเลขเท่านั้น' }) @MaxLength(30) id!: string
-  @IsString() @MaxLength(100) firstName!: string
-  @IsString() @MaxLength(100) lastName!: string
+  @Transform(lettersOnly) @IsString() @Matches(NAME_PATTERN, { message: NAME_MESSAGE }) @MaxLength(100) firstName!: string
+  @Transform(lettersOnly) @IsString() @Matches(NAME_PATTERN, { message: NAME_MESSAGE }) @MaxLength(100) lastName!: string
 }
 
 export class UpdateSettingsDto {
@@ -35,11 +42,11 @@ export class UpdateSettingsDto {
 
   @IsOptional() @IsString() bankName?: string
   @IsOptional() @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'เลขบัญชีต้องเป็นตัวเลขเท่านั้น' }) bankAccountNumber?: string
-  @IsOptional() @IsString() bankAccountName?: string
+  @IsOptional() @Transform(lettersOnly) @IsString() @Matches(NAME_PATTERN, { message: NAME_MESSAGE }) bankAccountName?: string
   /** เบอร์โทร/เลขบัตร ปชช./เลขวอลเล็ต — ตัวเลขล้วนเท่านั้น (ตัดขีดคั่นออกให้ก่อนบันทึก) */
   @IsOptional() @Transform(digitsOnly) @IsString() @Matches(/^[0-9]*$/, { message: 'promptPayId ต้องเป็นตัวเลขเท่านั้น' }) promptPayId?: string
-  @IsOptional() @IsString() promptPayFirstName?: string
-  @IsOptional() @IsString() promptPayLastName?: string
+  @IsOptional() @Transform(lettersOnly) @IsString() @Matches(NAME_PATTERN, { message: NAME_MESSAGE }) promptPayFirstName?: string
+  @IsOptional() @Transform(lettersOnly) @IsString() @Matches(NAME_PATTERN, { message: NAME_MESSAGE }) promptPayLastName?: string
   @IsOptional() @IsArray() @ArrayMaxSize(MAX_EXTRA_PAYMENT_ACCOUNTS) @ValidateNested({ each: true }) @Type(() => ExtraBankAccountDto) extraBankAccounts?: ExtraBankAccountDto[]
   @IsOptional() @IsArray() @ArrayMaxSize(MAX_EXTRA_PAYMENT_ACCOUNTS) @ValidateNested({ each: true }) @Type(() => ExtraPromptPayDto) extraPromptPays?: ExtraPromptPayDto[]
 

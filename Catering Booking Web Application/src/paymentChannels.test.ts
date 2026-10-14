@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bankAccountsOf, bankChannelKey, channelKeysOf, digitsOnly, hasPaymentChannel, promptPayChannelKey, promptPaysOf } from './paymentChannels'
+import { bankAccountsOf, bankChannelKey, channelKeysOf, digitsOnly, hasPaymentChannel, lettersOnly, promptPayChannelKey, promptPaysOf } from './paymentChannels'
 
 const EMPTY = {
   bankName: '',
@@ -100,5 +100,20 @@ describe('digitsOnly', () => {
     expect(digitsOnly(' 081 234 5678 ')).toBe('0812345678')
     expect(digitsOnly('abc')).toBe('')
     expect(digitsOnly('')).toBe('')
+  })
+})
+
+describe('lettersOnly', () => {
+  it('คงตัวอักษรไทย (สระ/วรรณยุกต์) อังกฤษ และช่องว่าง ตัดตัวเลขและอักษรพิเศษออก', () => {
+    expect(lettersOnly('ชานน อุณหะจิรังรักษ์')).toBe('ชานน อุณหะจิรังรักษ์')
+    expect(lettersOnly('John Smith')).toBe('John Smith')
+    expect(lettersOnly('น.ส. สมชาย123!')).toBe('นส สมชาย')
+    expect(lettersOnly("O'Brien-2")).toBe('OBrien')
+    expect(lettersOnly('')).toBe('')
+  })
+
+  it('ยุบช่องว่างซ้ำเป็นช่องเดียว แต่ไม่ตัดช่องว่างท้าย (พิมพ์เว้นวรรคต่อได้)', () => {
+    expect(lettersOnly('ก  ข')).toBe('ก ข')
+    expect(lettersOnly('ก ')).toBe('ก ')
   })
 })
