@@ -1,3 +1,4 @@
+import { bookingPhase, slipNeedsReplacement } from './bookingPhase'
 import { docNumber } from './documents'
 import type { Booking } from './types'
 
@@ -31,11 +32,15 @@ export const buildNotifications = (bookings: Booking[]): NotificationItem[] => {
     const no = docNumber(booking, 'booking')
 
     if (booking.status === 'pending') {
+      const awaitingReview = bookingPhase(booking) === 'awaiting-review'
+      const retry = slipNeedsReplacement(booking) ? ' (สลิปก่อนหน้าไม่ผ่าน กรุณาแนบสลิปใหม่)' : ''
       items.push({
         id: `${booking.id}-pending`,
         kind: 'pending',
-        title: 'รอการยืนยัน',
-        message: `การจองหมายเลข ${no} กำลังรอการชำระเงินจาก ${booking.customerName} และยืนยันจากทีมงาน วันที่ ${booking.date} ${booking.timeSlot}`,
+        title: awaitingReview ? 'รอร้านยืนยัน' : 'รอโอนมัดจำ',
+        message: awaitingReview
+          ? `การจองหมายเลข ${no} ส่งสลิปมัดจำแล้ว รอร้านตรวจสอบและยืนยัน วันที่ ${booking.date} ${booking.timeSlot}`
+          : `การจองหมายเลข ${no} รอการโอนมัดจำและแนบสลิป วันที่ ${booking.date} ${booking.timeSlot}${retry}`,
         timestamp: booking.createdAt,
         bookingId: booking.id,
       })
@@ -102,6 +107,6 @@ export const timeAgo = (timestamp: string): string => {
 export const unreadNotificationCount = (bookings: Booking[], seenAt: string): number =>
   buildNotifications(bookings).filter(item => isNotificationUnread(item, seenAt)).length
 
-/** จำนวนใบจองที่รอยืนยัน — ใช้ badge กระดิ่งฝั่งเจ้าของร้าน */
+/** จำนวนใบจองที่รอร้านยืนยัน (ส่งสลิปแล้ว เจ้าของร้านต้องลงมือ) — ใช้ badge กระดิ่งฝั่งเจ้าของร้าน */
 export const ownerPendingCount = (bookings: Booking[]): number =>
-  bookings.filter(b => b.status === 'pending').length
+  bookings.filter(b => bookingPhase(b) === 'awaiting-review').length

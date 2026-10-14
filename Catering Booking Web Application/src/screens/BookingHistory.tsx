@@ -9,6 +9,7 @@ import { pickImageAsDataUrl } from '../imageUpload'
 import { useAuthedSlipUrl } from '../useAuthedSlipUrl'
 import SlipLoadStatus from '../components/SlipLoadStatus'
 import PaymentChannels from '../components/PaymentChannels'
+import { PHASE_INFO, bookingPhase, phaseNote, type BookingPhase } from '../bookingPhase'
 import { channelKeysOf, hasPaymentChannel } from '../paymentChannels'
 
 interface BookingHistoryProps {
@@ -25,20 +26,9 @@ interface BookingHistoryProps {
   onJustBookedDismiss?: () => void
 }
 
-const STATUS_CONFIG = {
-  pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400' },
-  confirmed: { label: 'ยืนยันแล้ว', bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-400' },
-  completed: { label: 'เสร็จสิ้น', bg: 'bg-gray-100', text: 'text-gray-500', dot: 'bg-gray-400' },
-  cancelled: { label: 'ยกเลิก', bg: 'bg-red-100', text: 'text-red-600', dot: 'bg-red-400' },
-}
-
-/** ป้ายของปุ่มกรองสถานะ — ตัวเลือก "ทั้งหมด" ไม่มีใน STATUS_CONFIG (ไม่ใช่สถานะจริงของ booking) เลยแยกไว้ต่างหาก */
-const FILTER_LABEL: Record<string, string> = {
-  all: 'ทั้งหมด',
-  pending: STATUS_CONFIG.pending.label,
-  confirmed: STATUS_CONFIG.confirmed.label,
-  completed: STATUS_CONFIG.completed.label,
-}
+/** ปุ่มกรองรายการตามขั้นตอนของใบจอง (ดู bookingPhase.ts) */
+const FILTERS: ('all' | BookingPhase)[] = ['all', 'awaiting-deposit', 'awaiting-review', 'confirmed', 'completed']
+const filterLabel = (f: 'all' | BookingPhase): string => (f === 'all' ? 'ทั้งหมด' : PHASE_INFO[f].label)
 
 export default function BookingHistory({
   bookings,
@@ -51,7 +41,7 @@ export default function BookingHistory({
   onJustBookedDismiss,
 }: Readonly<BookingHistoryProps>) {
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | BookingPhase>('all')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [docView, setDocView] = useState<{ id: string; type: DocType } | null>(null)
   const [uploadingSlip, setUploadingSlip] = useState(false)
@@ -142,7 +132,7 @@ export default function BookingHistory({
   const filtered = allBookings.filter(b => {
     const matchSearch = docNumber(b, 'booking').toLowerCase().includes(search.toLowerCase()) ||
       bookingCustomerName(b).includes(search) || search === ''
-    const matchStatus = statusFilter === 'all' || b.status === statusFilter
+    const matchStatus = statusFilter === 'all' || bookingPhase(b) === statusFilter
     return matchSearch && matchStatus
   })
 
@@ -185,7 +175,7 @@ export default function BookingHistory({
             <div className="flex items-center gap-2">
               <Filter size={14} className="text-gray-400" />
               <div className="flex gap-1">
-                {['all', 'pending', 'confirmed', 'completed'].map(s => (
+                {FILTERS.map(s => (
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
@@ -195,7 +185,7 @@ export default function BookingHistory({
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {FILTER_LABEL[s]}
+                    {filterLabel(s)}
                   </button>
                 ))}
               </div>
@@ -217,7 +207,7 @@ export default function BookingHistory({
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.map((booking) => {
-                  const sc = STATUS_CONFIG[booking.status]
+                  const sc = PHASE_INFO[bookingPhase(booking)]
                   return (
                     <tr key={booking.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-4 py-4">
@@ -238,6 +228,7 @@ export default function BookingHistory({
                           <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                           {sc.label}
                         </span>
+                        {phaseNote(booking) && <span className="mt-1 block text-[10px] text-red-500">{phaseNote(booking)}</span>}
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex gap-1.5">
@@ -274,7 +265,7 @@ export default function BookingHistory({
           {/* Mobile cards */}
           <div className="md:hidden divide-y divide-gray-100">
             {filtered.map((booking) => {
-              const sc = STATUS_CONFIG[booking.status]
+              const sc = PHASE_INFO[bookingPhase(booking)]
               return (
                 <div key={booking.id} className="p-4">
                   <div className="flex items-start justify-between mb-3">
@@ -282,6 +273,7 @@ export default function BookingHistory({
                     <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full ${sc.bg} ${sc.text}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                       {sc.label}
+                      {phaseNote(booking) ? ' · สลิปไม่ผ่าน' : ''}
                     </span>
                   </div>
                   <p className="text-sm font-semibold text-gray-800 mb-1">

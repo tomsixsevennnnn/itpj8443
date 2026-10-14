@@ -11,8 +11,12 @@ import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 import { STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
+import { PHASE_FILTER_ORDER, PHASE_INFO, bookingPhase, phaseNote, type BookingPhase } from '../../bookingPhase'
 
 const PAGE_SIZE = 20
+
+/** ปุ่มกรองรายการตามขั้นตอนของใบจอง (ดู bookingPhase.ts) — "รอร้านยืนยัน" คือใบที่เจ้าของร้านต้องลงมือ */
+const PHASE_FILTERS: ('all' | BookingPhase)[] = ['all', ...PHASE_FILTER_ORDER]
 
 const STATUS_CONFIG = {
   pending: { label: 'รอยืนยัน', bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-400', border: 'border-yellow-300' },
@@ -50,6 +54,7 @@ export default function Orders({
   const [slipZoom, setSlipZoom] = useState<string | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [phaseFilter, setPhaseFilter] = useState<'all' | BookingPhase>('all')
 
   // อ่านจาก bookings ตรง ๆ เพื่อให้แผงขวาอัปเดตตามทันทีที่ข้อมูลเปลี่ยน
   const selected = selectedId ? bookings.find(b => b.id === selectedId) ?? null : null
@@ -76,10 +81,18 @@ export default function Orders({
   // เปลี่ยนคำค้นหา = กลับไปหน้า 1 เสมอ กันค้างอยู่หน้าที่ไม่มีผลลัพธ์แล้ว
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, phaseFilter])
 
-  const filtered = bookings.filter(b =>
-    bookingCustomerName(b).includes(debouncedSearch) || b.id.includes(debouncedSearch) || debouncedSearch === ''
+  const phaseCounts = bookings.reduce<Record<string, number>>((acc, b) => {
+    const phase = bookingPhase(b)
+    acc[phase] = (acc[phase] ?? 0) + 1
+    return acc
+  }, {})
+
+  const filtered = bookings.filter(
+    b =>
+      (bookingCustomerName(b).includes(debouncedSearch) || b.id.includes(debouncedSearch) || debouncedSearch === '') &&
+      (phaseFilter === 'all' || bookingPhase(b) === phaseFilter),
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -150,6 +163,25 @@ export default function Orders({
             className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           />
         </div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {PHASE_FILTERS.map(f => {
+            const active = phaseFilter === f
+            const count = f === 'all' ? bookings.length : (phaseCounts[f] ?? 0)
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setPhaseFilter(f)}
+                title={f === 'all' ? undefined : PHASE_INFO[f].hint || undefined}
+                className={`text-xs px-3 py-1.5 rounded-xl font-medium transition-colors ${
+                  active ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {f === 'all' ? 'ทั้งหมด' : PHASE_INFO[f].label} ({count})
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="flex gap-5 flex-1">
@@ -165,7 +197,7 @@ export default function Orders({
             </thead>
             <tbody className="divide-y divide-gray-50">
               {paginated.map(booking => {
-                const sc = STATUS_CONFIG[booking.status]
+                const sc = PHASE_INFO[bookingPhase(booking)]
                 return (
                   <tr
                     key={booking.id}
@@ -207,6 +239,7 @@ export default function Orders({
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${sc.dot}`} />
                         {sc.label}
                       </span>
+                      {phaseNote(booking) && <span className="mt-1 block text-[10px] text-red-500">{phaseNote(booking)}</span>}
                     </td>
                   </tr>
                 )

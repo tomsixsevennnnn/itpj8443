@@ -3,6 +3,7 @@ import { LayoutDashboard } from 'lucide-react'
 import type { AppSettings, BookingData, Screen, Booking, EventLocation, MenuItem, Package, QueueBooking } from './types'
 import type { SaveSettingsResult } from './screens/owner/useSettingsForm'
 import { api, type BackendUser, type CreatePackageInput, type ShopAdmin, type UpdatePackageInput, type UploadImageKind } from './api'
+import { hasPaymentChannel } from './paymentChannels'
 import ErrorBanner from './components/ErrorBanner'
 import Home from './screens/Home'
 import BookingCalendar from './screens/BookingCalendar'
@@ -363,6 +364,8 @@ export function CustomerScreens({
           freeDeliveryMinTables={settings.freeDeliveryMinTables}
           fuelCostPerKm={settings.fuelCostPerKm}
           homeProvince={settings.homeProvince}
+          depositRate={settings.depositRate}
+          hasPaymentChannel={hasPaymentChannel(settings.shopInfo)}
         />
       )}
       {effectiveScreen === 'history' && (

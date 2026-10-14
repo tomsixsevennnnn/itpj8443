@@ -21,6 +21,10 @@ interface CartProps {
   freeDeliveryMinTables: number
   fuelCostPerKm: number
   homeProvince: string
+  /** อัตรามัดจำของร้าน (0–1) — โชว์ยอดมัดจำที่ต้องโอนหลังกดยืนยัน */
+  depositRate: number
+  /** ร้านมีช่องทางโอนให้ลูกค้าเห็นหรือไม่ (เชื่อม SlipOK แล้ว) — ไม่มี = ร้านจะติดต่อกลับเรื่องมัดจำเอง */
+  hasPaymentChannel: boolean
 }
 
 export default function Cart({
@@ -33,6 +37,8 @@ export default function Cart({
   freeDeliveryMinTables,
   fuelCostPerKm,
   homeProvince,
+  depositRate,
+  hasPaymentChannel,
 }: Readonly<CartProps>) {
   const { navigate } = useNav()
   const [showConfirm, setShowConfirm] = useState(false)
@@ -272,7 +278,9 @@ export default function Cart({
               </div>
 
               <div className="bg-orange-50 rounded-xl p-3 mb-5 text-xs text-orange-700">
-                💳 ชำระเงินเมื่อทีมงานยืนยันการจอง
+                {hasPaymentChannel
+                  ? `💳 หลังกดยืนยัน โอนมัดจำ ${Math.round(depositRate * 100)}% = ${Math.round(total * depositRate).toLocaleString()} ฿ แล้วแนบสลิป ร้านจะยืนยันใบจองให้เมื่อได้รับมัดจำ`
+                  : '💳 หลังกดยืนยัน ร้านจะติดต่อกลับเรื่องการชำระมัดจำ'}
               </div>
 
               {recalculating && (

@@ -8,6 +8,7 @@ import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
+import { bookingPhase } from '../../bookingPhase'
 import { STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 import {
   BASE_SLOTS,
@@ -106,7 +107,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
         {[
           { label: 'งานทั้งเดือน', value: `${monthBookings.length} งาน`, tone: 'text-gray-900' },
-          { label: 'รอยืนยัน', value: `${countBy('pending')} งาน`, tone: 'text-yellow-600' },
+          { label: 'รอร้านยืนยัน', value: `${monthBookings.filter(b => bookingPhase(b) === 'awaiting-review').length} งาน`, tone: 'text-blue-600' },
           { label: 'ยืนยันแล้ว', value: `${countBy('confirmed')} งาน`, tone: 'text-green-600' },
           { label: 'โต๊ะรวม', value: `${monthTables} โต๊ะ`, tone: 'text-gray-900' },
           { label: 'ยอดรวม', value: `฿${monthRevenue.toLocaleString()}`, tone: 'text-orange-600' },

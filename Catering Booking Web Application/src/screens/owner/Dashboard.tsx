@@ -15,7 +15,8 @@ import {
 } from 'recharts'
 import { ArrowDownRight, ArrowUpRight, Calendar, Clock, DollarSign, TrendingUp, ShoppingBag, Users, Wallet } from 'lucide-react'
 import type { AppSettings, Booking, MenuItem } from '../../types'
-import { BOOKING_STATUS_INFO, TIME_SLOTS, slotIdOf } from '../../availability'
+import { TIME_SLOTS, slotIdOf } from '../../availability'
+import { PHASE_INFO, bookingPhase } from '../../bookingPhase'
 import { calculateStaff, sumStaff, toPlan } from '../../staffing'
 import { bookingCostSummary } from '../../costing'
 import { bookingCustomerName } from '../../documents'
@@ -72,7 +73,8 @@ export default function Dashboard({ bookings, menus, settings }: Readonly<Dashbo
       return acc
     }, {})
 
-    const pending = bookings.filter(b => b.status === 'pending')
+    // "รอร้านยืนยัน" = ลูกค้าส่งสลิปมัดจำแล้ว เจ้าของร้านต้องตรวจและกดยืนยัน (ใบที่ยังรอโอนมัดจำเป็นหน้าที่ลูกค้า ไม่นับ)
+    const pending = bookings.filter(b => bookingPhase(b) === 'awaiting-review')
 
     // กราฟ 8 เดือนล่าสุด (ย้อนหลังจากเดือนปัจจุบัน)
     const monthly = Array.from({ length: MONTHS_SHOWN }, (_, i) => {
@@ -192,7 +194,7 @@ export default function Dashboard({ bookings, menus, settings }: Readonly<Dashbo
       color: 'from-purple-400 to-purple-600',
     },
     {
-      label: 'รอยืนยัน',
+      label: 'รอร้านยืนยัน',
       value: `${stats.pending.length} งาน`,
       sub: `มูลค่า ฿${stats.pendingValue.toLocaleString()}`,
       change: null,
@@ -359,7 +361,7 @@ export default function Dashboard({ bookings, menus, settings }: Readonly<Dashbo
         ) : (
           <div className="space-y-3">
             {stats.upcoming.map((b) => {
-              const info = BOOKING_STATUS_INFO[b.status]
+              const info = PHASE_INFO[bookingPhase(b)]
               const daysLeft = Math.round(
                 (new Date(b.date + 'T00:00:00').getTime() - new Date(stats.todayKey + 'T00:00:00').getTime()) / 86400000
               )
@@ -391,7 +393,7 @@ export default function Dashboard({ bookings, menus, settings }: Readonly<Dashbo
                       <span className="text-[10px] text-gray-400">
                         {daysLeft === 0 ? 'วันนี้' : `อีก ${daysLeft} วัน`}
                       </span>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${info.chip}`}>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${info.bg} ${info.text}`}>
                         {info.label}
                       </span>
                     </div>
