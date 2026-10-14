@@ -7,22 +7,25 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 
 # Requirement Specification: ระบบจองแคทเธอริ่ง (Catering Booking Web Application)
 
-> เอกสารนี้สรุปจากการอ่านโค้ดจริงในโปรเจกต์ ณ วันที่ 2026-08-18 ครอบคลุมทั้งฝั่ง Frontend (`Catering Booking Web Application/`) และ Backend API (`backend/`)
+> เอกสารนี้สรุปจากการอ่านโค้ดจริงในโปรเจกต์ ปรับปรุงล่าสุด 2026-10-14 ครอบคลุมทั้งฝั่ง Frontend (`Catering Booking Web Application/`) และ Backend API (`backend/`)
 >
-> ต้องการรายละเอียดระดับฟังก์ชัน/เมธอด (พารามิเตอร์ ตรรกะ เงื่อนไข validation ของทุกหน้าจอและทุก endpoint) ดูที่ [`FUNCTIONS.md`](./FUNCTIONS.md)
+> - รายละเอียดระดับฟังก์ชัน/เมธอด (พารามิเตอร์ ตรรกะ เงื่อนไข validation) ดู [`FUNCTIONS.md`](./FUNCTIONS.md)
+> - ความต้องการแยกเป็นรายหัวข้อ (FR-xx) ดู [`FUNCTIONAL_REQUIREMENTS.md`](./FUNCTIONAL_REQUIREMENTS.md)
+> - สถาปัตยกรรม แผนภาพ ER/sequence ผลทดสอบ และข้อจำกัด ดู [`../../docs/SYSTEM_OVERVIEW.md`](../../docs/SYSTEM_OVERVIEW.md)
+> - วิธี deploy/ตัวแปรสภาพแวดล้อม ดู [`../../README.md`](../../README.md)
 
 ## 1. ภาพรวมระบบ
 
-ระบบจองโต๊ะจีน/แคทเธอริ่งสำหรับร้านอาหาร แบ่งผู้ใช้เป็น 2 บทบาท คือ **ลูกค้า (Customer)** ที่จองงานผ่านหน้าเว็บ และ **เจ้าของร้าน (Owner)** ที่บริหารจัดการออเดอร์ เมนู แพ็กเกจ กำลังคน และค่าตั้งค่าร้านจากหลังบ้าน
+ระบบจองโต๊ะจีน/แคทเธอริ่งแบบ **หลายร้าน (multi-tenant)** — ผู้ให้บริการระบบ (**Super Admin**) เปิดร้านให้แต่ละร้าน แต่ละร้านมี **เจ้าของร้าน (Owner)** ที่บริหารเมนู แพ็กเกจ ใบจอง กำลังคน และค่าตั้งค่าของร้านตัวเองแยกขาดจากร้านอื่น ส่วน **ลูกค้า (Customer)** เลือกร้านแล้วจองงานผ่านหน้าเว็บ
 
-ระบบประกอบด้วย 2 ส่วนแยกกัน ต่อกันจริงผ่าน REST API แล้ว:
+ระบบประกอบด้วย 2 ส่วนแยกกัน ต่อกันผ่าน REST API (และ SSE สำหรับแจ้งการเปลี่ยนแปลง):
 
 | ส่วน | โฟลเดอร์ | สถานะ |
 |---|---|---|
-| Frontend (SPA) | `Catering Booking Web Application/` | เรียก backend จริงทุกจุด (`src/api.ts`) ไม่มี mock data/local state ค้างอยู่ — ข้อมูล booking/เมนู/แพ็กเกจ/ค่าตั้งค่าทั้งหมดโหลดจาก `GET /bookings /menus /packages /settings` ทันทีหลัง login |
-| Backend (REST API) | `backend/` | NestJS + Prisma + PostgreSQL, deploy บน Railway (โปรดักชัน) มี rate limiting, RBAC ปิดข้อมูลอ่อนไหวจาก role ลูกค้า, และ audit field ครบ |
+| Frontend (SPA) | `Catering Booking Web Application/` | เรียก backend จริงทุกจุด (`src/api.ts`) ไม่มี mock data — โหลด booking/เมนู/แพ็กเกจ/ค่าตั้งค่าของร้านที่เลือกหลัง login และอัปเดตอัตโนมัติผ่าน SSE |
+| Backend (REST API) | `backend/` | NestJS + Prisma + PostgreSQL deploy บน Railway มี rate limiting, helmet, RBAC ต่อร้าน, audit log, เข้ารหัส API key, health check |
 
-**ระบบออกแบบให้ "ขายต่อ" ให้ร้านอื่นได้** — เกือบทุกอย่างที่เคย hardcode (จังหวัดฐานร้าน/โซนขนส่ง, สีแบรนด์/โลโก้, ประเภทอาหาร, ช่วงเวลาจอง, สัดส่วนคำนวณพนักงาน, เงื่อนไขในเอกสาร) ย้ายไปเป็นค่าที่เจ้าของร้านแก้ไขเองได้จากหน้า "ตั้งค่า" แล้ว (ดูหัวข้อ 3.2 และ 5)
+**ระบบออกแบบให้ใช้ซ้ำกับหลายร้าน** — ค่าที่เคย hardcode (จังหวัดฐานร้าน/โซนขนส่ง, สีแบรนด์/โลโก้, ประเภทอาหาร, ช่วงเวลาจอง, สัดส่วนคำนวณพนักงาน, เงื่อนไขในเอกสาร, บัญชีรับเงิน) เป็นค่าที่เจ้าของร้านแก้เองจากหน้า "ตั้งค่า" (ดูหัวข้อ 5)
 
 ---
 
@@ -33,45 +36,50 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 | หมวด | เทคโนโลยี | หมายเหตุ |
 |---|---|---|
 | Framework | React 19 + React DOM 19 | |
-| Build tool | Vite 8 + `@vitejs/plugin-react` | dev server รันที่พอร์ต 8443 |
+| Build tool | Vite 8 + `@vitejs/plugin-react` | dev server พอร์ต 8443 |
 | ภาษา | TypeScript 5.7 | |
-| CSS | Tailwind CSS v4 (ผ่าน `@tailwindcss/vite`) | ค่าสีของ Tailwind (`--color-orange-*`/`--color-amber-*`) ถูก override ที่ runtime ตาม `AppSettings.brandColor` — ดู `src/theme.ts` |
-| State/context | React Context (`src/NavContext.tsx`) | รวม `navigate/user/shopInfo/notifCount/categories/categoryMap` ไว้ที่เดียว กันส่ง props ซ้ำทุกชั้น |
-| Authentication | `@auth0/auth0-react` v2 (Auth0 SPA SDK) | |
-| แผนที่ | Leaflet 1.9 + `@types/leaflet` | ปักหมุดสถานที่จัดงาน |
-| Geocoding | OpenStreetMap Nominatim API (public, เรียกตรงจาก frontend) | ค้นหา/reverse-geocode ที่อยู่ |
-| Routing (ระยะทาง) | OSRM public demo server | คำนวณระยะทางถนนจริงสำหรับงานนอกพื้นที่ |
-| กราฟ/แดชบอร์ด | Recharts 3 | กราฟรายได้ย้อนหลัง, สัดส่วนแพ็กเกจ |
-| ไอคอน | lucide-react | |
-| Test runner | Vitest | `src/*.test.ts` — 53 เทสต์ครอบคลุม logic โมดูล geo/staffing/availability/documents |
-| Formatter | oxfmt | `pnpm format` |
-| Package manager | pnpm (มี `pnpm-workspace.yaml`) | |
+| CSS | Tailwind CSS v4 (`@tailwindcss/vite`) | สี `--color-orange-*`/`--color-amber-*` ถูก override ที่ runtime ตาม `brandColor` ของร้าน — ดู `src/theme.ts` |
+| State/context | React Context (`src/NavContext.tsx`) | รวม `navigate/user/shopInfo/notifCount/categories/categoryMap` |
+| Authentication | `@auth0/auth0-react` v2 | |
+| แผนที่ | Leaflet 1.9 | ปักหมุดสถานที่จัดงาน/ตำแหน่งร้าน |
+| Geocoding | OpenStreetMap Nominatim (เรียกจาก frontend) | ค้นหา/reverse-geocode มีแคชผลในหน้าเว็บ |
+| Routing (ระยะทาง) | OSRM public (เรียกจาก backend เป็นหลัก) | frontend ใช้ประมาณค่าให้ผู้ใช้เห็น มีแคช |
+| กราฟ | Recharts 3 | |
+| ไอคอน/โลโก้ธนาคาร | lucide-react, `thai-banks-logo` | มี `BankBadge` สำรองเมื่อไม่มีโลโก้ |
+| Test runner | Vitest | 133 เทสต์ (12 ไฟล์) |
+| Lint / Formatter | ESLint (`pnpm lint`) / oxfmt | |
+| Package manager | pnpm | |
 | Node version | ^20.19.0 หรือ >=22.12.0 | |
 
 ### 2.2 Backend (`backend/`)
 
 | หมวด | เทคโนโลยี | หมายเหตุ |
 |---|---|---|
-| Framework | NestJS 11 (`@nestjs/common`, `@nestjs/core`, `@nestjs/platform-express`) | |
-| ภาษา | TypeScript 5.7, รันด้วย `ts-node-dev` (dev) | |
-| ORM | Prisma 6 (`@prisma/client`) | มี migration หลายชุด ล่าสุดเพิ่ม audit field และค่าตั้งค่าร้านที่ owner แก้ได้ |
-| ฐานข้อมูล | PostgreSQL 16 (Docker: `postgres:16-alpine` สำหรับ dev, Railway Postgres สำหรับ production) | dev ผ่าน `docker-compose.yml`, expose พอร์ต 5434 |
-| Authentication | Passport + `passport-jwt` + `jwks-rsa` | ตรวจสอบ JWT ที่ Auth0 ออกให้ด้วย public key จาก JWKS (RS256), ไม่เก็บ secret เอง |
-| Rate limiting | `@nestjs/throttler` | ค่าเริ่มต้นทั้ง API 60 req/นาที/IP, เข้มกว่านั้นที่ `POST /bookings` (10/นาที) และ `GET /geo/resolve-maps-link` (20/นาที) |
-| Validation | `class-validator` + `class-transformer` | ใช้กับ DTO ทุกตัว |
-| Config | `@nestjs/config` (`ConfigModule.forRoot`) | อ่านจาก `.env` |
-| Test runner | Jest | `src/**/*.spec.ts` — DTO validation และ RolesGuard |
-| Deploy target | Railway (backend + Postgres plugin), Vercel (frontend) | |
+| Framework | NestJS 11 | |
+| ภาษา | TypeScript 5.7 | `ts-node-dev` (dev), `tsc` build (production) |
+| ORM | Prisma 6 | migration หลายชุด รัน `prisma migrate deploy` ตอน deploy |
+| ฐานข้อมูล | PostgreSQL 16 | dev ผ่าน Docker (`docker-compose.yml` พอร์ต 5434), production = Railway Postgres |
+| Authentication | Passport + `passport-jwt` + `jwks-rsa` | ตรวจ JWT (RS256) จาก Auth0 ด้วย JWKS |
+| ความปลอดภัย HTTP | `helmet`, `trust proxy` (ตัวแปร `TRUST_PROXY`) | |
+| Rate limiting | `@nestjs/throttler` | ทั้ง API 60 req/นาที/IP; `POST /bookings` 10/นาที; `GET /geo/resolve-maps-link` 20/นาที; `POST /users/me` 20/นาที; `/uploads/*` 10/นาที |
+| Validation | `class-validator` + `class-transformer` | DTO ทุกตัว |
+| ตรวจสลิป | SlipOK API | ต่อร้าน (API key + Branch ID ของแต่ละร้าน) |
+| ไฟล์ | เก็บบนดิสก์ใน `UPLOADS_DIR` (Volume บน Railway) | `sharp` ย่อรูป |
+| Realtime | Server-Sent Events (`@Sse`) | `/realtime/bookings`, `/realtime/app` |
+| Config | `@nestjs/config` + ตรวจตัวแปรจำเป็นตอนเริ่ม | ขาด `DATABASE_URL`/`AUTH0_DOMAIN`/`AUTH0_AUDIENCE` = ไม่เริ่ม |
+| Test runner / Lint | Jest (246 เทสต์, 20 ไฟล์) / ESLint (`pnpm lint`) | |
+| Deploy | Railway (backend + Postgres + Volume) | Healthcheck `/health` |
 
-### 2.3 Authentication / Authorization (ใช้ร่วมกันทั้งระบบ)
+### 2.3 Authentication / Authorization
 
-- **Auth0** เป็นผู้ให้บริการ identity เดียว แยกบทบาทตาม **connection ที่ใช้ login**:
-  - `customer` → login ด้วย Google OAuth2 (`google-oauth2`)
-  - `owner` → login ด้วย Username/Password (`Username-Password-Authentication`), ต้องสร้างบัญชีไว้ล่วงหน้าใน Auth0 Dashboard
-- Auth0 ไม่ส่ง connection name มาตรงๆ ใน token จึงต้องใช้ **Auth0 Action** (Post-Login) ฝัง custom claim `https://pipatphochana-catering.app/role` (`owner`/`customer`) ลงใน ID token และ Access token (ดู `docs/auth0-action.md`)
-- Frontend อ่าน role จาก claim นี้ผ่าน `roleFromAuth0User()` (`src/auth.ts`)
-- Backend ตรวจสอบ JWT ด้วย `JwtStrategy` (RS256 ผ่าน JWKS ของ Auth0 tenant) แล้วเช็ค role จาก claim เดียวกันใน `RolesGuard` + decorator `@Roles('owner' | 'customer')` — ไม่ใส่ decorator = เข้าถึงได้ทุก role ที่ login แล้ว (แต่ response อาจถูกกรองฟิลด์ตาม role อยู่ดี ดูหัวข้อ 3.3)
-- ข้อมูลโปรไฟล์เพิ่มเติมที่ Auth0/Google ไม่มีให้ (เบอร์โทร, Line ID) ขอเพิ่มครั้งแรกหลัง login ผ่านหน้า **CompleteProfile** แล้วบันทึกลง backend จริง (`PATCH /users/me`) — ไม่ใช่ localStorage แล้ว
+- **Auth0** เป็นผู้ให้บริการ identity เดียว หน้า Login มี 2 ปุ่มบังคับ connection: `customer` → Google (`google-oauth2`), `owner` → Username/Password (`Username-Password-Authentication`) ดู `docs/auth0-action.md`
+- **บทบาทที่ backend ใช้จริงมาจากฐานข้อมูลเสมอ ไม่ใช่ claim ใน token** — `RolesGuard` เรียก `resolveShopContext` ทุก request (cache 5 วินาที) เพื่อกัน token เก่า/ถูกปลอมอ้างสิทธิ์ผิด claim ของ Auth0 ใช้เป็นแค่คำใบ้ฝั่ง UI (`roleFromAuth0User()` ใน `src/auth.ts`)
+- **สิทธิ์ต่อร้าน:** `User.role` ระดับระบบมีแค่ `CUSTOMER` หรือ `SUPER_ADMIN` ส่วนการเป็น owner เก็บที่ตาราง `ShopMember(userId, shopId)` — บัญชีเดียวเป็น owner ได้หลายร้านและเป็นลูกค้าของร้านที่ไม่ได้เป็น owner ได้
+- **ร้านที่กำลังใช้งาน** ส่งไปกับทุกคำขอด้วย header `X-Shop-Id` backend ดูว่าผู้เรียกมี `ShopMember` ของร้านนั้นหรือไม่ — มี = OWNER ของร้านนั้น, ไม่มี = CUSTOMER, `SUPER_ADMIN` = ข้ามร้านเสมอ ส่ง header ปลอมไม่ได้สิทธิ์เพิ่ม
+- **Super Admin คนแรก:** อีเมลใน `SUPER_ADMIN_EMAILS` ถูกตั้งเป็น SUPER_ADMIN ตอน login ครั้งแรก
+- **ผู้ใช้ต้อง login เข้าเว็บอย่างน้อย 1 ครั้ง** ก่อนจะถูกเพิ่มเป็น owner ของร้านได้ (ระบบหาจากอีเมลในตาราง `User`)
+- ข้อมูลโปรไฟล์ที่ Auth0 ไม่มีให้ (เบอร์โทร, Line ID) ขอครั้งแรกผ่านหน้า **CompleteProfile** แล้วบันทึกที่ backend (`PATCH /users/me`)
+- token ทาง query string (`?access_token=`) รับเฉพาะ `/realtime/*` (SSE ใส่ header ไม่ได้) route อื่นต้องใช้ header
 
 ---
 
@@ -79,134 +87,173 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 
 ### 3.1 Customer (ลูกค้า)
 
-เข้าใช้งานผ่าน Google login เท่านั้น ทำได้:
-
-- ดูหน้า Home และเมนูนำทางไปยังขั้นตอนการจอง
-- เลือกวันที่/ช่วงเวลาจัดงานจากปฏิทิน พร้อมดูสถานะคิว (ว่าง/เต็ม) ของแต่ละวัน
+- เริ่มที่หน้า **เลือกร้าน** (ไม่ต้อง login — `GET /shops/public`) แล้วเข้าหน้า login/เริ่มจองของร้านนั้นด้วย URL เฉพาะร้าน (เช่น `/pipat-catering`)
+- เลือกวันที่/ช่วงเวลาจัดงานจากปฏิทิน ดูสถานะคิว (ว่าง/เต็ม/ร้านปิด) ของแต่ละวัน
 - ระบุจำนวนโต๊ะและจำนวนแขก
-- ปักหมุด/ค้นหาสถานที่จัดงานบนแผนที่ (หรือใช้ตำแหน่ง GPS ปัจจุบัน) และกรอกรายละเอียดสถานที่เพิ่มเติม
-- เลือกแพ็กเกจอาหาร (ดูราคาต่อโต๊ะ, จำนวนเมนูที่เลือกได้, รายการที่รวมมาให้) — **ไม่เห็นต้นทุนต่อจาน (`costPrice`) ของเมนู**
-- เลือกเมนูอาหารแต่ละคอร์สตามโควตาของแพ็กเกจ
-- ดูสรุปตะกร้า (ราคารวม + ค่าขนส่งถ้ามี) แล้วยืนยันการจอง — **ราคาจริงที่บันทึกคำนวณที่ backend เสมอ ไม่เชื่อตัวเลขจาก client**
-- ดูประวัติการจองของตัวเองเท่านั้น (ไม่เห็นของลูกค้าคนอื่น)
-- ดู/พิมพ์ใบเสนอราคาและใบจองของตัวเอง
-- แนบสลิปโอนเงินมัดจำเข้าใบจองของตัวเอง (backend ตรวจว่าเป็นรูปจริงและไม่เกินขนาดที่กำหนด)
-- ดูการแจ้งเตือน (derive จากใบจองจริงของตัวเอง)
-- แก้ไขโปรไฟล์ (เบอร์โทร/Line ID) ของตัวเอง
+- ปักหมุด/ค้นหาสถานที่จัดงานบนแผนที่ (หรือใช้ GPS, หรือวางลิงก์ Google Maps) และกรอกรายละเอียดสถานที่
+- เลือกแพ็กเกจและเมนูตามโควตา — **ไม่เห็นต้นทุนต่อจาน**
+- ดูสรุปตะกร้า (ราคารวม + ค่าขนส่ง) แล้วยืนยัน — **ราคาจริงคำนวณที่ backend เสมอ** ถ้าราคาที่แสดงต่างจากค่าตั้งค่าล่าสุดของร้าน ระบบแจ้งให้ทราบก่อนยืนยัน
+- ข้อมูลที่เลือกไว้ระหว่างขั้นตอนจอง **เก็บข้ามการรีเฟรช** (sessionStorage แยกต่อร้าน) และมีตัวกันไม่ให้ข้ามไปขั้นตอนที่ข้อมูลยังไม่ครบ
+- ดูประวัติการจองของตัวเอง **เฉพาะร้านที่เปิดอยู่** (ไม่เห็นของลูกค้าคนอื่น/ของร้านอื่น) ดู/พิมพ์ใบเสนอราคาและใบจอง
+- **ชำระมัดจำ:** เห็นช่องทางโอนของร้าน (บัญชีธนาคารพร้อมโลโก้ธนาคาร และ/หรือพร้อมเพย์) **เฉพาะร้านที่เชื่อม SlipOK แล้ว** ถ้าร้านมีหลายช่องทางต้องเลือกช่องทางที่โอนก่อนแนบสลิป แล้วแนบสลิป — ระบบตรวจกับธนาคารและเทียบผู้รับ แสดงผล (ผ่าน/ซ้ำ/ผู้รับไม่ตรง/ยอดไม่ตรง ฯลฯ) สลิปที่ตรวจผ่านแล้วเปลี่ยนไม่ได้
+- ดูการแจ้งเตือน (derive จากใบจองของตัวเอง) แก้ไขโปรไฟล์ของตัวเอง
 
-**ทำไม่ได้:** ดู/แก้ไขใบจองของลูกค้าคนอื่น, เปลี่ยนสถานะใบจอง, แก้ไขเมนู/แพ็กเกจ/ค่าตั้งค่าร้าน, ดูต้นทุนเมนู/ค่าแรงพนักงาน/สัดส่วนคำนวณกำลังคน (ถูกกรองออกจาก response ที่ role นี้)
+**ทำไม่ได้:** ดู/แก้ใบจองของคนอื่น, เปลี่ยนสถานะใบจอง, ยกเลิกใบจองเอง, แก้เมนู/แพ็กเกจ/ตั้งค่า, ดูต้นทุน/ค่าแรง/ข้อมูล SlipOK (ถูกกรองออกจาก response)
 
-### 3.2 Owner (เจ้าของร้าน)
+### 3.2 Owner (เจ้าของร้าน — ต่อร้าน)
 
-เข้าใช้งานผ่าน Username/Password login เท่านั้น (ต้องสร้างบัญชีล่วงหน้าใน Auth0) ทำได้ทุกอย่างที่ customer ทำไม่ได้ ผ่านเมนู Owner:
+เข้าผ่านเมนู Owner (11 รายการ) สิทธิ์จำกัดเฉพาะร้านที่เป็นสมาชิก:
 
-- **แดชบอร์ด**: ดูรายได้/จำนวนงาน เทียบเดือนก่อนหน้า (%), กราฟรายได้ย้อนหลัง 8 เดือน, สัดส่วนแพ็กเกจที่ขายได้, รายการงานที่ใกล้ถึงพร้อมจำนวนพนักงานที่ต้องใช้
-- **ออเดอร์**: ดูใบจองทั้งหมดของทุกลูกค้า, เปลี่ยนสถานะใบจอง (รอยืนยัน/ยืนยันแล้ว/เสร็จสิ้น/ยกเลิก), ปรับแผนกำลังคนจริง (จำนวนที่ระบบคำนวณ vs จำนวนที่ปรับแก้เอง) พร้อมหมายเหตุ
-- **ปฏิทินร้าน**: ดูภาพรวมใบจองทั้งหมดตามวัน, อัปเดตสถานะใบจองจากมุมมองปฏิทิน
-- **แพ็กเกจ**: สร้าง/แก้ไข/ลบแพ็กเกจ (ราคาต่อโต๊ะ, จำนวนเมนูที่เลือกได้, features, badge, คอร์สอาหารแต่ละข้อพร้อมจำนวนที่เลือกได้และเมนูที่อยู่ในข้อนั้น)
-- **เมนูอาหาร**: สร้าง/แก้ไข/ลบเมนูในคลัง, อัปโหลดรูปเมนู (ย่อขนาดก่อนเก็บ), เปิด/ปิดการแสดงเมนู, ระบบเตือนก่อนลบถ้าเมนูถูกใช้อยู่ในแพ็กเกจ, กรอกต้นทุนต่อจาน (`costPrice`) เพื่อคำนวณกำไร
-- **เอกสาร**: ออก/พิมพ์ใบเสนอราคาและใบจองของทุกใบจอง โดยใช้เทมเพลตเดียวกัน อ้างอิงค่าตั้งค่าร้าน (ชื่อร้าน, อัตรามัดจำ, จังหวัดฐานร้าน, เงื่อนไขที่ตั้งไว้เอง ฯลฯ)
-- **ตั้งค่า**: หน้าที่ทำให้ระบบ "ขายต่อร้านอื่น" ได้จริง — แก้ไขได้เกือบทั้งหมด (ดูหัวข้อ 5 สำหรับรายละเอียด)
+- **แดชบอร์ด** — รายได้/จำนวนงานเทียบเดือนก่อน, กราฟ 8 เดือน, สัดส่วนแพ็กเกจ, งานใกล้ถึงพร้อมกำลังคน
+- **รายการจอง** — ดูใบจองทั้งหมดของร้าน ค้นหา/กรอง, เปลี่ยนสถานะ (ตามกฎหัวข้อ 6.6 — ปุ่มที่เปลี่ยนไม่ได้จะถูกปิด), ดูสลิปและผลตรวจ SlipOK, ผู้รับในสลิปเทียบกับบัญชีร้าน, ปรับแผนกำลังคนพร้อมหมายเหตุ, ต้นทุนและกำไรต่องาน
+- **ปฏิทิน** — ใบจองตามวัน เปลี่ยนสถานะจากปฏิทินได้
+- **แพ็กเกจ** — CRUD, จัดการคอร์ส/ข้อ, **เรียงลำดับ** (`PATCH /packages/reorder`)
+- **เมนูอาหาร** — CRUD, อัปโหลด/ครอปรูป (`imagePosition`/`imageScale`), เปิด/ปิด, เตือนก่อนลบเมนูที่ถูกใช้ในแพ็กเกจ, ราคาทุนต่อจาน
+- **เอกสาร** — ออก/พิมพ์ใบเสนอราคาและใบจอง
+- **รายงาน** — สรุปรายเดือน/รายปี
+- **สิทธิ์การเข้าถึง** — ค้นหาผู้ใช้ด้วยอีเมล แต่งตั้ง/ถอด owner ของร้านตัวเอง (ต้องเหลือ owner อย่างน้อย 1 คน และกันถอดตัวเอง)
+- **ประวัติการแก้ไข (Audit Log)** — ใคร แก้อะไร เมื่อไร พร้อมค่าก่อน/หลัง แบ่งหน้า และอัปเดตทันทีผ่าน SSE
+- **แก้ไขหน้าเว็บ** — เนื้อหาหน้าแรก (Hero/ขั้นตอน/แกลเลอรี/CTA) พร้อมอัปโหลดรูป
+- **ตั้งค่า** — ดูหัวข้อ 5
 
-**ทำไม่ได้ (ยังไม่มีในระบบ):** ไม่มีบทบาทที่ 3 (เช่น staff/พนักงาน — ทุกคนที่เข้าฝั่ง owner ใช้บัญชีเดียวกันหมด ไม่มี audit ระดับ "ใครเป็นใคร" นอกจาก `lastEditedBy` เก็บ auth0Sub ดิบไว้), ไม่มีระบบสมาชิกลูกค้าแยกจาก booking, หน้า "ลูกค้า" (customer directory) ถูกลบออกแล้วเพราะไม่มี sidebar link เข้าถึง
+owner ของร้านหนึ่งสลับเปิดร้านอื่นในฐานะลูกค้าได้ (บัญชีเดียวหลายบทบาท)
 
-### 3.3 สรุปสิทธิ์ระดับ API (backend)
+### 3.3 Super Admin (ผู้ดูแลระบบ — ข้ามร้าน)
 
-| Endpoint | Customer | Owner | หมายเหตุ |
-|---|---|---|---|
-| `GET /users/me`, `PATCH /users/me` | ✅ (ของตัวเอง) | ✅ (ของตัวเอง) | login แล้วเท่านั้น |
-| `GET /bookings` | ✅ เห็นเฉพาะของตัวเอง | ✅ เห็นทั้งหมด | รองรับ `?page=&limit=` (opt-in) |
-| `GET /bookings/availability` | ✅ | ✅ | คิวรับงานไม่มีข้อมูลส่วนตัว |
-| `POST /bookings` | ✅ | ❌ | ราคาคำนวณที่ backend จาก `packageId`, validate เมนูต้องอยู่ในแพ็กเกจ, rate limit 10/นาที |
-| `PATCH /bookings/:id` | ❌ | ✅ | บันทึก `lastEditedBy` |
-| `PATCH /bookings/:id/payment-slip` | ✅ (ของตัวเอง) | ❌ | validate เป็นรูปภาพจริง |
-| `GET /menus`, `GET /packages` | ✅ (ไม่เห็น `costPrice`) | ✅ (เห็นครบ) | รองรับ pagination |
-| `POST/PATCH/DELETE /menus`, `/packages` | ❌ | ✅ | |
-| `GET /settings` | ✅ (ไม่เห็นค่าแรง/สัดส่วนกำลังคน) | ✅ (เห็นครบ) | |
-| `PATCH /settings` | ❌ | ✅ | |
-| `GET /settings/public` | ไม่ต้อง login | ไม่ต้อง login | ใช้แสดงหน้า Login (ชื่อร้าน, โลโก้, สีแบรนด์, คำโปรย) |
-| `GET /geo/resolve-maps-link` | ✅ | ✅ | rate limit 20/นาที, whitelist โดเมน goo.gl เท่านั้น |
+หน้าเดียว (`SuperAdmin.tsx`): สร้างร้านใหม่ (ชื่อร้าน + อีเมล owner), แก้ชื่อ/path (slug) ร้าน, **ระงับ/เปิดใช้งาน** ร้าน, เพิ่ม/ถอด owner ของแต่ละร้าน, แต่งตั้ง/ถอด Super Admin, ดูสรุปจำนวน owner/ใบจอง/ยอดขายรวมต่อร้าน, ดูประวัติการแก้ไขข้ามร้าน และ **ลบร้านถาวร** (พิมพ์ `Delete {ชื่อร้าน}` ยืนยัน ลบข้อมูลทั้งหมดของร้านรวมถึงไฟล์รูป/สลิปบนดิสก์ — กู้คืนไม่ได้)
 
-ควบคุมด้วย `JwtAuthGuard` (ต้องมี token ที่ valid) + `RolesGuard` (เช็ค custom claim role) + `ThrottlerGuard` (rate limit) ทุก controller — ฟิลด์ที่เป็นข้อมูลต้นทุนภายใน (`costPrice`, `wageChef/wageAssistant/wageServerPerTable/wageDishwasher`, `tablesPerServer/tablesPerSupport/staffRemainderThreshold`) ถูกกรองออกจาก response ที่ role เป็น customer โดย service ชั้น ไม่ใช่แค่ frontend ไม่แสดง
+### 3.4 สรุปสิทธิ์ระดับ API (backend)
+
+| Endpoint | Customer | Owner | Super Admin | หมายเหตุ |
+|---|---|---|---|---|
+| `GET /shops/public`, `GET /shops/:slug/public` | ไม่ต้อง login | | | รายชื่อ/ข้อมูลร้านที่เปิดให้บริการ |
+| `GET /shops`, `POST /shops`, `PATCH /shops/:id`, `PATCH /shops/:id/status`, `DELETE /shops/:id` | ❌ | ❌ | ✅ | ลบร้านต้องส่งชื่อยืนยัน |
+| `POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId` | ❌ | ❌ | ✅ | |
+| `POST /users/me`, `PATCH /users/me` | ✅ | ✅ | ✅ | sync/แก้โปรไฟล์ตัวเอง |
+| `GET /users/search?email=`, `GET /users/owners`, `PATCH /users/:id/role` | ❌ | ✅ (ร้านตัวเอง: CUSTOMER ↔ OWNER) | ✅ (CUSTOMER ↔ SUPER_ADMIN เท่านั้น) | ตั้ง/ถอด owner ของร้านโดย super admin ทำผ่าน `/shops/:id/owners` |
+| `GET /bookings` | ✅ ของตัวเองใน `?shopId=` | ✅ ทั้งร้าน | | รองรับ `?page=&limit=` |
+| `GET /bookings/availability` | ✅ | ✅ | | คิวไม่มีข้อมูลส่วนตัว |
+| `POST /bookings` | ✅ | ❌ | | คำนวณราคา/ค่าขนส่ง/โซนที่ backend, กันวันย้อนหลัง/วันซ้ำ/วันปิดร้าน, 10/นาที |
+| `PATCH /bookings/:id` | ❌ | ✅ | | บังคับกฎเปลี่ยนสถานะ, บันทึก `lastEditedBy` |
+| `PATCH /bookings/:id/payment-slip` | ✅ ของตัวเอง | ❌ | | ตรวจ SlipOK + เทียบผู้รับ |
+| `GET /bookings/:id/payment-slip` | ✅ ของตัวเอง | ✅ ร้านเดียวกัน | | สลิปไม่เป็นไฟล์สาธารณะ ตรวจสิทธิ์รายใบ |
+| `GET /menus`, `GET /packages` | ✅ ไม่เห็น `costPrice` | ✅ | | pagination แบบ opt-in |
+| `POST/PATCH/DELETE /menus`, `/packages`, `/packages/:id/courses…`, `PATCH /packages/reorder` | ❌ | ✅ | | |
+| `GET /settings` | ✅ กรองข้อมูลภายใน | ✅ ครบ | | ลูกค้าไม่เห็นค่าแรง/SlipOK; ข้อมูลชำระเงินเฉพาะร้านที่เชื่อม SlipOK |
+| `PATCH /settings` | ❌ | ✅ | | optimistic locking (`expectedVersion`, ชน = 409) |
+| `POST /settings/slipok/test` | ❌ | ✅ | | ทดสอบ API key + Branch ID |
+| `GET /settings/public` | ไม่ต้อง login | | | ชื่อร้าน โลโก้ สีแบรนด์ คำโปรย |
+| `GET /audit-log` | ❌ | ✅ ร้านตัวเอง | ✅ ข้ามร้าน | แบ่งหน้า |
+| `POST /uploads/menu-image`, `shop-logo`, `content-image` | ❌ | ✅ | | 10/นาที |
+| `POST /uploads/payment-slip` | ✅ | ❌ | | |
+| `GET /geo/resolve-maps-link` | ✅ | ✅ | | 20/นาที, whitelist โดเมนลิงก์ย่อ Google |
+| `GET /realtime/bookings`, `GET /realtime/app` | ✅ | ✅ | ✅ | SSE แจ้งว่ามีการเปลี่ยนแปลง (ไม่ส่งข้อมูลจริง) |
+| `GET /health`, `GET /health/ready` | ไม่ต้อง login | | | ตรวจโปรเซส / ตรวจการเชื่อม DB |
+
+ควบคุมด้วย `JwtAuthGuard` + `RolesGuard` (ตรวจบทบาทจาก DB) + `ThrottlerGuard` ข้อมูลต้นทุนภายใน (`costPrice`, ค่าแรง 4 ตัว, สัดส่วนกำลังคน 3 ตัว, ข้อมูล SlipOK) ถูกกรองที่ service ชั้น backend ไม่ใช่แค่ frontend ซ่อน
 
 ---
 
 ## 4. Functional Requirements (แยกตามหน้าจอ/โมดูล)
 
-### 4.1 Authentication & Onboarding
+### 4.1 Authentication, เลือกร้าน & Onboarding
 
 | หน้าจอ | ไฟล์ | หน้าที่ |
 |---|---|---|
-| Login | `src/screens/Login.tsx` | ปุ่มเข้าระบบแบบ Google (customer) และปุ่ม "เข้าระบบในฐานะเจ้าของร้าน" (username/password) — เรียก `loginWithRedirect` ของ Auth0 พร้อมบังคับ connection ให้ตรง role; โชว์ชื่อร้าน/โลโก้/คำโปรยจาก `GET /settings/public` (poll ทุก 20 วิ) และทาสีแบรนด์ทันทีแม้ยังไม่ login |
-| CompleteProfile | `src/screens/CompleteProfile.tsx` | หลัง login ด้วย Google ครั้งแรก ขอชื่อจริง/นามสกุล/เบอร์โทร/Line ID บันทึกผ่าน `PATCH /users/me` |
+| ShopSelect | `src/screens/ShopSelect.tsx` | หน้าแรกสุด ลูกค้าเลือกร้านก่อนเสมอ (ไม่ต้อง login) poll ทุก 20 วินาที ร้านที่ถูกลบระหว่างใช้งานเด้งกลับมาหน้านี้ |
+| Login | `src/screens/Login.tsx` | ปุ่ม Google (ลูกค้า) และ "เข้าระบบในฐานะเจ้าของร้าน" (username/password) แสดงชื่อ/โลโก้/คำโปรย/สีแบรนด์ของร้านจาก `GET /settings/public` |
+| CompleteProfile | `src/screens/CompleteProfile.tsx` | ขอชื่อ/นามสกุล/เบอร์/Line ID ครั้งแรก |
+| URL routing | `src/App.tsx` (`pathForScreen`, `handlePopState`) | ทุกหน้ามี URL ของตัวเอง ปุ่ม back/forward ทำงานตาม role แชร์ลิงก์เฉพาะร้านได้ |
 
 ### 4.2 ขั้นตอนการจอง (Customer booking flow)
 
 | หน้าจอ | ไฟล์ | หน้าที่ |
 |---|---|---|
-| Home | `src/screens/Home.tsx` | จุดเริ่มต้น เนื้อหาทั้งหมด (hero/steps/gallery/CTA) มาจาก `AppSettings.homeContent` ที่ owner แก้ได้ |
-| BookingCalendar | `src/screens/BookingCalendar.tsx` | เลือกวันที่/ช่วงเวลา (เช้า/กลางวัน/เย็น — เวลาของแต่ละช่วงตั้งค่าได้), แสดงสถานะคิวแต่ละวัน (ว่าง/เต็ม) จากใบจองจริง |
-| SelectTable | `src/screens/SelectTable.tsx` | เลือกจำนวนโต๊ะและจำนวนแขก, แสดง preview เงื่อนไขพื้นที่ตามจังหวัดฐานร้าน (`homeProvince`) ที่ตั้งค่าไว้ |
-| SelectLocation | `src/screens/SelectLocation.tsx` | ปักหมุด/ค้นหาสถานที่บนแผนที่ (Leaflet + Nominatim), ใช้ตำแหน่ง GPS, กรอกรายละเอียดสถานที่, ตรวจสอบโซนบริการ (home/metro/outside ตาม `homeProvince`/`metroProvinces` ที่ตั้งค่าไว้) |
-| SelectPackage | `src/screens/SelectPackage.tsx` | เลือกแพ็กเกจอาหาร 1 แพ็กเกจ, แสดงราคารวมตามจำนวนโต๊ะ |
-| SelectMenu | `src/screens/SelectMenu.tsx` | เลือกเมนูแต่ละคอร์สตามโควตาของแพ็กเกจ, รายการที่รวมมาให้ (choose = 0) ถูกใส่อัตโนมัติ |
-| Cart | `src/screens/Cart.tsx` | สรุปออเดอร์ทั้งหมด, ยืนยันสร้างใบจอง — ส่งแค่ `packageId` + รายละเอียดงานไปหลังบ้าน ไม่ส่งราคา (backend คำนวณเอง) |
-| BookingHistory | `src/screens/BookingHistory.tsx` | ดูใบจองของตัวเอง, ดู/พิมพ์เอกสาร, แนบรูปสลิปโอนเงิน — โมดัลไม่ใช้ `backdrop-blur` แล้ว (เคยทำให้เลื่อนหน้าจอหน่วง) |
-| Notifications | `src/screens/Notifications.tsx` | หน้าแจ้งเตือนของลูกค้า derive จากใบจองจริง |
+| Home | `Home.tsx` | เนื้อหาจาก `homeContent` ที่ owner แก้ได้ |
+| BookingCalendar | `BookingCalendar.tsx` | เลือกวัน/ช่วงเวลา (เช้า/กลางวัน/เย็น เวลาตั้งค่าได้) สถานะวัน ว่าง/เต็ม/ร้านปิด |
+| SelectTable | `SelectTable.tsx` | จำนวนโต๊ะ/แขก พร้อม preview เงื่อนไขพื้นที่ |
+| SelectLocation | `SelectLocation.tsx` | ค้นหา/ปักหมุด/GPS/ลิงก์ Google Maps, ตรวจโซนบริการ (`PlaceSearchBox`, `LocationMap`, `useLocationSync`) |
+| SelectPackage | `SelectPackage.tsx` | เลือกแพ็กเกจ แสดงราคารวม |
+| SelectMenu | `SelectMenu.tsx` | เลือกเมนูตามโควตา รายการที่รวมมาให้ใส่อัตโนมัติ |
+| Cart | `Cart.tsx` | สรุปและยืนยัน (ส่งแค่ `packageId` + รายละเอียด ไม่ส่งราคา), แจ้งเมื่อราคาเปลี่ยน (`priceChange.ts`) |
+| BookingHistory | `BookingHistory.tsx` | ใบจองของร้านที่เปิดอยู่, เอกสาร, ช่องทางชำระเงิน (`PaymentChannels`), แนบสลิป, ผลตรวจสลิป (`SlipVerifyBadge`, `SlipLoadStatus`) |
+| Notifications | `Notifications.tsx` | derive จากใบจองของลูกค้า |
 
 ### 4.3 ฝั่งเจ้าของร้าน (Owner back-office)
 
 | หน้าจอ | ไฟล์ | หน้าที่ |
 |---|---|---|
-| OwnerLayout | `src/components/OwnerLayout.tsx` | Layout + เมนูนำทาง 9 รายการ (ไม่มี "ลูกค้า" แล้ว) |
-| Dashboard | `src/screens/owner/Dashboard.tsx` | สรุปรายได้/จำนวนงาน, กราฟรายได้ 8 เดือน, สัดส่วนแพ็กเกจ, งานที่ใกล้ถึงพร้อมกำลังคน (คำนวณตามสัดส่วนที่ตั้งค่าไว้) |
-| Orders | `src/screens/owner/Orders.tsx` | จัดการใบจองทั้งหมด, เปลี่ยนสถานะ, คำนวณ/ปรับแก้แผนกำลังคนต่องาน |
-| CalendarView | `src/screens/owner/CalendarView.tsx` | ปฏิทินรวมใบจองทุกลูกค้า, แก้สถานะจากมุมมองปฏิทิน |
-| Packages | `src/screens/owner/Packages.tsx` | CRUD แพ็กเกจอาหาร, จัดการคอร์ส/ข้อในแพ็กเกจตามประเภทอาหารที่ตั้งค่าไว้ |
-| Menus | `src/screens/owner/Menus.tsx` | CRUD เมนูอาหารในคลัง, กรอกต้นทุนต่อจาน, อัปโหลด/ย่อรูปภาพ |
-| Documents | `src/screens/owner/Documents.tsx` | ออกใบเสนอราคา/ใบจองของทุกใบจอง, สั่งพิมพ์ |
-| Settings | `src/screens/owner/Settings.tsx` | หน้าที่ใหญ่ที่สุด — ดูหัวข้อ 5 ทั้งหมด |
-| PageContent | `src/screens/owner/PageContent.tsx` | แก้ไขเนื้อหาหน้าแรก (`homeContent`) |
+| OwnerLayout | `components/OwnerLayout.tsx` | เมนู 11 รายการ: แดชบอร์ด, รายการจอง, ปฏิทิน, แพ็กเกจ, เมนูอาหาร, เอกสาร, รายงาน, สิทธิ์การเข้าถึง, ประวัติการแก้ไข, แก้ไขหน้าเว็บ, ตั้งค่า + กระดิ่งแจ้งเตือน |
+| Dashboard / Reports | `owner/Dashboard.tsx`, `owner/Reports.tsx` | สรุปรายได้/กำไร/สัดส่วน/รายเดือน-รายปี |
+| Orders | `owner/Orders.tsx` | จัดการใบจอง, สถานะ (กฎหัวข้อ 6.6), สลิปและผลตรวจ, กำลังคน, ต้นทุน/กำไร |
+| CalendarView | `owner/CalendarView.tsx` | ปฏิทินรวม เปลี่ยนสถานะจากปฏิทิน |
+| Packages / Menus | `owner/Packages.tsx`, `owner/Menus.tsx` | CRUD, เรียงลำดับแพ็กเกจ, ครอปรูปเมนู |
+| Documents | `owner/Documents.tsx` | ใบเสนอราคา/ใบจอง |
+| UserRoles | `owner/UserRoles.tsx` | จัดการ owner ของร้าน |
+| AuditLog | `owner/AuditLog.tsx` | ประวัติการแก้ไขพร้อม diff ก่อน/หลัง |
+| PageContent | `owner/PageContent.tsx` | แก้ไขหน้าแรก |
+| Settings | `owner/Settings.tsx` (+ `useSettingsForm.ts`) | ดูหัวข้อ 5 |
 
-### 4.4 Shared components / business logic modules
+### 4.4 Super Admin
+
+| หน้าจอ | ไฟล์ | หน้าที่ |
+|---|---|---|
+| SuperAdmin | `screens/SuperAdmin.tsx` | จัดการร้านทั้งระบบ (หัวข้อ 3.3) + ประวัติการแก้ไขข้ามร้าน |
+
+### 4.5 Shared components / logic modules
 
 | ไฟล์ | หน้าที่ |
 |---|---|
-| `src/components/BookingDocument.tsx` | เทมเพลตเอกสารร่วมสำหรับใบเสนอราคาและใบจอง — เงื่อนไขระบบคำนวณอัตโนมัติ (มัดจำ/ค่าขนส่ง) แยกจากเงื่อนไขเพิ่มเติมที่ owner พิมพ์เอง (ดูหัวข้อ 5.6) |
-| `src/components/LocationMap.tsx` | Wrapper ของ Leaflet map: ปักหมุด, ลากหมุด, บินไปตำแหน่งที่ค้นหา/GPS |
-| `src/components/DishTile.tsx` | การ์ดแสดงเมนูอาหาร 1 รายการ — ดึงไอคอน/สี fallback จาก `categoryMap` ใน `NavContext` |
-| `src/components/Navbar.tsx` | แถบนำทางฝั่งลูกค้า — ดึง `navigate/user/shopInfo/notifCount` จาก `NavContext` ไม่รับเป็น props แล้ว |
-| `src/NavContext.tsx` | Context กลางเก็บ `navigate/user/shopInfo/notifCount/categories/categoryMap` — ลด prop drilling |
-| `src/theme.ts` | สร้างสเกลสี 50–900 จาก `brandColor` (hex) แล้ว override CSS variable ของ Tailwind ที่ runtime |
-| `src/staffing.ts` | สูตรคำนวณจำนวนพนักงาน — รับ `StaffRatios` เป็นพารามิเตอร์ (ค่าเริ่มต้น = ค่าคงที่เดิม, ค่าจริงมาจาก `AppSettings`) |
-| `src/availability.ts` | สถานะคิวงานรายวัน/รายช่วงเวลา — `bookableSlots(hours)` รับเวลาที่ตั้งค่าไว้ |
-| `src/geo.ts` | โซนบริการ + คำนวณค่าขนส่ง + geocoding — `zoneFor`/`checkDelivery` รับ `homeProvince`/`metroProvinces` เป็นพารามิเตอร์ |
-| `src/documents.ts` | ชนิดเอกสาร, เลขที่เอกสาร, วันหมดอายุใบเสนอราคา (`quotationValidDays` ตั้งค่าได้) |
-| `src/imageUpload.ts` | อ่านไฟล์รูปจากเครื่องแล้วย่อขนาดก่อนใช้งาน (เมนู, สลิปโอนเงิน, โลโก้, QR) |
-| `src/data.ts` | `DEFAULT_CATEGORIES` (ค่าเริ่มต้นก่อน owner แก้), `orderedCategories()`, `categoryMapOf()`, `requiredCourses()`, `includedItems()` |
-| `src/api.ts` | เรียก backend จริงทุก endpoint, แปลงรูปแบบข้อมูล frontend ↔ backend |
+| `src/AppScreens.tsx` | ประกอบหน้าจอตามบทบาท (`SuperAdminScreen`, `OwnerScreens`, `CustomerScreens`) แยกจาก `App.tsx` |
+| `src/components/ErrorBoundary.tsx` | กันหน้าขาวเมื่อ component พัง |
+| `src/components/BookingDocument.tsx` | เทมเพลตใบเสนอราคา/ใบจอง |
+| `src/components/PaymentChannels.tsx`, `ExtraPaymentAccounts.tsx`, `BankBadge.tsx`, `PromptPayQr.tsx` | ช่องทางโอนที่ลูกค้าเลือก / ฟอร์มบัญชีเพิ่มของ owner / โลโก้ธนาคาร / QR พร้อมเพย์ |
+| `src/components/LocationMap.tsx`, `PlaceSearchBox.tsx`, `SuggestInput.tsx` | แผนที่, ค้นหาสถานที่, ช่องแนะนำจังหวัด |
+| `src/NavContext.tsx` | context กลาง (`navigate/user/shopInfo/notifCount/categories`) |
+| `src/useBookingsStream.ts`, `useAppStream.ts`, `usePolling.ts` | SSE แจ้งเปลี่ยนแปลง + poll สำรอง |
+| `src/bookingDraft.ts` | เก็บ/โหลดแบบร่างการจอง, ตรวจขั้นตอนที่ข้อมูลไม่ครบ |
+| `src/bookingStatus.ts` | กฎเปลี่ยนสถานะฝั่งหน้าจอ (สำเนาของ backend) |
+| `src/priceChange.ts`, `paymentChannels.ts`, `provinces.ts`, `thaiName.ts` | แจ้งราคาเปลี่ยน, key ช่องทางโอน, รายชื่อจังหวัด, จัดรูปแบบชื่อ |
+| `src/staffing.ts`, `availability.ts`, `geo.ts`, `documents.ts`, `costing.ts` | กำลังคน, คิวงาน, โซน/ค่าขนส่ง/geocoding (มีแคช), เอกสาร, ต้นทุน |
+| `src/theme.ts`, `data.ts`, `homeContent.ts`, `imageUpload.ts`, `auth.ts`, `api.ts` | ธีมสี, ค่าเริ่มต้น, เนื้อหาหน้าแรก, ย่อรูป, role จาก Auth0, เรียก backend |
 
-### 4.5 Backend API (`backend/src`)
+### 4.6 Backend modules (`backend/src`)
 
-ดูตารางเต็มในหัวข้อ 3.3 — เพิ่มเติมจากเดิม: `POST /bookings` ไม่รับ `totalPrice`/`packageName` จาก client อีกต่อไป (รับแค่ `packageId`), ทุก endpoint แบบ list รองรับ `?page=&limit=` เป็น optional
+| โมดูล | หน้าที่ |
+|---|---|
+| `auth/` | JWT strategy, `RolesGuard`, `resolveShopContext`, `@CurrentUser()` (`JwtUser`) |
+| `users/`, `shops/` | ผู้ใช้/โปรไฟล์/สิทธิ์ owner; ร้านและสมาชิก (สร้าง ระงับ ลบถาวรพร้อมลบไฟล์) |
+| `bookings/` | สร้าง/แก้ใบจอง, คำนวณราคา, กฎ (`booking-rules.ts`: วันย้อนหลัง, เปลี่ยนสถานะ), ระยะทาง OSRM มีแคช (`geo.util.ts`) |
+| `slip-verify/` | เรียก SlipOK + เทียบผู้รับรายช่องทาง (`receiver-match.ts`) |
+| `settings/` | ตั้งค่าร้าน (optimistic locking), ทดสอบ SlipOK, เข้ารหัส API key (`secret-box.ts`), ช่องทางโอน |
+| `menus/`, `packages/` | CRUD (+ courses, reorder) |
+| `audit/` | บันทึกประวัติการแก้ไขและแจ้ง SSE |
+| `realtime/` | SSE (`bookings`, `app` หัวข้อ settings/catalog/users/audit/shop) |
+| `uploads/` | อัปโหลด/ย่อรูป เก็บเป็นไฟล์ ลบไฟล์เก่าเมื่อถูกแทนที่ |
+| `geo/` | แปลงลิงก์ย่อ Google Maps |
+| `health/`, `config/` | health check, ตรวจตัวแปรสภาพแวดล้อม |
 
 ---
 
-## 5. ค่าตั้งค่าร้านที่เจ้าของร้านแก้ไขได้ (`AppSettings`, หน้า Settings.tsx)
+## 5. ค่าตั้งค่าร้านที่เจ้าของร้านแก้ไขได้ (หน้า Settings.tsx)
 
-หมวดนี้คือสิ่งที่เปลี่ยนมากที่สุดจากเดิม — เกือบทุกค่าที่เคย hardcode ย้ายมาที่นี่หมดแล้ว เพื่อให้ระบบใช้ซ้ำกับร้านอื่นได้โดยไม่ต้องแก้โค้ด:
+ข้อมูลเก็บที่ตาราง `Settings` (แถวเดียวต่อร้าน) แก้แบบ optimistic locking — ถ้ามีคนแก้ไปก่อนจะตอบ 409 และหน้าจอโหลดค่าล่าสุดให้
 
-| หมวด | ฟิลด์ | หมายเหตุ |
+| หมวด (หัวข้อในหน้า) | ฟิลด์ | หมายเหตุ |
 |---|---|---|
-| ข้อมูลร้าน | `shopInfo.{name,nameEn,initials,address,phone,line,logo,loginTagline}` | `logo` เป็น data URL, ใช้แทนไอคอน ChefHat เริ่มต้นทุกจุด (Navbar, OwnerLayout, Login) |
-| การเงิน | `depositRate`, `bankName/bankAccountNumber/bankAccountName/promptPayId` | |
-| พื้นที่บริการ | `homeProvince`, `metroProvinces[]`, `deliveryFee`, `freeDeliveryMinTables`, `shopLocation`, `fuelCostPerKm` | ตัดสินโซน home/metro/outside จากคำที่อยู่ใน `homeProvince`/`metroProvinces` |
-| ธีม | `brandColor` (hex) | override CSS variable ของ Tailwind ทั้งแอปที่ runtime ไม่ต้องแก้โค้ด/rebuild |
-| ค่าแรง/กำลังคน (owner เท่านั้น) | `wageChef/wageAssistant/wageServerPerTable/wageDishwasher`, `tablesPerServer/tablesPerSupport/staffRemainderThreshold` | สูตรคำนวณพนักงานอิงค่าพวกนี้ |
-| ช่วงเวลาจอง | `timeSlotHours.{morning,noon,evening}` | ชื่อ/ID ช่วงคงที่ (กันข้อมูลใบจองเก่าพัง) แก้ได้แค่เวลา |
-| เอกสาร | `quotationValidDays`, `quotationTerms[]`, `bookingTerms[]` | เงื่อนไขที่ระบบคำนวณอัตโนมัติ (มัดจำ/ค่าขนส่ง) ไม่อยู่ในนี้ — แสดงเสมอโดยอิงค่าตั้งค่าจริง |
-| ประเภทอาหาร | `categories[]` (เพิ่ม/ลบ/แก้ไอคอน-ชื่อได้), `categoryOrder[]` | เก็บเป็น JSON ใน `Settings.categories` |
-| หน้าแรก | `homeContent` | แก้จากหน้า "แก้ไขหน้าเว็บ" (PageContent.tsx) แยกจากหน้า Settings |
+| ข้อมูลร้าน | ชื่อ (ไทย/อังกฤษ), อักษรย่อ, ที่อยู่, โทร, LINE, โลโก้, คำโปรยหน้า login | ชื่อไทยซิงค์กับชื่อร้านที่ Super Admin เห็น |
+| ธีมสี | `brandColor` | override สีของ Tailwind ทั้งแอปที่ runtime |
+| อัตรามัดจำ | `depositRate` | |
+| ข้อมูลการชำระเงิน | บัญชีธนาคารหลัก, พร้อมเพย์หลัก, **บัญชีธนาคารเพิ่มเติม** และ **พร้อมเพย์เพิ่มเติม** (อย่างละไม่เกิน 8) | ต้องกรอกให้ตรงกับบัญชีที่ผูกใน SlipOK; ลูกค้าเห็นเฉพาะเมื่อร้านเชื่อม SlipOK แล้ว |
+| ตรวจสอบสลิปอัตโนมัติ (SlipOK) | API key, Branch ID, ปุ่มทดสอบการเชื่อมต่อ, ผู้รับล่าสุดที่ SlipOK เห็นพร้อมผลเทียบกับบัญชีร้าน | key เข้ารหัสใน DB; "เชื่อมแล้ว" = ทดสอบผ่านด้วยคู่ key/branch ที่บันทึกอยู่ |
+| ค่าขนส่ง | `homeProvince`, `metroProvinces[]`, `deliveryFee`, `freeDeliveryMinTables`, ตำแหน่งร้าน (หมุดบนแผนที่ ซิงค์จังหวัดจากหมุดได้ เตือนเมื่อหมุดไม่ตรงจังหวัด) | |
+| ค่าเดินทางนอกพื้นที่ | `fuelCostPerKm` | ระยะทางถนนจริงไป-กลับ × ค่าน้ำมัน/กม. |
+| อัตราค่าแรง (owner เท่านั้น) | `wageChef/wageAssistant/wageServerPerTable/wageDishwasher`, `tablesPerServer/tablesPerSupport/staffRemainderThreshold` | |
+| ช่วงเวลาจอง | `slotMorningHours/slotNoonHours/slotEveningHours` | แก้ได้แค่เวลา ชื่อช่วงคงที่ |
+| วันหยุดร้าน | `closedDates[]` | ลูกค้าจองวันนี้ไม่ได้ (backend ตรวจ) |
+| เงื่อนไขในเอกสาร | `quotationValidDays`, `quotationTerms[]`, `bookingTerms[]` | |
+| ประเภทอาหาร | `categories[]` (JSON), `categoryOrder[]` | |
+| หน้าแรก | `homeContent` (JSON) | แก้ที่หน้า "แก้ไขหน้าเว็บ" |
 
 ---
 
@@ -214,66 +261,91 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 
 ### 6.1 การคำนวณจำนวนพนักงาน (`src/staffing.ts`)
 
-คำนวณจากจำนวนโต๊ะที่จอง ด้วยสัดส่วนที่ตั้งค่าได้ (ค่าเริ่มต้นในวงเล็บ):
+- **เสิร์ฟ:** 1 คนต่อ `tablesPerServer` โต๊ะ (ค่าเริ่มต้น 8) ปัดขึ้น
+- **พ่อครัว:** 1 คนต่อ 1 งาน (ไม่เปิดให้แก้)
+- **ผู้ช่วยพ่อครัว / ล้างจาน:** 1 คนต่อ `tablesPerSupport` โต๊ะ (ค่าเริ่มต้น 20) เศษเกิน `staffRemainderThreshold` (ค่าเริ่มต้น 10) เพิ่มอีก 1 คน
+- owner ปรับจำนวนจริงต่างจากที่คำนวณได้ต่องาน พร้อมหมายเหตุ (เก็บ `staffAuto` และ `staffActual`)
 
-- **พนักงานเสิร์ฟ**: 1 คนต่อกี่โต๊ะ (`tablesPerServer`, ค่าเริ่มต้น 8) — ปัดขึ้นเสมอ
-- **พ่อครัว**: 1 คนต่อ 1 งาน เสมอ (ค่านี้ไม่เปิดให้แก้)
-- **ผู้ช่วยพ่อครัว / พนักงานล้างจาน**: 1 คนต่อกี่โต๊ะ (`tablesPerSupport`, ค่าเริ่มต้น 20), เศษเกิน `staffRemainderThreshold` โต๊ะ (ค่าเริ่มต้น 10) ให้เพิ่มอีก 1 คน
-- เจ้าของร้านสามารถปรับแก้จำนวนจริงต่างจากที่ระบบคำนวณได้ต่องาน พร้อมหมายเหตุ (เก็บทั้ง `staffAuto` และ `staffActual`)
+### 6.2 คิวงานและสถานะวัน (`src/availability.ts`, `bookings.service.ts`)
 
-### 6.2 คิวงานและสถานะวัน (`src/availability.ts`)
+- ช่วงเวลา: เช้า/กลางวัน/เย็น (เวลาตั้งค่าได้) — เป็นข้อมูลเวลางานของใบจอง
+- **มีใบจองสถานะ pending/confirmed/completed อยู่แล้ววันไหน = วันนั้นเต็มทั้งวัน** ไม่รับซ้อนช่วงอื่น (ใบที่ยกเลิกไม่นับ) backend ตอบ 409 ถ้าจองซ้ำ ตั้งใจเป็นกติกาของร้านโต๊ะจีน
+- วันที่ร้านปิด (`closedDates`) จองไม่ได้ — สถานะวันแสดง "ร้านปิด"
+- **จองวันที่ย้อนหลังไม่ได้** (ตัดสินที่ backend ตามเวลา Asia/Bangkok)
 
-- ช่วงเวลาที่จองได้: เช้า, กลางวัน, เย็น (ชื่อคงที่ เวลาตั้งค่าได้จาก `timeSlotHours`) หรือทั้งวัน (ใบจองเก่า)
-- กติกาปัจจุบัน: **มีใบจอง (สถานะ pending/confirmed/completed) อยู่แล้ววันไหน ถือว่าวันนั้นเต็มทั้งวัน** ไม่รับซ้อนช่วงเวลาอื่นในวันเดียวกัน (ใบจองที่ยกเลิกไม่นับ) — จงใจไม่แก้ตามคำขอ (ดูข้อ 8)
-
-### 6.3 พื้นที่ให้บริการและค่าขนส่ง (`src/geo.ts`, `backend/src/bookings/bookings.service.ts`)
+### 6.3 พื้นที่ให้บริการและค่าขนส่ง (`src/geo.ts`, `backend/src/bookings/`)
 
 | โซน | เงื่อนไข | ค่าขนส่ง |
 |---|---|---|
-| พื้นที่ร้าน (`homeProvince`) | รับจัดกี่โต๊ะก็ได้ | ไม่มีค่าขนส่ง |
-| กรุงเทพและปริมณฑล/จังหวัดใกล้เคียง (`metroProvinces`) | จองได้ทุกจำนวนโต๊ะ | ไม่ถึงขั้นต่ำ (`freeDeliveryMinTables`) คิดค่าขนส่ง (`deliveryFee`) / ถึงขั้นต่ำไม่คิด |
-| นอกพื้นที่ให้บริการ | ไม่มีขั้นต่ำ | คิดตามระยะทางถนนจริงไป-กลับ (OSRM) × `fuelCostPerKm` |
+| พื้นที่ร้าน (`homeProvince`) | รับกี่โต๊ะก็ได้ | ไม่มี |
+| ปริมณฑล/จังหวัดใกล้เคียง (`metroProvinces`) | รับทุกจำนวน | ต่ำกว่า `freeDeliveryMinTables` คิด `deliveryFee`, ถึงขั้นต่ำฟรี |
+| นอกพื้นที่ | ไม่มีขั้นต่ำ | ระยะทางถนนจริงไป-กลับ × `fuelCostPerKm` |
 
-โซนตัดสินจากข้อความจังหวัด/ที่อยู่ที่ตรงกับ `homeProvince`/`metroProvinces` (case-insensitive, substring match) — **backend คำนวณราคาซ้ำเองจากค่าตั้งค่าจริง ไม่เชื่อตัวเลขที่ client ส่งมา** ยกเว้น zone/distanceKm ที่ยังอิงค่าที่ client geocode มา (มี cap ระยะทางกันค่าผิดปกติ)
+**backend คำนวณโซน ระยะทาง (เรียก OSRM เอง ไม่เชื่อ `distanceKm`/`zone` จาก client) และราคาทั้งหมด** ผลระยะทางถูกแคชไว้ 24 ชั่วโมง ถ้าเรียก OSRM ไม่สำเร็จ ตอบ 503 (ไม่ fallback ไปเชื่อค่าจาก client)
 
-### 6.4 เอกสาร: ใบเสนอราคา vs ใบจอง (`src/documents.ts`, `src/components/BookingDocument.tsx`)
+### 6.4 เอกสาร: ใบเสนอราคา vs ใบจอง (`src/documents.ts`, `BookingDocument.tsx`)
 
-ใช้เทมเพลตเดียวกัน ข้อมูลราคา/รายการอาหาร/ยอดรวมเหมือนกันทุกจุด ต่างกันเฉพาะเลขที่เอกสาร, บรรทัดสถานะ/วันหมดอายุ, และเงื่อนไขท้ายเอกสาร — เงื่อนไขแบ่งเป็น 2 ชั้น: (1) ที่ระบบคำนวณอัตโนมัติเสมอ (ยืนราคากี่วัน, ยอดมัดจำ, เงื่อนไขค่าขนส่งตามโซน) และ (2) เงื่อนไขเพิ่มเติมที่ owner พิมพ์เองเก็บใน `quotationTerms`/`bookingTerms`
+เทมเพลตเดียวกัน ต่างกันที่เลขที่เอกสาร บรรทัดสถานะ/วันหมดอายุ และเงื่อนไขท้ายเอกสาร (2 ชั้น: ที่ระบบคำนวณอัตโนมัติ + `quotationTerms`/`bookingTerms` ที่ owner พิมพ์) เลขที่ใบจองรันต่อร้านต่อปี (`BookingCounter`)
 
-### 6.5 ผู้ใช้/บัญชี
+### 6.5 บัญชีและสิทธิ์
 
-- ไม่มีระบบ signup แยก — บัญชีสร้าง/sync อัตโนมัติจาก Auth0 JWT ตอน login ครั้งแรก (`findOrCreate` โดยอิง `auth0Sub`)
-- ไม่มีบทบาทพนักงาน/staff แยก — ทุกคนฝั่ง owner ใช้บัญชีเดียวกัน มีแค่ `lastEditedBy` (auth0Sub ดิบ) เก็บไว้อ้างอิงว่าแก้ล่าสุดจากบัญชีไหน ไม่ใช่ระบบสิทธิ์แยกราย staff
+- บัญชีสร้าง/sync อัตโนมัติจาก Auth0 JWT ตอน login ครั้งแรก (`auth0Sub`)
+- owner/ลูกค้า = บทบาทต่อร้านจาก `ShopMember`; super admin = ระดับระบบ
+- ไม่มีบทบาทพนักงาน (staff) แยก — owner ทุกคนของร้านมีสิทธิ์เท่ากัน ตรวจสอบย้อนหลังได้จาก Audit Log
+
+### 6.6 สถานะใบจอง (`backend/src/bookings/booking-rules.ts`, `src/bookingStatus.ts`)
+
+- ยกเลิกแล้ว → เปลี่ยนต่อไม่ได้ (ลูกค้าต้องจองใหม่)
+- เสร็จสิ้นแล้ว → กลับได้แค่เป็น "ยืนยันแล้ว" (กรณีกดผิด) ห้ามกลับรอยืนยันหรือยกเลิก
+- รอยืนยัน ↔ ยืนยันแล้ว ไปมาได้, ทั้งสองไปเสร็จสิ้น/ยกเลิกได้
+- บังคับที่ backend (ตอบ 400) หน้าจอปิดปุ่มที่ทำไม่ได้พร้อมคำอธิบาย
+
+### 6.7 การชำระเงินและตรวจสลิป (`backend/src/slip-verify/`, `settings/`)
+
+- ลูกค้าโอนมัดจำเข้าบัญชีของร้านเอง ระบบไม่ผ่านเงิน (ไม่ใช่ payment gateway)
+- สลิปส่งตรวจกับธนาคารผ่าน SlipOK ด้วย API key/Branch ID ของร้านนั้น ผลมี: ผ่าน (VERIFIED), สลิปซ้ำ, ยอดไม่ตรง, ผู้รับไม่ตรง, ตรวจไม่ผ่านด้วยเหตุผลอื่น, ตรวจไม่ได้ชั่วคราว (ระบบ/เครือข่าย)
+- เทียบ "ผู้รับในสลิป" (ชื่อ/เลขบัญชีที่ SlipOK ปกปิดบางส่วน) กับบัญชีของช่องทางที่ลูกค้าเลือก — ไม่รู้ผู้รับ = ไม่ปฏิเสธ
+- สลิปที่ตรวจผ่านแล้ว เปลี่ยนไม่ได้ (409)
+- ข้อมูลชำระเงินแสดงให้ลูกค้าเฉพาะร้านที่ "เชื่อม SlipOK แล้ว"
 
 ---
 
 ## 7. Data Model สรุป (Prisma schema, `backend/prisma/schema.prisma`)
 
-- **User** — `id, auth0Sub(unique), role(CUSTOMER|OWNER), name, surname, phone, lineId, email, avatar, createdAt` → มีหลาย `Booking`
-- **MenuItem** — `id, name, category, description, image?, extraPrice?, costPrice?, active, updatedAt, lastEditedBy?` → เชื่อมกับหลาย `PackageCourse` (many-to-many ผ่าน `CourseItems`)
-- **Package** — `id, name, pricePerTable, menuLimit, description, features[], badge?, sortOrder, updatedAt, lastEditedBy?` → มีหลาย `PackageCourse`
-- **PackageCourse** — `id, packageId, no, title, icon?, category, choose (0=รวมมาให้แล้ว/>0=เลือกได้กี่อย่าง), items[]`
-- **Booking** — `id, customerId?, customerName, bookingYear, bookingNo, date, timeSlot, tables, guestCount, packageName, totalPrice, pricePerTable?, deliveryFee?, status(PENDING|CONFIRMED|COMPLETED|CANCELLED), location, locationDetail(json)?, menus[], phone, lineId?, staffAuto/staffActual(json)?, staffNote?, staffSavedAt?, paymentSlipUrl?, paymentSlipUploadedAt?, createdAt, updatedAt, lastEditedBy?` — index บน `customerId` และ `date`, unique บน `(bookingYear, bookingNo)`
-- **BookingCounter** — `year(id), lastNo` — ออกเลขที่ใบจองแบบ atomic
-- **Settings** — แถวเดียวเสมอ (`id=1`): ข้อมูลร้าน/บัญชี/โลโก้, `depositRate`, `deliveryFee`/`freeDeliveryMinTables`/`metroProvinces[]`/`homeProvince`, `brandColor`, ค่าแรง/สัดส่วนกำลังคน 7 ฟิลด์, `slotMorningHours/slotNoonHours/slotEveningHours`, `quotationValidDays`/`quotationTerms[]`/`bookingTerms[]`, `categories(json)`/`categoryOrder[]`, `shopLocationLat/Lng`, `fuelCostPerKm`, `homeContent(json)`, `updatedAt`, `lastEditedBy?`
+- **Shop** — `id, name, slug(unique), status(ACTIVE|SUSPENDED), createdAt` → มี `Settings` (1:1), `ShopMember`, `Booking`, `MenuItem`, `Package`, `BookingCounter`, `AuditLog` (ลบร้าน = cascade)
+- **User** — `id, auth0Sub(unique), role(CUSTOMER|OWNER|SUPER_ADMIN), name, surname, phone, lineId, email, avatar, createdAt` (บทบาท owner ต่อร้านอยู่ที่ `ShopMember`)
+- **ShopMember** — `userId, shopId` unique คู่ (owner ของร้าน)
+- **MenuItem** — `shopId, name, category, description, image?, imagePosition?, imageScale?, costPrice?, active, updatedAt, lastEditedBy?` เชื่อม `PackageCourse` (many-to-many)
+- **Package** — `shopId, name, pricePerTable, menuLimit, description, features[], badge?, sortOrder, deletedAt?, updatedAt, lastEditedBy?` → `PackageCourse`
+- **PackageCourse** — `packageId, no, title, icon?, category, choose (0 = รวมมาให้, >0 = เลือกกี่อย่าง), items[]`
+- **Booking** — `shopId, customerId?, customerName, bookingYear, bookingNo, date, timeSlot, tables, guestCount, packageName, totalPrice, pricePerTable?, deliveryFee?, status(PENDING|CONFIRMED|COMPLETED|CANCELLED), location, locationDetail(json)?, menus[], phone, lineId?, staffAuto/staffActual(json)?, staffNote?, staffSavedAt?, paymentSlipUrl?, paymentSlipUploadedAt?, paymentSlipVerifyStatus?, paymentSlipVerifyMessage?, paymentSlipTransRef?, paymentSlipVerifiedAt?, paymentSlipReceiverName/Account/ReceivingBank?, paymentChannelKey?, paymentChannelLabel?, createdAt, updatedAt, lastEditedBy?` — unique `(shopId, bookingYear, bookingNo)`, index `(shopId, date)`
+- **BookingCounter** — `(shopId, year)` คีย์, `lastNo` ออกเลขที่ใบจองแบบ atomic
+- **Settings** — แถวเดียวต่อร้าน (`shopId` unique): ข้อมูลร้าน/โลโก้, บัญชีรับเงิน (+ `extraBankAccounts`/`extraPromptPays` JSON), SlipOK (`slipOkApiKey` เข้ารหัส, `slipOkBranchId`, ข้อมูลผู้รับล่าสุด, `slipOkTestedHash`), `depositRate`, ค่าขนส่ง/โซน/ตำแหน่งร้าน, `brandColor`, ค่าแรง/สัดส่วนกำลังคน, ช่วงเวลา, `closedDates`, เอกสาร, `categories`/`categoryOrder`, `homeContent`, `version` (optimistic locking)
+- **AuditLog** — `shopId?, actorUserId, actorRole, actorEmail, action, entityType, entityId, before?, after?, createdAt`
 
 ---
 
 ## 8. Non-functional / Environment
 
-- **Env vars (frontend)**: `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`, `VITE_API_BASE_URL`
-- **Env vars (backend)**: `PORT`, `DATABASE_URL`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE`, `FRONTEND_ORIGIN` (CORS, รองรับหลายค่าคั่นด้วย comma)
-- **Local dev DB**: `docker-compose.yml` รัน Postgres 16 บนพอร์ต 5434
-- ภาษา UI หลักคือภาษาไทยทั้งระบบ
-- มี automated tests แล้วทั้งสองฝั่ง (Vitest ฝั่ง frontend 53 เทสต์, Jest ฝั่ง backend 13 เทสต์) — ยังไม่ครอบคลุมทุก endpoint/หน้าจอ
+- **Env vars (frontend):** `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`, `VITE_API_BASE_URL`
+- **Env vars (backend):** `DATABASE_URL`, `AUTH0_DOMAIN`, `AUTH0_AUDIENCE` (จำเป็น ขาดแล้วไม่เริ่ม), `FRONTEND_ORIGIN`, `UPLOADS_DIR`, `SUPER_ADMIN_EMAILS`, `SETTINGS_ENCRYPTION_KEY`, `TRUST_PROXY`, `PORT` — ตารางละเอียดที่ README
+- **Local dev DB:** `docker-compose.yml` Postgres 16 พอร์ต 5434
+- ภาษา UI หลักคือภาษาไทย
+- **ความปลอดภัย:** helmet, rate limit, RBAC ต่อร้านจาก DB, สลิปไม่เป็นไฟล์สาธารณะ, เข้ารหัส SlipOK API key (AES-256-GCM) และไม่เก็บค่าจริงใน audit log, token ทาง query รับเฉพาะ SSE
+- **การทดสอบ:** Vitest 133 + Jest 246 เทสต์ ไม่มี e2e ของหน้าจอ; CI ใน `.github/workflows/ci.yml`
 
 ---
 
-## 9. Gaps / สิ่งที่ยังไม่ได้ทำ (จากการอ่านโค้ดปัจจุบัน)
+## 9. Gaps / สิ่งที่ยังไม่ได้ทำ (ตามโค้ดปัจจุบัน)
 
-1. **ไม่มี object storage จริง** — รูปเมนู/โลโก้/QR/สลิปโอนเงินยังเก็บเป็น data URL ตรงในคอลัมน์ DB ไม่ใช่ไฟล์แยกบน CDN
-2. **ไม่มีระบบแจ้งเตือนแบบ real-time** — หน้า Notifications derive จากข้อมูลที่โหลดมาแล้ว/polling ไม่ใช่ push
-3. **ไม่มีบทบาทที่ 3 (staff)** — ทุกคนฝั่ง owner ใช้บัญชีเดียวกัน, `lastEditedBy` มีแต่ไม่ใช่ระบบสิทธิ์แยกราย staff
-4. **ไม่ใช่ multi-tenant** — 1 deployment = 1 ร้าน ถ้าจะขายหลายร้านต้อง deploy แยก instance ต่อร้าน (ดู `docs/อนาคตแสนไกลที่สุด.md`)
-5. **zone/distanceKm ของค่าขนส่งยังอิง client geocode บางส่วน** — backend คำนวณราคาซ้ำจริง แต่ยังไม่ re-verify พิกัด/โซนจากพิกัดดิบเองทั้งหมด (มี cap ระยะทางกันค่าผิดปกติเท่านั้น)
-6. **กฎ "1 วัน = 1 งาน" (BR-02 เดิม)** — จองแค่ 2 โต๊ะช่วงเช้าก็ปิดทั้งวันทันที เป็นข้อจำกัดด้านรายได้ที่ตั้งใจคงไว้ ไม่ใช่บั๊ก
+1. **รูป/สลิปเก็บบนดิสก์ของ backend (Volume)** — รัน backend ได้ตัวเดียว ถ้าจะขยายควรย้ายไป object storage และยังไม่มีงานกวาดไฟล์กำพร้า
+2. **ยังไม่ได้ตั้งสำรองฐานข้อมูลอัตโนมัติ**
+3. **ลูกค้ายกเลิกใบจองเองไม่ได้** และยังไม่ได้กำหนดนโยบายคืนมัดจำ
+4. **ไม่มีการแจ้งเตือนนอกแอป** (LINE/อีเมล) — แจ้งผ่าน SSE/กระดิ่งเฉพาะตอนเปิดแอป
+5. **ยังไม่มีกลไก PDPA** (ขอความยินยอม/ลบข้อมูลตามคำขอ/กำหนดระยะเก็บข้อมูล)
+6. **ไม่มีบทบาทพนักงาน (staff)** ที่สิทธิ์ต่ำกว่า owner
+7. **กฎ "1 วัน = 1 งาน"** — จองแค่ 2 โต๊ะช่วงเช้าก็ปิดทั้งวัน เป็นข้อจำกัดด้านรายได้ที่ตั้งใจคงไว้
+8. **ยังไม่มีระบบเก็บเงินจากร้าน** (billing/แพ็กเกจสมาชิก)
+9. **การตรวจสลิป SlipOK ยังไม่เคยทดสอบครบวงจรกับสลิปจริงหลายธนาคาร**; ร้านต้องมีบัญชี SlipOK ของตัวเอง
+10. **พึ่ง OSRM/Nominatim สาธารณะ** (มีข้อจำกัดการใช้งาน ลดภาระด้วยแคช/User-Agent) และ Auth0 จำกัดจำนวน tenant ตาม plan (ดู `อนาคตแสนไกลที่สุด.md`)
+11. **ไม่มี e2e test ของหน้าจอ**; ช่องโหว่ dependency เหลือ 1 รายการ (`deepmerge-ts` ในเครื่องมือ Prisma CLI ยังไม่มีเวอร์ชันแก้)

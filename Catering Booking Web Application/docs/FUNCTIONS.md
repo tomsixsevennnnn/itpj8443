@@ -7,7 +7,7 @@ title: "Function Specification (ละเอียด) — ระบบจอง
 
 # Function Specification แบบละเอียด — ทั้งระบบ
 
-> เอกสารนี้ต่อยอดจาก [`REQUIREMENTS.md`](./REQUIREMENTS.md) โดยลงรายละเอียดระดับฟังก์ชัน/เมธอดจริงที่มีอยู่ในโค้ด (พารามิเตอร์ ตรรกะ เงื่อนไข validation) ทั้งฝั่ง Frontend และ Backend ณ วันที่ 2026-08-18
+> เอกสารนี้ต่อยอดจาก [`REQUIREMENTS.md`](./REQUIREMENTS.md) โดยลงรายละเอียดระดับฟังก์ชัน/เมธอดจริงที่มีอยู่ในโค้ด (พารามิเตอร์ ตรรกะ เงื่อนไข validation) ทั้งฝั่ง Frontend และ Backend ปรับปรุงล่าสุด 2026-10-14 (เพิ่มระบบหลายร้าน/Super Admin, SlipOK และช่องทางโอน, Audit Log, SSE, กฎใบจองที่ backend, ความปลอดภัยและ health) ส่วนภาพรวมดู `SYSTEM_OVERVIEW.md` ที่ `docs/` ของรากโปรเจกต์
 
 ---
 
@@ -55,6 +55,18 @@ Props: `name/surname/phone/lineId` (ค่าที่เคยกรอกไ�
 | `navContext` (`useMemo`) | รวม `navigate/user/shopInfo/notifCount/categories/categoryMap` ส่งเข้า `<NavProvider>` ห่อทั้งแอป — ดูหัวข้อ 4.6 |
 | `useEffect` ทาสีแบรนด์ | เรียก `applyBrandTheme(settings.brandColor)` ทุกครั้งที่ค่านี้เปลี่ยน (รวมตอน polling settings เจอค่าที่แก้จากเครื่องอื่น) |
 | `handleConfirm()` | ส่ง `packageId` (ไม่ใช่ราคา) ไป `POST /bookings` — backend คำนวณราคาเอง |
+
+### 1.4 `ShopSelect.tsx` — หน้าเลือกร้าน
+
+หน้าแรกสุดของแอป (multi-tenant): ลูกค้าต้องเลือกร้านก่อน ไม่ต้อง login — โหลดรายชื่อจาก `GET /shops/public` และ poll ทุก 20 วินาที (ยังไม่ login จึงใช้ SSE ไม่ได้) เลือกร้านแล้วเก็บ `selectedShopId`/`selectedShopSlug` ใน localStorage และตั้ง `X-Shop-Id` (`setActiveShopId` ใน `api.ts`) ถ้าร้านที่เลือกไว้ถูกลบระหว่างใช้งาน `App.tsx` เด้งกลับหน้านี้
+
+### 1.5 URL routing และปุ่ม back/forward (`App.tsx`)
+
+`pathForScreen`/`screenFromPath` แปลงหน้า ↔ URL ตามบทบาท (ลูกค้า: `/{slug}/...`, owner: `/owner/...`, super admin: `/super-admin`), `navigate()` ทำ `history.pushState`, `handlePopState()` ตอบสนอง back/forward: ถ้า login แล้วร้านผูกกับ session ไม่เปลี่ยนตาม URL แต่สลับหน้าภายในได้ ถ้ายังไม่ login สลับระหว่างหน้าเลือกร้านกับหน้า login ของร้านที่เคยเลือกได้; `resolveActiveRole()` เลือกบทบาทของผู้ใช้ในร้านที่เปิดอยู่ (owner ของร้านหนึ่งเป็นลูกค้าของอีกร้านได้) และ `loadAppData()` โหลดข้อมูลตามบทบาท (super admin = รายชื่อร้าน/owner, owner/customer = bookings/packages/menus/settings ของร้าน)
+
+### 1.6 `AppScreens.tsx` และ `ErrorBoundary.tsx`
+
+`AppScreens.tsx` ประกอบหน้าจอตามบทบาท (`SuperAdminScreen`, `OwnerScreens`, `CustomerScreens`) แยกออกจาก `App.tsx` (ย้ายโค้ดตรงๆ ไม่เปลี่ยนตรรกะ) ส่วน `ErrorBoundary` ครอบ `<App />` ใน `main.tsx` — ถ้ามี component พังตอน render แสดงข้อความและปุ่ม "โหลดหน้าใหม่" แทนหน้าขาว
 
 ---
 
@@ -126,6 +138,17 @@ Props: `name/surname/phone/lineId` (ค่าที่เคยกรอกไ�
 
 derive จาก `bookings` จริงผ่าน `buildNotifications()` (`src/notifications.ts`) ไม่ใช่ mock array แล้ว
 
+### 2.10 แบบร่างการจอง, แจ้งราคาเปลี่ยน, ซิงค์ตำแหน่ง
+
+- `bookingDraft.ts`: `saveBookingDraft(shopId, booking, initial)` / `loadBookingDraft(shopId, initial)` เก็บข้อมูลที่เลือกไว้ใน sessionStorage แยกต่อร้าน (รีเฟรชแล้วไม่หาย), `firstIncompleteStep()` / `missingBookingField()` หาขั้นตอนแรกที่ข้อมูลยังไม่ครบ กันข้ามไปขั้นที่ไม่พร้อม
+- `priceChange.ts`: เทียบราคา/ค่าขนส่งที่ลูกค้าเห็นระหว่างเลือกกับที่คำนวณจากค่าตั้งค่าล่าสุด ถ้าต่างกัน `Cart.tsx` แจ้งยอดที่เปลี่ยนก่อนยืนยัน
+- `useLocationSync.ts`: ซิงค์ตำแหน่ง/จังหวัดที่เลือกบนแผนที่กับ state การจอง (reverse-geocode ผ่าน `geo.ts` มีแคช, retry หาจังหวัดจากหมุดถ้ายังไม่ได้)
+- `PlaceSearchBox.tsx` ค้นหาสถานที่แบบ debounce (Nominatim) สำรองด้วยสถานที่ยอดนิยม และรับลิงก์ Google Maps (เรียก `GET /geo/resolve-maps-link` สำหรับลิงก์ย่อ)
+
+### 2.11 `BookingHistory.tsx` — การชำระเงินและสลิป
+
+แสดงเฉพาะใบจองของร้านที่เปิดอยู่ (`GET /bookings?shopId=`); ส่วนชำระมัดจำใช้ `PaymentChannels.tsx` แสดงช่องทางโอน (บัญชีธนาคารพร้อมโลโก้ `BankBadge`/พร้อมเพย์ `PromptPayQr`) ที่ลูกค้า **เลือกได้** (คีย์ `bank:<เลข>`/`pp:<เลข>` จาก `paymentChannels.ts`) — ถ้าร้านมีหลายช่องทางต้องเลือกก่อนส่งสลิป; ร้านที่ยังไม่เชื่อม SlipOK backend ส่งข้อมูลชำระเงินว่าง จึงไม่แสดงช่องทางโอน; ขั้นตอนส่งสลิป: อัปโหลดไฟล์ `POST /uploads/payment-slip` (ได้ path) แล้ว `PATCH /bookings/:id/payment-slip` พร้อม `paymentChannelKey`; ผลตรวจแสดงด้วย `SlipVerifyBadge` และ `SlipLoadStatus` (สถานะโหลดรูปสลิป); สลิปที่ตรวจผ่านแล้วเปลี่ยนไม่ได้
+
 ---
 
 ## 3. Frontend — ฝั่งเจ้าของร้าน (Owner)
@@ -176,7 +199,7 @@ derive จาก `bookings` จริงผ่าน `buildNotifications()` (`sr
 |---|---|
 | ข้อมูลร้าน | `handlePickLogo()` อัปโหลดโลโก้ (data URL), ช่องคำโปรยหน้า Login |
 | ธีมสี | `setBrandColor(hex)` — เรียก `applyBrandTheme(hex)` พรีวิวทันทีก่อนบันทึกจริง, ปุ่ม "กลับเป็นสีเริ่มต้น" |
-| ข้อมูลการชำระเงิน | อัปโหลด QR พร้อมเพย์ |
+| ข้อมูลการชำระเงิน | (เปลี่ยนแล้ว — ดูตารางใหม่ด้านล่าง ไม่มีอัปโหลด QR แล้ว) |
 | ค่าขนส่ง | ช่องจังหวัดฐานร้าน (`homeProvince`), `addMetroProvince()`/`removeMetroProvince()` จัดการ chip list ของ `metroProvinces` |
 | ค่าเดินทางนอกพื้นที่ | ปักหมุดพิกัดร้านบนแผนที่, ค่าน้ำมัน/กม. |
 | อัตราค่าแรง | ค่าแรง 4 ตำแหน่ง + สัดส่วนคำนวณกำลังคน 3 ค่า (`tablesPerServer/tablesPerSupport/staffRemainderThreshold`) |
@@ -185,6 +208,38 @@ derive จาก `bookings` จริงผ่าน `buildNotifications()` (`sr
 | ประเภทอาหาร | `addCategory()` (สร้าง id อัตโนมัติจากชื่อ, กันชนด้วยเลขต่อท้าย), `updateCategoryField()` (แก้ไอคอน/ชื่อไทย/อังกฤษ), `removeCategory()`, `moveCategory()` (จัดลำดับ) |
 
 `dirty` เทียบ `JSON.stringify(form)` กับ `settings` เดิมเพื่อ enable/disable ปุ่มบันทึก
+
+**การบันทึกและการชนกัน:** `useSettingsForm.ts` ถือ `form` และส่ง `expectedVersion` ไปกับ `PATCH /settings` — ถ้า backend ตอบ 409 (มีคนบันทึกไปก่อน) ฟังก์ชันบันทึกคืน `SaveSettingsResult` ที่มีค่าล่าสุดให้หน้าจอตามทันทีและแจ้งให้ตรวจสอบก่อนบันทึกใหม่ มี guard กันกดบันทึกซ้ำระหว่างรอผล
+
+**การ์ดที่เพิ่มหลังจากตารางข้างต้น (และที่เปลี่ยนไป):**
+
+| การ์ด | ฟังก์ชันหลัก |
+|---|---|
+| ข้อมูลการชำระเงิน | บัญชีธนาคารหลัก + พร้อมเพย์หลัก และ `ExtraPaymentAccounts.tsx` เพิ่มบัญชีธนาคาร/พร้อมเพย์ได้อย่างละไม่เกิน 8 (ธนาคารเดียวกันหลายบัญชีได้) พร้อม `SuggestInput` เลือกธนาคาร; **ไม่มีอัปโหลดรูป QR แล้ว** (สร้าง QR พร้อมเพย์จากเลขเอง) มีคำเตือนให้กรอกให้ตรงกับบัญชีที่ผูกใน SlipOK |
+| ตรวจสอบสลิปอัตโนมัติ (SlipOK) | ช่อง API key (ปุ่มโชว์/ซ่อน) + Branch ID, ปุ่ม "ทดสอบการเชื่อมต่อ" (`POST /settings/slipok/test`), ป้าย "เชื่อม SlipOK แล้ว", ผู้รับล่าสุดที่ SlipOK เห็นจากสลิปพร้อมผลเทียบกับบัญชีร้าน, วิธีขอ key |
+| ค่าขนส่ง | ช่องจังหวัดฐานร้านแบบ custom autocomplete (`provinces.ts`), ปุ่ม "ตั้งจังหวัดตามตำแหน่งหมุดนี้", เตือนเมื่อหมุดร้านไม่ตรงจังหวัด |
+| ค่าเดินทางนอกพื้นที่ | ค้นหาสถานที่ แตะบนแผนที่ หรือลากหมุดปรับตำแหน่งร้าน (ย้ายหมุดแล้วจังหวัดซิงค์ตามได้) |
+| วันหยุดร้าน | เพิ่ม/ลบ `closedDates` (วันที่ลูกค้าจองไม่ได้) |
+
+### 3.8 `UserRoles.tsx`
+
+จัดการ owner ของร้านที่เปิดอยู่: โหลดรายชื่อ owner (`GET /users/owners`), ค้นหาผู้ใช้ด้วยอีเมล (`GET /users/search`) อัตโนมัติเมื่อพิมพ์ ≥ 3 ตัวอักษร (debounce 300 ms), แต่งตั้ง/ถอดด้วย `PATCH /users/:id/role` (`OWNER`/`CUSTOMER`) กันถอดตัวเอง (`currentAuth0Sub`) — backend กันเคสถอด owner คนสุดท้าย รายชื่อรีโหลดเงียบๆ เมื่อได้สัญญาณ SSE หัวข้อ `users`
+
+### 3.9 `AuditLog.tsx`
+
+`GET /audit-log?page=&pageSize=` (20 รายการ/หน้า): แสดงป้ายการกระทำ (เพิ่ม/แก้ไข/ลบ เมนู แพ็กเกจ ใบจอง ค่าตั้งค่า เปลี่ยนสิทธิ์) ผู้กระทำและเวลา ขยายดู diff ก่อน/หลัง (`diffCourseList`/`formatFieldValue` มีเทสต์ใน `AuditLog.test.ts`) รีเฟรชหน้าปัจจุบันเมื่อได้สัญญาณ SSE หัวข้อ `audit` — owner เห็นของร้านตัวเอง, super admin เห็นข้ามร้าน
+
+### 3.10 `PageContent.tsx`
+
+แก้ `homeContent` (Hero, ขั้นตอน, แกลเลอรี, CTA) พร้อมอัปโหลดรูปผ่าน `POST /uploads/content-image` (บันทึกเป็นไฟล์) แล้วบันทึกด้วย `PATCH /settings`
+
+### 3.11 `Reports.tsx`
+
+สรุปจำนวนงาน/รายได้/ต้นทุน/กำไร แบบรายเดือน (เลือกปี) หรือรายปี — งานที่ยกเลิกไม่นับ ใช้สูตรเดียวกับ Dashboard (`costing.ts`)
+
+### 3.12 `SuperAdmin.tsx`
+
+หน้าเดียวของ super admin: สร้างร้านใหม่ (`POST /shops` ชื่อร้าน + อีเมล owner), แก้ชื่อ/slug (`PATCH /shops/:id`), ระงับ/เปิดใช้งาน (`PATCH /shops/:id/status`), เพิ่ม/ถอด owner ต่อร้าน (`POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId`), แต่งตั้ง/ถอด super admin (`PATCH /users/:id/role`), การ์ดร้านแสดงจำนวน owner/ใบจอง/ยอดขายรวม, ประวัติการแก้ไขข้ามร้าน (ใช้ `AuditLog`), และลบร้านถาวร (`DELETE /shops/:id` พร้อม `confirmName`) โดยต้องพิมพ์ `Delete {ชื่อร้าน}` ให้ตรงก่อนปุ่มกดได้ — ข้อความเตือนบอกว่าข้อมูลทั้งหมดของร้านจะถูกลบถาวร
 
 ---
 
@@ -231,6 +286,21 @@ interface NavContextValue {
 |---|---|
 | `generateShadeScale(hex)` | แปลง hex → HSL แล้วสร้างสเกล 50–900 ตามเส้นโค้งความสว่างคงที่ (เลียนแบบสเกล Tailwind) คืน `null` ถ้า hex ไม่ถูกรูปแบบ |
 | `applyBrandTheme(hex)` | set CSS custom property `--color-orange-{50..900}` และ `--color-amber-{50..900}` บน `document.documentElement` — ถ้า `hex === DEFAULT_BRAND_COLOR` จะลบ property ที่เคย set ทิ้ง (กลับไปใช้ค่า native ของ Tailwind เป๊ะๆ) ใช้ได้เพราะ Tailwind v4 คอมไพล์ `.bg-orange-500` เป็น `background-color: var(--color-orange-500)` จริง — override ตรงนี้จุดเดียวก็เปลี่ยนสีทั้งแอปได้โดยไม่ต้องแก้ class ไฟล์ไหนเลย |
+
+### 4.8 ส่วนประกอบที่เพิ่มภายหลัง
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `PaymentChannels.tsx` | ช่องทางโอนที่ลูกค้าเลือกได้ (หลายบัญชี/พร้อมเพย์) |
+| `ExtraPaymentAccounts.tsx` | ฟอร์มบัญชีธนาคาร/พร้อมเพย์เพิ่มเติมของ owner |
+| `BankBadge.tsx` | โลโก้ธนาคาร (`thai-banks-logo`) สำรองเป็นป้ายสีเมื่อไม่มีโลโก้ |
+| `PromptPayQr.tsx` | สร้าง QR พร้อมเพย์จากเลขที่ร้านตั้งไว้ |
+| `SlipVerifyBadge.tsx`, `SlipLoadStatus.tsx` | ป้ายผลตรวจสลิป / สถานะโหลดรูปสลิป |
+| `ImageLightbox.tsx` | ขยายดูรูป (สลิป/เมนู) เต็มจอ |
+| `SuggestInput.tsx` | ช่องกรอกพร้อมรายการแนะนำ (จังหวัด/ธนาคาร) |
+| `PlaceSearchBox.tsx` | ค้นหาสถานที่ + ลิงก์ Google Maps |
+| `Avatar.tsx`, `ErrorBanner.tsx`, `ErrorBoundary.tsx` | รูปผู้ใช้ / แถบแจ้งข้อผิดพลาด / กันหน้าขาว |
+| `screens/owner/useStatusUpdate.tsx` | hook เปลี่ยนสถานะใบจอง แสดงสถานะกำลังเปลี่ยน/สำเร็จ/ไม่สำเร็จ (`StatusFeedbackNote`) |
 
 ---
 
@@ -295,25 +365,59 @@ interface NavContextValue {
 
 แปลงข้อมูลรูปแบบ backend (flat fields, status ตัวพิมพ์ใหญ่) ↔ frontend (`AppSettings`/`Booking` ที่ nested) ทุก endpoint — ฟิลด์ที่ backend อาจไม่ส่งมา (backend เก่ายังไม่ migrate) มี fallback เป็นค่า default ฝั่ง frontend เสมอ (`??`) กันหน้าเว็บพังทั้งหน้า
 
+### 5.9 โมดูลที่เพิ่มภายหลัง
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `bookingStatus.ts` | `canChangeStatus(from, to)` สำเนาของกฎ backend ไว้ปิดปุ่มที่เปลี่ยนสถานะไม่ได้ + `STATUS_LOCKED_HINT` (backend `booking-rules.ts` เป็นตัวตัดสินจริง) |
+| `bookingDraft.ts` | เก็บ/โหลดแบบร่างการจอง (sessionStorage ต่อร้าน) และหาขั้นที่ข้อมูลไม่ครบ |
+| `priceChange.ts` | เทียบราคาที่เปลี่ยนก่อนยืนยันจอง |
+| `paymentChannels.ts` | สร้างรายการช่องทางโอนและคีย์ `bank:`/`pp:` ให้ตรงกับ backend |
+| `provinces.ts`, `thaiName.ts` | รายชื่อ/ปรับชื่อจังหวัด, จัดรูปแบบชื่อไทย |
+| `costing.ts` | ต้นทุน/กำไรต่องาน (ราคาทุนเมนู + ค่าแรงตามแผนกำลังคน) |
+| `homeContent.ts`, `notifications.ts` | โครงเนื้อหาหน้าแรก / สร้างรายการแจ้งเตือนจากใบจอง |
+| `useBookingsStream.ts`, `useAppStream.ts`, `usePolling.ts` | SSE (`/realtime/bookings`, `/realtime/app`) ต่อ connection ใหม่ทุก 10 นาทีด้วย token สด + poll สำรอง |
+| `sessionExpired.ts`, `api.ts` (`setActiveShopId`) | ตรวจ session หมดอายุแล้ว logout, ตั้ง `X-Shop-Id` ให้ทุกคำขอ |
+| `geo.ts` | มีแคชผลค้นหา/ระบุที่อยู่/เส้นทางในหน้าเว็บ (`clearGeoCache` ไว้ในเทสต์) |
+
 ---
 
 ## 6. Backend — REST API (NestJS)
 
-ทุก endpoint อยู่หลัง `@UseGuards(JwtAuthGuard, RolesGuard)` + `ThrottlerGuard` (global, 60 req/นาที/IP) — `JwtAuthGuard` ตรวจ Bearer token ที่เซ็นโดย Auth0 ผ่าน JWKS; `RolesGuard` เช็ค custom claim role ตรงกับ `@Roles(...)` (ไม่ใส่ = ผ่านได้ทุก role ที่ login แล้ว)
+endpoint ส่วนใหญ่อยู่หลัง `@UseGuards(JwtAuthGuard, RolesGuard)` + `ThrottlerGuard` (global, 60 req/นาที/IP; ยกเว้น `/health` และ endpoint สาธารณะบางตัว) — `JwtAuthGuard` ตรวจ Bearer token ที่เซ็นโดย Auth0 ผ่าน JWKS; `RolesGuard` ตรวจบทบาท **จากฐานข้อมูลเสมอ** (ผ่าน `resolveShopContext` ตามร้านใน header `X-Shop-Id`, cache 5 วินาที) แล้วเทียบกับ `@Roles('customer'|'owner'|'super_admin')` (ไม่ใส่ = ผ่านได้ทุกบทบาทที่ login แล้ว) ตารางสิทธิ์รายละเอียดดู `REQUIREMENTS.md` หัวข้อ 3.4
 
 ### 6.1 `UsersController` (`/users`)
 
-`GET/PATCH /users/me` — sync/อัปเดตโปรไฟล์จาก JWT + body ที่ frontend ส่งมาเอง (access token ไม่มี name/email/picture)
+| Endpoint | บทบาท | ตรรกะ |
+|---|---|---|
+| `POST /users/me` | login แล้ว (throttle 20/นาที) | sync/สร้างบัญชีจาก JWT + ข้อมูลที่ frontend ส่ง (`findOrCreate` ด้วย `auth0Sub`); อีเมลใน `SUPER_ADMIN_EMAILS` ถูกตั้งเป็น SUPER_ADMIN |
+| `PATCH /users/me` | login แล้ว | แก้โปรไฟล์ตัวเอง (ชื่อ/นามสกุล/เบอร์/Line ID) |
+| `GET /users/search?email=` | owner, super_admin | ค้นหาผู้ใช้ที่เคย login แล้วด้วยอีเมล (ไม่ต้องพิมพ์ครบ, สูงสุด 20 คน) |
+| `GET /users/owners` | owner, super_admin | owner ของร้านที่เปิดอยู่ (owner) / owner ข้ามทุกร้าน 1 แถวต่อ 1 สมาชิกภาพ (super admin) |
+| `PATCH /users/:id/role` | owner, super_admin | **owner:** เปลี่ยน CUSTOMER ↔ OWNER ในร้านตัวเองเท่านั้น (เพิ่ม/ลบ `ShopMember`, ต้องเหลืออย่างน้อย 1 คน, แตะ super admin ไม่ได้); **super admin:** เปลี่ยน CUSTOMER ↔ SUPER_ADMIN เท่านั้น (ตั้ง/ถอด owner ต้องทำผ่าน `/shops/:id/owners`); บันทึก audit log `user.setRole` และแจ้ง SSE หัวข้อ `users` |
+
+### 6.1b `ShopsController` (`/shops`)
+
+| Endpoint | บทบาท | ตรรกะ |
+|---|---|---|
+| `GET /shops/public`, `GET /shops/:slug/public` | ไม่ต้อง login | ร้านที่เปิดให้บริการ (ACTIVE) สำหรับหน้าเลือกร้าน/เข้าร้านด้วย slug (ค้น case-insensitive) |
+| `GET /shops` | super_admin | ทุกร้านพร้อมจำนวน owner/ใบจอง และยอดขายรวม (ไม่นับใบที่ยกเลิก) |
+| `POST /shops` | super_admin | สร้างร้าน + `Settings` เริ่มต้น + `ShopMember` ของ owner (ต้องเคย login มาแล้ว) ในทรานแซกชันเดียว |
+| `PATCH /shops/:id`, `PATCH /shops/:id/status` | super_admin | แก้ชื่อ/slug (ชื่อซิงค์ไป `Settings.shopName`), ระงับ/เปิดใช้งาน |
+| `POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId` | super_admin | เพิ่ม/ถอด owner (ห้ามถอดคนสุดท้าย) |
+| `DELETE /shops/:id` | super_admin | ลบถาวร ต้องส่ง `confirmName` ตรงกับชื่อร้านเป๊ะ — เก็บรายการไฟล์ของร้าน ลบร้าน (cascade) แล้วลบไฟล์รูป/สลิป/โลโก้/หน้าแรกจากดิสก์ บันทึก audit `shop.delete` ด้วย `shopId = null` |
+
 
 ### 6.2 `BookingsController` (`/bookings`)
 
 | Endpoint | Role | ตรรกะ |
 |---|---|---|
-| `GET /bookings` | login แล้ว | owner เห็นทุกใบจอง (join ข้อมูลลูกค้าปัจจุบัน), customer เห็นเฉพาะของตัวเอง — รองรับ `?page=&limit=` opt-in |
+| `GET /bookings` | login แล้ว | owner เห็นทุกใบจองของร้าน (join ข้อมูลลูกค้าปัจจุบัน), customer เห็นเฉพาะของตัวเองในร้าน `?shopId=` — รองรับ `?page=&limit=` opt-in |
 | `GET /bookings/availability` | login แล้ว | คิวรับงานไม่มีข้อมูลส่วนตัว (`select` เฉพาะ date/timeSlot/tables/status) |
-| `POST /bookings` | `@Roles('customer')`, throttle 10/นาที | ดึง `Package` จริงจาก `packageId`, validate `menus` ต้องอยู่ใน courses ของแพ็กเกจนั้น, คำนวณ `pricePerTable`/`deliveryFee`/`totalPrice` เองจาก settings จริง (ไม่รับจาก client), รันใน transaction ระดับ `Serializable` + retry กันจองซ้อนวันเดียวกัน, ออกเลขที่ใบจองแบบ atomic |
-| `PATCH /bookings/:id` | `@Roles('owner')` | อัปเดตสถานะ/แผนกำลังคน + บันทึก `lastEditedBy` จาก `jwtUser.sub` |
-| `PATCH /bookings/:id/payment-slip` | `@Roles('customer')` | validate ที่ DTO ว่าเป็นรูปจริงไม่เกินขนาด, เช็ค `booking.customerId` ตรงกับผู้เรียก (403 ถ้าไม่ตรง) |
+| `POST /bookings` | `@Roles('customer')`, throttle 10/นาที | **ปฏิเสธวันที่ย้อนหลัง (Asia/Bangkok), วันปิดร้าน, วันที่มีงานอยู่แล้ว (409);** ดึง `Package` จริงจาก `packageId` (ร้านตาม `shopId`), validate `menus` ต้องอยู่ใน courses ของแพ็กเกจนั้น, คำนวณ `pricePerTable`/`deliveryFee`/`totalPrice` เองจาก settings จริง (ไม่รับจาก client), รันใน transaction ระดับ `Serializable` + retry กันจองซ้อนวันเดียวกัน, ออกเลขที่ใบจองแบบ atomic |
+| `PATCH /bookings/:id` | `@Roles('owner')` | อัปเดตสถานะ/แผนกำลังคน + บันทึก `lastEditedBy` — **ตรวจกฎเปลี่ยนสถานะ** (`isStatusTransitionAllowed` ใน `booking-rules.ts`, ผิดกฎตอบ 400) |
+| `PATCH /bookings/:id/payment-slip` | `@Roles('customer')` | รับ path จาก `POST /uploads/payment-slip` (`/uploads/slips/<id>.png\|jpg\|jpeg\|webp`) + `paymentChannelKey?` (`bank:<เลข>`/`pp:<เลข>`), เช็คเจ้าของใบจอง (403), ถ้าสลิปเดิมตรวจผ่านแล้ว → 409; ร้านที่ตั้ง SlipOK: ส่งรูปตรวจ (ยอดมัดจำ, สลิปซ้ำ) เก็บผล/transRef/ผู้รับ แล้วเทียบผู้รับกับช่องทางที่เลือก (`receiver-match.ts`) |
+| `GET /bookings/:id/payment-slip` | ไม่มี `@Roles` (ตรวจใน service) | ส่งไฟล์สลิป เฉพาะเจ้าของใบจองหรือ owner ร้านเดียวกัน (สลิปไม่ใช่ไฟล์สาธารณะ) |
 
 ### 6.3 `MenusController` (`/menus`)
 
@@ -321,7 +425,7 @@ interface NavContextValue {
 
 ### 6.4 `PackagesController` (`/packages`)
 
-`GET /packages` — role-aware เช่นกัน (เมนูที่ซ้อนอยู่ใน `courses[].items` ก็ถูกตัด `costPrice` ออกถ้าเรียกโดย customer) — `PATCH /packages/:id` ถ้าส่ง `courses` มาจะแทนที่ทั้งชุด (ลบเก่าสร้างใหม่ในทรานแซกชันเดียว), บันทึก `lastEditedBy`
+`GET /packages` — role-aware เช่นกัน (เมนูที่ซ้อนอยู่ใน `courses[].items` ก็ถูกตัด `costPrice` ออกถ้าเรียกโดย customer) — `PATCH /packages/:id` ถ้าส่ง `courses` มาจะแทนที่ทั้งชุด (ลบเก่าสร้างใหม่ในทรานแซกชันเดียว), บันทึก `lastEditedBy`; `PATCH /packages/reorder` เรียงลำดับแพ็กเกจ (`sortOrder`); `POST/PATCH/DELETE /packages/:id/courses[/:courseId]` แก้ทีละคอร์ส (owner เท่านั้น); แพ็กเกจที่ลบเป็น soft delete (`deletedAt`)
 
 ### 6.5 `SettingsController` (`/settings`)
 
@@ -329,7 +433,23 @@ interface NavContextValue {
 |---|---|---|
 | `GET /settings/public` | ไม่ต้อง login | คืนแค่ชื่อร้าน/โลโก้/คำโปรย/สีแบรนด์ ใช้แสดงหน้า Login |
 | `GET /settings` | login แล้ว | owner ได้ทุกฟิลด์; customer ถูกกรอง `wageChef/wageAssistant/wageServerPerTable/wageDishwasher/tablesPerServer/tablesPerSupport/staffRemainderThreshold` ออก (ข้อมูลต้นทุนภายใน) — **ไม่มี in-memory cache แล้ว** (เคยมีแต่เอาออกเพราะข้าม process แล้ว stale) |
-| `PATCH /settings` | `@Roles('owner')` | บันทึก `lastEditedBy` |
+| `PATCH /settings` | `@Roles('owner')` | **optimistic locking:** ต้องส่ง `expectedVersion` ถ้าไม่ตรง `version` ใน DB → 409 (log ค่าที่คาดหวัง/ปัจจุบัน) สำเร็จแล้ว `version + 1`, บันทึก `lastEditedBy`, ซิงค์ `Shop.name` เมื่อแก้ชื่อไทย, `slipOkApiKey` เข้ารหัส AES-256-GCM (`secret-box.ts`, เมื่อตั้ง `SETTINGS_ENCRYPTION_KEY`), audit log ไม่เก็บ key จริง (`***`), ลบไฟล์โลโก้/รูปหน้าแรกเก่าที่ถูกแทนที่ |
+| `POST /settings/slipok/test` | `@Roles('owner')` | เช็คโควตา SlipOK ด้วย API key/Branch ID ที่ส่งมา ผ่านแล้วจดลายนิ้วมือ sha256 ของคู่นี้ (`slipOkTestedHash`, ไม่ bump `version`) |
+
+**"เชื่อม SlipOK แล้ว"** (`slipOkConnected`) = มี key + branch และลายนิ้วมือตรงกับคู่ที่ทดสอบผ่านล่าสุด; ลูกค้าได้ข้อมูลชำระเงิน (บัญชี/พร้อมเพย์) เฉพาะเมื่อเชื่อมแล้ว และไม่เห็นค่าแรง/ข้อมูล SlipOK ใดๆ; ร้านที่มี key อยู่ก่อนถูกถือว่าเชื่อมแล้วโดย migration
+
+### 6.5b `AuditController` (`/audit-log`) และ `RealtimeController` (`/realtime`)
+
+- `GET /audit-log?page=&pageSize=` (owner, super_admin) — owner เห็นของร้านตัวเอง, super admin ข้ามร้าน; ทุกบริการที่แก้ข้อมูลเรียก `AuditService.log(actor, action, entityType, entityId, before, after, shopId)` ซึ่งแจ้ง SSE หัวข้อ `audit` ด้วย
+- `GET /realtime/bookings` และ `GET /realtime/app` (SSE, ต้อง login; รับ token ทาง `?access_token=` ได้เฉพาะ `/realtime/*`) — ส่งแค่สัญญาณ `changed` / หัวข้อ `settings|catalog|users|audit|shop` ให้ client โหลดข้อมูลใหม่เอง ไม่ส่งข้อมูลจริง (กัน bypass การตรวจสิทธิ์)
+
+### 6.5c `UploadsController` (`/uploads`)
+
+throttle 10/นาที: `POST /uploads/menu-image`, `shop-logo`, `content-image` (owner) และ `payment-slip` (customer) — รับ data URL ตรวจชนิด/ขนาด ย่อด้วย `sharp` เก็บเป็นไฟล์ใน `UPLOADS_DIR` แล้วคืน path (`/uploads/...`); รูปเมนู/โลโก้/หน้าแรกเปิดเป็นไฟล์สาธารณะ ส่วนสลิปอยู่ใต้ `/uploads/slips/` และอ่านได้ผ่าน `GET /bookings/:id/payment-slip` เท่านั้น; ไฟล์เก่าถูกลบเมื่อถูกแทนที่หรือเมื่อลบร้าน
+
+### 6.5d `HealthController` (`/health`)
+
+`GET /health` ตอบ `{status:'ok', uptimeSeconds}` (โปรเซสทำงาน), `GET /health/ready` รัน `SELECT 1` ตอบ `{status:'ok', database:'up'}` หรือ 503 — ไม่ต้อง login ไม่ติด rate limit ใช้เป็น Healthcheck Path ของ Railway
 
 ### 6.6 `GeoController` (`/geo`)
 
@@ -340,8 +460,16 @@ interface NavContextValue {
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `jwt.strategy.ts` | verify RS256 ผ่าน JWKS ของ Auth0 tenant (cache, rate-limit 5 req/min ไปยัง Auth0) |
-| `roles.guard.ts` | เช็ค custom claim เทียบกับ `@Roles()` metadata |
-| `current-user.decorator.ts` | `@CurrentUser()` ดึง JWT payload ดิบ |
+| `jwt.strategy.ts` (เพิ่มเติม) | ใส่ `requestedShopId` จาก header `X-Shop-Id` ลงใน user; รับ token ทาง query เฉพาะ path `/realtime/` (`extractQueryToken`) |
+| `roles.guard.ts` | ตรวจบทบาทจาก DB ผ่าน `resolveShopContext` เทียบกับ `@Roles()` (cache 5 วินาที) |
+| `shop-context.ts` | `resolveShopContext(prisma, auth0Sub, requestedShopId)` → SUPER_ADMIN / OWNER ของร้านนั้น (จาก `ShopMember`) / CUSTOMER |
+| `current-user.decorator.ts` | `@CurrentUser()` คืน `JwtUser` (`sub`, `email`, `requestedShopId`, …) |
+| `bookings/booking-rules.ts` | `ALLOWED_NEXT`/`isStatusTransitionAllowed`, `todayInBangkok`/`isPastEventDate` |
+| `bookings/geo.util.ts` | โซน/ค่าขนส่ง/ระยะทางถนน OSRM จาก backend (แคช 24 ชม., User-Agent) |
+| `slip-verify/` | `SlipVerifyService` (เรียก SlipOK) + `receiver-match.ts` (เทียบผู้รับรายช่องทาง ไม่รู้ผู้รับ = ไม่ปฏิเสธ) |
+| `settings/secret-box.ts` | `encryptSecret`/`decryptSecret` (AES-256-GCM, กุญแจจาก `SETTINGS_ENCRYPTION_KEY`) |
+| `config/required-env.ts` | `assertRequiredEnv()` ตอนเริ่ม — ขาด `DATABASE_URL`/`AUTH0_DOMAIN`/`AUTH0_AUDIENCE` ไม่เริ่ม |
+| `main.ts` | `helmet`, `trust proxy` (`TRUST_PROXY`), body limit 10 MB, CORS ตาม `FRONTEND_ORIGIN`, shutdown hooks |
 | `app.module.ts` | ลงทะเบียน `ThrottlerModule.forRoot()` + `APP_GUARD` = `ThrottlerGuard` แบบ global |
 | `common/pagination.ts`, `common/list-query.dto.ts` | helper แบ่งหน้าแบบ opt-in ใช้ร่วมกันทุก endpoint แบบ list |
 
@@ -353,12 +481,14 @@ interface NavContextValue {
 
 | DTO | Field และกฎ |
 |---|---|
-| `CreateBookingDto` | `date/timeSlot: string`, `tables: int 1–500`, `guestCount: int ≥1`, `packageId: string` (**ไม่มี `totalPrice`/`pricePerTable`/`deliveryFee`/`packageName` แล้ว** — backend คำนวณเอง), `location: string`, `locationDetail?: unknown`, `menus: string[]`, `lineId?: string` |
+| `CreateBookingDto` | `shopId: string`, `date` (รูปแบบ `YYYY-MM-DD`), `timeSlot: string`, `tables: int 1–500`, `guestCount: int ≥1`, `packageId: string` (**ไม่มี `totalPrice`/`pricePerTable`/`deliveryFee`/`packageName` แล้ว** — backend คำนวณเอง), `location: string`, `locationDetail?: unknown`, `menus: string[]`, `lineId?: string` |
 | `UpdateBookingDto` | `status?: BookingStatus`, `staffAuto/staffActual?: unknown`, `staffNote?: string` |
-| `UpdatePaymentSlipDto` | `paymentSlipUrl: string` ต้องขึ้นต้นด้วย `data:image/(png\|jpe?g\|webp\|gif);base64,` และยาวไม่เกิน ~11MB (base64 ของไฟล์ ~8MB) |
+| `UpdatePaymentSlipDto` | `paymentSlipUrl` ต้องเป็น path จาก `POST /uploads/payment-slip` (`/uploads/slips/<id>.png\|jpg\|jpeg\|webp`, ≤ 200 ตัวอักษร), `paymentChannelKey?` รูปแบบ `bank:<เลข 4–30 หลัก>` หรือ `pp:<…>` |
 | `CreateMenuItemDto`/`UpdateMenuItemDto` | เพิ่ม `costPrice?: int` จากเดิม |
 | `CreatePackageDto`/`UpdatePackageDto` | เหมือนเดิม (`courses[]` พร้อม `no/title/icon/category/choose/itemIds`) |
-| `UpdateSettingsDto` | ขยายจากเดิมมาก — เพิ่ม `metroProvinces[]`, `homeProvince`, `brandColor` (regex hex 6 หลัก), `tablesPerServer/tablesPerSupport/staffRemainderThreshold`, `slotMorningHours/slotNoonHours/slotEveningHours`, `quotationValidDays/quotationTerms[]/bookingTerms[]`, `categories?: unknown[]` (ไม่ deep-validate โครงสร้าง), `shopLogo/shopLoginTagline` — ทุก field ยัง optional เหมือนเดิม |
+| `CreateShopDto` / `UpdateShopDto` / `DeleteShopDto` / `SetShopStatusDto` / `AddOwnerDto` | `name` (1–100), `ownerEmail` (อีเมล), `slug?`, `confirmName` (ตรงชื่อร้าน), `status` (ACTIVE\|SUSPENDED), `email` |
+| `SetRoleDto` / `SearchUsersDto` / `SyncProfileDto` / `UpdateProfileDto` | บทบาทที่แต่งตั้ง / คำค้นอีเมล / ข้อมูลโปรไฟล์ |
+| `UpdateSettingsDto` | **ต้องส่ง `expectedVersion: int`**, เพิ่ม `extraBankAccounts[]`/`extraPromptPays[]` (≤ 8 รายการ, พร้อมเพย์เป็นตัวเลข/ขีดเท่านั้น), `slipOkApiKey`/`slipOkBranchId`, `closedDates[]` และขยายจากเดิมมาก — เพิ่ม `metroProvinces[]`, `homeProvince`, `brandColor` (regex hex 6 หลัก), `tablesPerServer/tablesPerSupport/staffRemainderThreshold`, `slotMorningHours/slotNoonHours/slotEveningHours`, `quotationValidDays/quotationTerms[]/bookingTerms[]`, `categories?: unknown[]` (ไม่ deep-validate โครงสร้าง), `shopLogo/shopLoginTagline` — ทุก field ยัง optional เหมือนเดิม |
 
 ---
 
@@ -368,5 +498,5 @@ interface NavContextValue {
 
 - `PATCH /packages/:id` แก้ `courses` ได้แล้ว แต่เป็นการแทนที่ทั้งชุด (ลบเก่า-สร้างใหม่) ไม่ใช่ patch ทีละข้อ (มี endpoint แยกสำหรับแก้ทีละ course: `POST/PATCH/DELETE /packages/:id/courses/:courseId`)
 - `dayStatus()` ยังตีความว่า 1 booking = เต็มทั้งวัน ทำให้ `SLOT_CAPACITY` (500 โต๊ะ/ช่วง) ที่นิยามไว้ไม่เคยถูกใช้จำกัดจริงในทางปฏิบัติ — ตั้งใจคงไว้ตามคำขอ ไม่ใช่บั๊ก
-- สลิปโอนเงิน/รูปเมนู/โลโก้/QR ยังเก็บเป็น data URL ตรงใน DB โดยตรง ยังไม่มี object storage จริง
-- zone/distanceKm ของค่าขนส่งยังอิงพิกัด/โซนที่ client ส่งมาบางส่วน (มี cap ระยะทางกันค่าผิดปกติ แต่ยังไม่ re-verify เต็มรูปแบบฝั่ง server)
+- สลิป/รูปเมนู/โลโก้/รูปหน้าแรกเก็บเป็นไฟล์บนดิสก์ของ backend (Volume) ไม่ใช่ใน DB — ยังไม่มี object storage จริง จึงรัน backend ได้ตัวเดียว
+- backend คำนวณโซน/ระยะทาง/ราคาเองทั้งหมด (OSRM จาก backend มีแคช) ถ้าเรียก OSRM ไม่ได้ตอบ 503 ไม่ fallback ไปเชื่อค่าจาก client
