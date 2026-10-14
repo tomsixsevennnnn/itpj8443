@@ -5,6 +5,8 @@ itproject
 
 ดู requirement/ขอบเขตโครงงานฉบับเต็มได้ที่ [REQOLD.md](./REQOLD.md)
 
+สถาปัตยกรรม แผนภาพ ER/ลำดับการทำงาน จุดเด่นทางเทคนิค ผลการทดสอบ และข้อจำกัดที่รู้ตัว ดูที่ [docs/SYSTEM_OVERVIEW.md](./docs/SYSTEM_OVERVIEW.md)
+
 โปรเจกต์นี้เป็น **monorepo** มี 2 ส่วน:
 
 ```
