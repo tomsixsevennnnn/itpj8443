@@ -211,7 +211,7 @@ export default function Dashboard({ bookings, menus, settings }: Readonly<Dashbo
           const Icon = card.icon
           const up = card.change != null && card.change >= 0
           return (
-            <div key={card.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div key={card.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
               <div className="flex items-start justify-between mb-4">
                 <div className={`w-10 h-10 bg-gradient-to-br ${card.color} rounded-xl flex items-center justify-center`}>
                   <Icon size={18} className="text-white" />
@@ -223,7 +223,7 @@ export default function Dashboard({ bookings, menus, settings }: Readonly<Dashbo
                   </span>
                 )}
               </div>
-              <p className="text-2xl font-bold text-gray-900 mb-1">{card.value}</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-1 break-words">{card.value}</p>
               <p className="text-xs text-gray-400 leading-tight">{card.label}</p>
               <p className="text-xs text-gray-500 mt-1.5 leading-tight">
                 {card.change != null && (
@@ -311,7 +311,7 @@ export default function Dashboard({ bookings, menus, settings }: Readonly<Dashbo
 
       {/* Bookings bar chart */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
           <div>
             <h3 className="font-bold text-gray-900">จำนวนงานและโต๊ะรายเดือน</h3>
             <p className="text-xs text-gray-400 mt-0.5">ย้อนหลัง {MONTHS_SHOWN} เดือน</p>

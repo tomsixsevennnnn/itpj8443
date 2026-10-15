@@ -50,7 +50,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => navigate('booking-calendar')}
-                    className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-2xl font-semibold text-lg transition-all shadow-lg shadow-orange-900/30 hover:scale-[1.02]"
+                    className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 sm:px-8 py-4 rounded-2xl font-semibold text-lg transition-all shadow-lg shadow-orange-900/30 hover:scale-[1.02]"
                   >
                     เริ่มจองเลย
                     <ArrowRight size={20} />
@@ -59,7 +59,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
                     onClick={() =>
                       document.getElementById('gallery')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }
-                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-2xl font-semibold backdrop-blur-sm transition-all border border-white/20"
+                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 sm:px-8 py-4 rounded-2xl font-semibold backdrop-blur-sm transition-all border border-white/20"
                   >
                     ดูตัวอย่างงาน
                   </button>
@@ -133,7 +133,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
         </section>
 
         {/* CTA */}
-        <section className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl p-12 text-center">
+        <section className="bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl p-8 sm:p-12 text-center">
           <h2 className="text-3xl font-bold text-white mb-4">{homeContent.ctaTitle}</h2>
           <p className="text-orange-100 mb-8">{homeContent.ctaDescription}</p>
           <button
