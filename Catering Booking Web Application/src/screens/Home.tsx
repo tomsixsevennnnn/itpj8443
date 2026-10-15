@@ -24,7 +24,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
 
       {/* Hero */}
       <section className="relative pt-[7.25rem] md:pt-16 overflow-hidden">
-        <div className="relative h-[580px] md:h-[640px]">
+        <div className="relative h-[440px] md:h-[640px]">
           <img
             src={resolveImageUrl(homeContent.heroImage)}
             alt="บริการจัดเลี้ยง"
@@ -39,18 +39,18 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
                   <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse" />
                   {homeContent.heroBadge}
                 </span>
-                <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-4">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-3 sm:mb-4">
                   {homeContent.heroTitle}
                   <span className="text-orange-400 block">{homeContent.heroTitleHighlight}</span>
                 </h1>
-                <p className="text-gray-300 text-lg mb-8 leading-relaxed whitespace-pre-line">
+                <p className="text-gray-300 text-base sm:text-lg mb-6 sm:mb-8 leading-relaxed whitespace-pre-line">
                   {homeContent.heroDescription}
                 </p>
 
                 <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => navigate('booking-calendar')}
-                    className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 sm:px-8 py-4 rounded-2xl font-semibold text-lg transition-all shadow-lg shadow-orange-900/30 hover:scale-[1.02]"
+                    className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-semibold text-base sm:text-lg transition-all shadow-lg shadow-orange-900/30 hover:scale-[1.02]"
                   >
                     เริ่มจองเลย
                     <ArrowRight size={20} />
@@ -59,7 +59,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
                     onClick={() =>
                       document.getElementById('gallery')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }
-                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 sm:px-8 py-4 rounded-2xl font-semibold backdrop-blur-sm transition-all border border-white/20"
+                    className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-semibold backdrop-blur-sm transition-all border border-white/20"
                   >
                     ดูตัวอย่างงาน
                   </button>
@@ -72,8 +72,8 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
 
       {/* Feature badges */}
       <div className="bg-white border-y border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-5">
-          <div className="flex flex-wrap gap-6 justify-center md:justify-between items-center">
+        <div className="max-w-7xl mx-auto px-6 py-4 sm:py-5">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 sm:gap-6 justify-center md:justify-between items-center">
             {FEATURE_ICONS.map(({ icon: Icon, color }, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Icon size={16} className={color} />
@@ -84,7 +84,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-16 space-y-20">
+      <div className="max-w-7xl mx-auto px-6 py-10 sm:py-16 space-y-12 sm:space-y-20">
         {/* Steps */}
         <section>
           <div className="text-center mb-12">
