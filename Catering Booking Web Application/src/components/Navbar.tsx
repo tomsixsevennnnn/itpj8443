@@ -95,7 +95,6 @@ export default function Navbar({ currentScreen }: Readonly<NavbarProps>) {
           {[
             { label: 'หน้าแรก', screen: 'home' as Screen, icon: Home },
             { label: 'ประวัติ', screen: 'history' as Screen, icon: Calendar },
-            { label: 'แจ้งเตือน', screen: 'notifications' as Screen, icon: Bell },
           ].map(({ label, screen, icon: Icon }) => (
             <button
               key={label}
