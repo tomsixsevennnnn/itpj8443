@@ -12,6 +12,7 @@ import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 import { STATUS_BUTTON_LABEL, STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 import { PHASE_FILTER_ORDER, PHASE_INFO, bookingPhase, phaseNote, type BookingPhase } from '../../bookingPhase'
+import BookingPhaseBanner from '../../components/BookingPhaseBanner'
 
 const PAGE_SIZE = 20
 
@@ -586,6 +587,12 @@ export default function Orders({
                 </div>
               ) : (
                 <>
+                  <BookingPhaseBanner
+                    booking={selected}
+                    onConfirm={() => updateStatus(selected.id, 'confirmed')}
+                    busy={statusPending !== null}
+                    confirming={statusPending?.id === selected.id && statusPending.status === 'confirmed'}
+                  />
                   <div className="grid grid-cols-3 gap-2">
                     {(['pending', 'confirmed', 'completed'] as const).map(s => {
                       const sc = STATUS_CONFIG[s]

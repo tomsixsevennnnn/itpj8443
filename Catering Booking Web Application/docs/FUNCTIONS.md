@@ -370,6 +370,7 @@ interface NavContextValue {
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `bookingPhase.ts` | `bookingPhase(b)` คำนวณ "ขั้นตอน" 5 แบบ (รอโอนมัดจำ/รอร้านยืนยัน/ยืนยันแล้ว/เสร็จสิ้น/ยกเลิก) จากสถานะจริง + มีสลิปหรือไม่ + ผลตรวจ SlipOK, `PHASE_INFO` (ป้าย/สี/คำอธิบาย), `phaseNote`/`slipNeedsReplacement` (สลิปไม่ผ่านต้องแนบใหม่), `PHASE_FILTER_ORDER` — ใช้แสดงป้ายและกรองในหน้าประวัติ/รายการจอง/ปฏิทิน/แดชบอร์ด/แจ้งเตือน ไม่เก็บใน DB |
+| `components/BookingPhaseBanner.tsx` | กล่องในแผงอัปเดตสถานะของเจ้าของร้าน (หน้ารายการจอง + ปฏิทิน): ป้ายขั้นตอน, `ownerNextStep()` คำอธิบายขั้นต่อไป, ปุ่มลัด "ยืนยันใบจอง" เมื่อ `canQuickConfirm()` (ขั้นรอร้านยืนยัน) — ใช้ `updateStatus(id, 'confirmed')` เดิม ไม่เปลี่ยนกฎสถานะ |
 | `bookingStatus.ts` | `canChangeStatus(from, to)` สำเนาของกฎ backend ไว้ปิดปุ่มที่เปลี่ยนสถานะไม่ได้ + `STATUS_LOCKED_HINT` (backend `booking-rules.ts` เป็นตัวตัดสินจริง) |
 | `bookingDraft.ts` | เก็บ/โหลดแบบร่างการจอง (sessionStorage ต่อร้าน) และหาขั้นที่ข้อมูลไม่ครบ |
 | `priceChange.ts` | เทียบราคาที่เปลี่ยนก่อนยืนยันจอง |

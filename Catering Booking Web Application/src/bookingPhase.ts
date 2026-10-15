@@ -83,5 +83,22 @@ export const PHASE_INFO: Record<BookingPhase, PhaseStyle> = {
 /** หมายเหตุใต้ป้าย — เฉพาะสลิปไม่ผ่านที่ลูกค้าต้องแนบใหม่ */
 export const phaseNote = (b: PhaseInput): string => (slipNeedsReplacement(b) ? 'สลิปไม่ผ่าน — แนบใหม่' : '')
 
+/** ใบจองที่เจ้าของร้านกดยืนยันลัดได้ — ขั้น "รอร้านยืนยัน" (ส่งสลิปแล้ว) เท่านั้น */
+export const canQuickConfirm = (b: PhaseInput): boolean => bookingPhase(b) === 'awaiting-review'
+
+/** คำอธิบายสำหรับเจ้าของร้านว่าตอนนี้ต้องทำอะไรต่อ (ต่างจาก PHASE_INFO.hint ที่เป็นคำสั้นๆ ใช้เป็น tooltip ของปุ่มกรอง) */
+export const ownerNextStep = (b: PhaseInput): string => {
+  const phase = bookingPhase(b)
+  if (phase === 'awaiting-deposit') {
+    return slipNeedsReplacement(b)
+      ? 'สลิปล่าสุดตรวจไม่ผ่าน — รอลูกค้าแนบสลิปใหม่ (ถ้าได้รับมัดจำทางอื่นแล้ว กด "ยืนยันแล้ว" เองได้)'
+      : 'ลูกค้ายังไม่ได้โอนมัดจำ — รอลูกค้าแนบสลิป (ถ้าได้รับมัดจำทางอื่นแล้ว กด "ยืนยันแล้ว" เองได้)'
+  }
+  if (phase === 'awaiting-review') return 'ลูกค้าส่งสลิปแล้ว — ตรวจมัดจำ (ดูสลิปและผลตรวจด้านบน) แล้วกดยืนยันใบจอง'
+  if (phase === 'confirmed') return 'ยืนยันแล้ว — รอวันงาน จัดงานเสร็จแล้วกด "เสร็จสิ้น"'
+  if (phase === 'completed') return 'จัดงานเสร็จสิ้นแล้ว'
+  return 'ใบจองนี้ถูกยกเลิกแล้ว'
+}
+
 /** ลำดับปุ่มกรองรายการตามขั้นตอน */
 export const PHASE_FILTER_ORDER: BookingPhase[] = ['awaiting-review', 'awaiting-deposit', 'confirmed', 'completed', 'cancelled']

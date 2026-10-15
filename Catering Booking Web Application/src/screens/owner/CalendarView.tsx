@@ -9,6 +9,7 @@ import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 import { PHASE_INFO, bookingPhase, type BookingPhase } from '../../bookingPhase'
+import BookingPhaseBanner from '../../components/BookingPhaseBanner'
 import { STATUS_BUTTON_LABEL, STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 import {
   BASE_SLOTS,
@@ -444,6 +445,14 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
               {/* เปลี่ยนสถานะได้จากปฏิทินเลย */}
               <div>
                 <p className="text-xs text-gray-400 mb-2">อัปเดตสถานะ</p>
+                {popup.status !== 'cancelled' && (
+                  <BookingPhaseBanner
+                    booking={popup}
+                    onConfirm={() => updateStatus(popup.id, 'confirmed')}
+                    busy={statusPending !== null}
+                    confirming={statusPending?.id === popup.id && statusPending.status === 'confirmed'}
+                  />
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   {(['pending', 'confirmed', 'completed', 'cancelled'] as const).map(s => {
                     const info = BOOKING_STATUS_INFO[s]
