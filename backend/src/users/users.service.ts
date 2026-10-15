@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Role, type Shop, type User } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { resolveShopContext, type ShopContext } from '../auth/shop-context'
-import { fetchVerifiedIdentity } from '../auth/userinfo'
+import type { VerifiedIdentity } from '../auth/userinfo'
 import { PrismaService } from '../prisma/prisma.service'
 import { SyncProfileDto } from './dto/sync-profile.dto'
 import { UpdateProfileDto } from './dto/update-profile.dto'
@@ -53,8 +53,6 @@ const superAdminEmails = (): Set<string> =>
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name)
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -89,20 +87,25 @@ export class UsersService {
    */
   /** include memberships (ร้านที่เป็น owner อยู่ พร้อม slug) เสมอ — frontend ใช้เลือกว่าร้านที่เปิดอยู่เป็น owner หรือลูกค้า
    *  และปรับ URL ให้ตรงร้านหลัง login (ดู App.tsx) ไม่ต้องยิง request แยกอีกรอบ */
-  async syncProfile(auth0Sub: string, role: Role, dto: SyncProfileDto) {
+  async syncProfile(auth0Sub: string, role: Role, dto: SyncProfileDto, verifiedEmail?: string | null) {
+    // อีเมลใน body มาจากหน้าเว็บ (ปลอมได้) — ใช้ตัดสินสิทธิ์/เขียนทับอีเมลใน DB ไม่ได้ ต้องเป็นอีเมลที่ Auth0 ยืนยันแล้ว
+    // (ถามจาก /userinfo ด้วย token ของผู้เรียกเอง ดู users.controller.ts) ถามไม่ได้ = ไม่ให้สิทธิ์พิเศษ และไม่เขียนทับอีเมลเดิม
+    const trusted = verifiedEmail?.trim() || null
     const existing = await this.prisma.user.findUnique({ where: { auth0Sub } })
     if (!existing) {
       // bootstrap super admin คนแรก — ถ้าอีเมลอยู่ใน SUPER_ADMIN_EMAILS ตั้งเป็น SUPER_ADMIN เสมอ ไม่ว่า role
       // ที่ส่งมาจะเป็นอะไร (ตอนนี้ผู้เรียก users.controller.ts ส่ง CUSTOMER มาตลอด — ไม่มีทางเป็น OWNER จากจุดนี้
       // อีกต่อไป เพราะ OWNER ต้องมาจาก ShopsService.createShop/addOwner เท่านั้นในระบบ multi-tenant)
-      const finalRole = superAdminEmails().has(dto.email.toLowerCase()) ? Role.SUPER_ADMIN : role
+      // ต้องเป็นอีเมลที่ Auth0 ยืนยันแล้วเท่านั้น — ไม่งั้นใครก็ส่งอีเมลของ super admin มาใน body แล้วได้สิทธิ์ทันที
+      const finalRole = trusted && superAdminEmails().has(trusted.toLowerCase()) ? Role.SUPER_ADMIN : role
       return this.prisma.user.create({
         data: {
           auth0Sub,
           role: finalRole,
           name: dto.name,
           surname: dto.surname ?? '',
-          email: dto.email,
+          // ถามอีเมลที่ยืนยันแล้วไม่ได้ (Auth0 ขัดข้อง) ค่อยใช้ที่ client ส่งมาเป็นค่าแสดงผลไปก่อน — ไม่ให้สิทธิ์อะไรจากค่านี้
+          email: trusted ?? dto.email,
           avatar: dto.avatar ?? '',
         },
         include: MEMBERSHIPS_INCLUDE,
@@ -111,7 +114,8 @@ export class UsersService {
     return this.prisma.user.update({
       where: { auth0Sub },
       data: {
-        email: dto.email,
+        // อีเมลอัปเดตเฉพาะเมื่อได้ค่าที่ Auth0 ยืนยัน — ไม่ให้ client ส่งอีเมลคนอื่นมาเขียนทับของตัวเอง (ใช้แย่งตำแหน่งเจ้าของร้านตอนถูกค้นด้วยอีเมลได้)
+        email: trusted ?? (existing.email || dto.email),
         avatar: dto.avatar ?? '',
         ...(existing.name ? {} : { name: dto.name }),
         ...(existing.surname ? {} : { surname: dto.surname ?? '' }),
@@ -128,20 +132,15 @@ export class UsersService {
   /**
    * รับสิทธิ์เจ้าของร้านจากคำเชิญล่วงหน้า (ShopInvite) — เรียกหลัง sync ตอน login: ถ้าอีเมลของผู้เรียก (ถามจาก Auth0
    * ไม่ใช่ที่ frontend ส่ง) ยืนยันแล้วและตรงกับคำเชิญของร้านใด สร้าง ShopMember ให้แล้วลบคำเชิญ
-   * ไม่มีคำเชิญเลยในระบบ = ไม่เรียก Auth0 (ผู้ใช้ส่วนใหญ่ไม่เสียเวลาเพิ่ม) เรียก Auth0 ไม่ได้ = ข้ามไป คำเชิญยังอยู่ ลองใหม่รอบ login ถัดไป
+   * ไม่มีคำเชิญเลยในระบบ = ข้ามทันที ไม่ได้ identity ที่ยืนยันแล้ว (Auth0 ถามไม่ได้) = ข้ามไป คำเชิญยังอยู่ ลองใหม่รอบ login ถัดไป
    * super admin ไม่รับ (เป็นเจ้าของร้านไม่ได้) คืน true ถ้ามีสิทธิ์ใหม่เกิดขึ้น
    */
-  async claimOwnerInvites(auth0Sub: string, authorization?: string): Promise<boolean> {
+  async claimOwnerInvites(auth0Sub: string, identity: VerifiedIdentity | null): Promise<boolean> {
     if ((await this.prisma.shopInvite.count()) === 0) return false
     const user = await this.prisma.user.findUnique({ where: { auth0Sub }, select: { id: true, role: true } })
     if (!user || user.role === Role.SUPER_ADMIN) return false
 
-    const identity = await fetchVerifiedIdentity(authorization)
-    if (!identity) {
-      this.logger.warn(`รับสิทธิ์จากคำเชิญไม่ได้ (auth0Sub=${auth0Sub}): ถามอีเมลจาก Auth0 /userinfo ไม่สำเร็จ — ตรวจว่า access token มี scope openid และ AUTH0_DOMAIN ถูกต้อง`)
-      return false
-    }
-    if (!identity.emailVerified) return false
+    if (!identity?.emailVerified) return false
     const email = identity.email.trim().toLowerCase()
 
     const invites = await this.prisma.shopInvite.findMany({ where: { email } })

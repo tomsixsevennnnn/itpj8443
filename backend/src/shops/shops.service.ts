@@ -3,7 +3,7 @@ import { Role, ShopStatus } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { UploadsService } from '../uploads/uploads.service'
-import { DEFAULT_SETTINGS } from '../settings/settings.service'
+import { BLANK_SHOP_IDENTITY, DEFAULT_SETTINGS } from '../settings/settings.service'
 import { CreateShopDto } from './dto/create-shop.dto'
 import { UpdateShopDto } from './dto/update-shop.dto'
 
@@ -100,7 +100,7 @@ export class ShopsService {
 
     const shop = await this.prisma.$transaction(async (tx) => {
       const created = await tx.shop.create({ data: { name: dto.name, slug } })
-      await tx.settings.create({ data: { ...DEFAULT_SETTINGS, shopId: created.id, shopName: dto.name } })
+      await tx.settings.create({ data: { ...DEFAULT_SETTINGS, ...BLANK_SHOP_IDENTITY, shopId: created.id, shopName: dto.name } })
       if (owner) await tx.shopMember.create({ data: { userId: owner.id, shopId: created.id } })
       else await tx.shopInvite.create({ data: { shopId: created.id, email: ownerEmail } })
       return created

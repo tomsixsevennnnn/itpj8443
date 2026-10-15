@@ -20,6 +20,16 @@ function homeContentImages(value: unknown): { heroImage?: string; gallery?: stri
   }
 }
 
+/** ข้อมูลระบุตัวตนของร้าน (ชื่ออังกฤษ อักษรย่อ ที่อยู่ เบอร์ LINE) — ร้านใหม่เริ่มจากค่าว่าง ห้ามคัดลอกของร้านตัวอย่าง (พิพัฒน์โภชนา)
+ *  ที่อยู่ใน DEFAULT_SETTINGS ไปให้ ไม่งั้นใบเสนอราคา/ใบจองของร้านใหม่จะแสดงข้อมูลติดต่อของร้านอื่น */
+export const BLANK_SHOP_IDENTITY = {
+  shopNameEn: '',
+  shopInitials: '',
+  shopAddress: '',
+  shopPhone: '',
+  shopLine: '',
+} as const
+
 /** ค่าเริ่มต้น — ต้องตรงกับ DEFAULT_* ใน frontend src/documents.ts และ src/geo.ts — export ไว้ให้ ShopsService
  *  ใช้สร้างแถว Settings เริ่มต้นให้ร้านใหม่ทุกร้าน (เดิมมีแถวเดียวตายตัว id=1 ทั้งระบบตอนยังเป็นร้านเดียว) */
 export const DEFAULT_SETTINGS = {
@@ -118,10 +128,10 @@ export class SettingsService {
     // เช็คก่อนเสมอว่าร้านนี้ยังมีอยู่จริงก่อนจะ auto-create Settings ให้ — กัน FK violation (P2003) ตอน shopId
     // ไม่มีจริง (เช่นร้านถูกลบไปแล้วผ่านฟีเจอร์ลบร้านถาวร แต่ client ยังมี shopId เดิมค้างอยู่ใน localStorage/
     // query จาก session ก่อนหน้า) เดิม error นี้หลุดออกไปเป็น 500 ดิบๆ ซ้ำๆ ทุกครั้งที่ client poll
-    const shopExists = await this.prisma.shop.findUnique({ where: { id: shopId }, select: { id: true } })
+    const shopExists = await this.prisma.shop.findUnique({ where: { id: shopId }, select: { id: true, name: true } })
     if (!shopExists) throw new NotFoundException('ไม่พบร้านนี้ — อาจถูกลบไปแล้ว')
 
-    return this.prisma.settings.create({ data: { ...DEFAULT_SETTINGS, shopId } })
+    return this.prisma.settings.create({ data: { ...DEFAULT_SETTINGS, ...BLANK_SHOP_IDENTITY, shopName: shopExists.name ?? DEFAULT_SETTINGS.shopName, shopId } })
   }
 
   /** SlipOK API key เก็บใน DB แบบเข้ารหัส (ถ้าตั้ง SETTINGS_ENCRYPTION_KEY) — ถอดรหัสทันทีที่อ่านออกมา โค้ดส่วนอื่นเห็นเป็นข้อความปกติ */

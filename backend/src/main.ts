@@ -45,4 +45,8 @@ async function bootstrap() {
   await app.listen(port)
 }
 
-bootstrap()
+bootstrap().catch((err: unknown) => {
+  // ตัวอย่าง: ขาดตัวแปรจำเป็น (assertRequiredEnv) หรือพอร์ตถูกใช้อยู่ — แสดงข้อความแล้วจบด้วยรหัสผิดพลาด ไม่ปล่อยเป็น unhandled rejection
+  console.error(err instanceof Error ? err.message : err)
+  process.exit(1)
+})

@@ -1,8 +1,9 @@
-import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Logger, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
 import type { Request } from 'express'
 import { Throttle } from '@nestjs/throttler'
 import { Role } from '@prisma/client'
 import { CurrentUser, JwtUser } from '../auth/current-user.decorator'
+import { fetchVerifiedIdentity } from '../auth/userinfo'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
@@ -15,6 +16,8 @@ import { UsersService } from './users.service'
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
+  private readonly logger = new Logger(UsersController.name)
+
   constructor(private readonly users: UsersService) {}
 
   /**
@@ -28,9 +31,17 @@ export class UsersController {
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('me')
   async sync(@CurrentUser() jwtUser: JwtUser, @Body() dto: SyncProfileDto, @Req() req: Request) {
-    const user = await this.users.syncProfile(jwtUser.sub, Role.CUSTOMER, dto)
+    // อีเมลที่ Auth0 ยืนยันแล้ว (ถามจาก /userinfo ด้วย token ของผู้เรียกเอง) — ใช้ตัดสินสิทธิ์พิเศษ (super admin / คำเชิญเป็นเจ้าของร้าน)
+    // และเป็นอีเมลที่บันทึกลง DB เท่านั้น อีเมลใน body ปลอมได้จึงไม่ใช้ตัดสินสิทธิ์
+    const identity = await fetchVerifiedIdentity(req.headers.authorization)
+    if (!identity) {
+      this.logger.warn(
+        `ถามอีเมลจาก Auth0 /userinfo ไม่สำเร็จ (auth0Sub=${jwtUser.sub}) — ไม่ให้สิทธิ์ super admin/คำเชิญจากรอบนี้ ตรวจว่า access token มี scope openid และ AUTH0_DOMAIN ถูกต้อง`,
+      )
+    }
+    const user = await this.users.syncProfile(jwtUser.sub, Role.CUSTOMER, dto, identity?.emailVerified ? identity.email : null)
     // คำเชิญเป็นเจ้าของร้านที่ super admin ใส่อีเมลไว้ล่วงหน้า — ได้สิทธิ์ตอน login ครั้งแรก (ถ้ามีสิทธิ์ใหม่ อ่านผู้ใช้ซ้ำให้ memberships ล่าสุด)
-    const claimed = await this.users.claimOwnerInvites(jwtUser.sub, req.headers.authorization)
+    const claimed = await this.users.claimOwnerInvites(jwtUser.sub, identity)
     return claimed ? ((await this.users.findWithMemberships(jwtUser.sub)) ?? user) : user
   }
 

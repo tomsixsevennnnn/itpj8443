@@ -33,7 +33,7 @@ export default function Navbar({ currentScreen }: Readonly<NavbarProps>) {
             )}
             <div>
               <p className="font-bold text-gray-900 leading-tight text-sm">{shopInfo.name}</p>
-              <p className="text-[10px] text-gray-400 leading-tight">{shopInfo.nameEn}</p>
+              {shopInfo.nameEn && <p className="text-[10px] text-gray-400 leading-tight">{shopInfo.nameEn}</p>}
             </div>
           </button>
 

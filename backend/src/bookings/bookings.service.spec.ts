@@ -91,6 +91,17 @@ describe('BookingsService.create', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
+  it('ไม่มี locationDetail — throw BadRequestException (ห้ามคิดค่าขนส่งเป็น 0 แล้วจองผ่านไปได้) ไม่สร้างใบจอง', async () => {
+    const { service, prisma, settingsService } = makeService()
+    prisma.package.findUnique.mockResolvedValue(PACKAGE)
+    settingsService.get.mockResolvedValue(SETTINGS)
+
+    await expect(service.create('c1', 'ลูกค้า', '0800000000', baseDto({ locationDetail: undefined }))).rejects.toThrow(
+      'ไม่พบข้อมูลสถานที่จัดงาน',
+    )
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
   it('วันที่เลือกอยู่ใน closedDates — throw BadRequestException', async () => {
     const { service, prisma, settingsService } = makeService()
     prisma.package.findUnique.mockResolvedValue(PACKAGE)

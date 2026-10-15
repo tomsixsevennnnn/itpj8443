@@ -92,7 +92,8 @@ export class BookingsService {
     },
   ): Promise<{ fee: number; zone: ServiceZone; distanceKm?: number }> {
     const loc = locationDetail as { province?: unknown; address?: unknown; lat?: unknown; lng?: unknown } | null
-    if (!loc) return { fee: 0, zone: 'home' }
+    // ไม่มีข้อมูลสถานที่ = คำนวณค่าขนส่งไม่ได้ — ห้ามถือเป็นโซนพื้นที่ร้าน (ค่าขนส่ง 0) ไม่งั้นข้ามค่าขนส่งได้ด้วยการเว้นช่องนี้
+    if (!loc) throw new BadRequestException('ไม่พบข้อมูลสถานที่จัดงาน กรุณาเลือกสถานที่บนแผนที่')
 
     const province = typeof loc.province === 'string' ? loc.province : ''
     const address = typeof loc.address === 'string' ? loc.address : ''

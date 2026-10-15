@@ -106,6 +106,12 @@ describe('ShopsService', () => {
       expect(prisma.settings.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ shopId: 'shop1', shopName: 'ร้านใหม่' }) }),
       )
+      // ร้านใหม่ต้องไม่ได้ข้อมูลระบุตัวตนของร้านตัวอย่าง (พิพัฒน์โภชนา) ติดไปด้วย
+      expect(prisma.settings.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ shopNameEn: '', shopInitials: '', shopAddress: '', shopPhone: '', shopLine: '' }),
+        }),
+      )
       expect(prisma.shopMember.create).toHaveBeenCalledWith({ data: { userId: 'u1', shopId: 'shop1' } })
       expect(audit.log).toHaveBeenCalledWith('auth0|admin', 'shop.create', 'Shop', 'shop1', undefined, result, 'shop1')
     })

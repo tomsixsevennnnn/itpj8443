@@ -2,13 +2,17 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import { BadRequestException, Injectable, Logger } from '@nestjs/common'
-import sharp from 'sharp'
+import sharp, { type Metadata } from 'sharp'
 import { ALLOWED_MIME_TO_EXT, MAX_UPLOAD_BYTES, UPLOAD_KINDS, UPLOADS_DIR, UploadKind } from './uploads.constants'
 
 const DATA_URL_PATTERN = /^data:([a-z0-9/+.-]+);base64,(.+)$/i
 
 /** ขนาด/คุณภาพ thumbnail ที่ฝังลงประวัติการแก้ไข (audit log) แทนไฟล์จริงที่กำลังจะถูกลบทิ้ง — เล็กและคุณภาพต่ำ
  *  พอให้ owner จำรูปเดิมได้ตอนย้อนดูประวัติ ไม่ได้มีไว้ดูละเอียด จึงบีบให้เบาที่สุดเท่าที่ยังพอมองออก */
+/** ชนิดรูปจริงที่ sharp อ่านได้ ต้องตรงกับนามสกุลที่ยอมรับ (png/jpg→jpeg/webp) */
+const EXT_TO_SHARP_FORMAT: Record<string, string> = { png: 'png', jpg: 'jpeg', webp: 'webp' }
+/** เพดานจำนวนพิกเซลของรูปที่รับ (กว้าง×สูง) — กันรูปที่ไฟล์เล็กแต่ขยายเป็นภาพมหึมาตอนถอดรหัส (กินแรมเซิร์ฟเวอร์) */
+const MAX_IMAGE_PIXELS = 40_000_000
 const THUMBNAIL_MAX_DIMENSION = 64
 const THUMBNAIL_JPEG_QUALITY = 40
 
@@ -29,6 +33,20 @@ export class UploadsService {
     const buffer = Buffer.from(base64, 'base64')
     if (buffer.length === 0) throw new BadRequestException('ไฟล์รูปว่างเปล่า')
     if (buffer.length > MAX_UPLOAD_BYTES) throw new BadRequestException('ไฟล์ใหญ่เกิน 8 MB')
+
+    // ตรวจเนื้อไฟล์จริง — ห้ามเชื่อ MIME ที่ผู้ส่งอ้างใน data URL (เรียก API ตรงข้ามหน้าเว็บส่งไฟล์อะไรก็ได้แล้วอ้างว่าเป็น png ได้)
+    let meta: Metadata
+    try {
+      meta = await sharp(buffer).metadata()
+    } catch {
+      throw new BadRequestException('ไฟล์ไม่ใช่รูปภาพที่ถูกต้อง')
+    }
+    if (meta.format !== EXT_TO_SHARP_FORMAT[ext]) {
+      throw new BadRequestException('เนื้อไฟล์ไม่ตรงกับชนิดรูปที่ระบุ (รองรับ PNG, JPEG, WEBP)')
+    }
+    if ((meta.width ?? 0) * (meta.height ?? 0) > MAX_IMAGE_PIXELS) {
+      throw new BadRequestException('รูปมีความละเอียดสูงเกินไป กรุณาย่อรูปก่อนอัปโหลด')
+    }
 
     const dir = join(UPLOADS_DIR, kind)
     await mkdir(dir, { recursive: true })

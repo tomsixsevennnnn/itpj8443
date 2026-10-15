@@ -74,17 +74,19 @@ export default function BookingDocument({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-orange-500 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-              {shopInfo.initials}
+              {shopInfo.initials || Array.from(shopInfo.name.trim())[0] || ''}
             </div>
             <div className="min-w-0">
               <p className="font-bold text-gray-900 text-sm leading-tight">{shopInfo.name}</p>
-              <p className="text-[10px] text-gray-400 leading-tight">{shopInfo.nameEn}</p>
+              {shopInfo.nameEn && <p className="text-[10px] text-gray-400 leading-tight">{shopInfo.nameEn}</p>}
             </div>
           </div>
-          <p className="text-[11px] text-gray-500 mt-2">{shopInfo.address}</p>
-          <p className="text-[11px] text-gray-500">
-            โทร {shopInfo.phone} · Line {shopInfo.line}
-          </p>
+          {shopInfo.address && <p className="text-[11px] text-gray-500 mt-2">{shopInfo.address}</p>}
+          {(shopInfo.phone || shopInfo.line) && (
+            <p className="text-[11px] text-gray-500">
+              {[shopInfo.phone && `โทร ${shopInfo.phone}`, shopInfo.line && `Line ${shopInfo.line}`].filter(Boolean).join(' · ')}
+            </p>
+          )}
         </div>
 
         <div className="text-right flex-shrink-0">
@@ -256,7 +258,7 @@ export default function BookingDocument({
       </div>
 
       <p className="text-[10px] text-gray-400 text-center mt-6 pt-4 border-t border-gray-100">
-        ขอบคุณที่ใช้บริการ {shopInfo.name} · โทร {shopInfo.phone}
+        ขอบคุณที่ใช้บริการ {shopInfo.name}{shopInfo.phone ? ` · โทร ${shopInfo.phone}` : ''}
       </p>
     </div>
   )

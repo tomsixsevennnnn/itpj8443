@@ -1,10 +1,8 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { Role } from '@prisma/client'
-import { fetchVerifiedIdentity } from '../auth/userinfo'
 import { UsersService } from './users.service'
 
-jest.mock('../auth/userinfo')
-const mockedIdentity = fetchVerifiedIdentity as jest.MockedFunction<typeof fetchVerifiedIdentity>
+const VERIFIED = (email: string) => ({ email, emailVerified: true })
 
 const makeService = () => {
   const prisma = {
@@ -43,30 +41,26 @@ const MEMBERSHIPS_INCLUDE_EXPECTED = {
 
 describe('UsersService', () => {
   describe('claimOwnerInvites', () => {
-    beforeEach(() => mockedIdentity.mockReset())
-
-    it('ไม่มีคำเชิญเลยในระบบ — ไม่เรียก Auth0 และคืน false', async () => {
-      const { service } = makeService()
-      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
-      expect(mockedIdentity).not.toHaveBeenCalled()
+    it('ไม่มีคำเชิญเลยในระบบ — ข้ามทันที คืน false', async () => {
+      const { service, prisma } = makeService()
+      expect(await service.claimOwnerInvites('auth0|u1', VERIFIED('a@gmail.com'))).toBe(false)
+      expect(prisma.user.findUnique).not.toHaveBeenCalled()
     })
 
     it('super admin ไม่รับสิทธิ์เจ้าของร้านจากคำเชิญ', async () => {
       const { service, prisma } = makeService()
       prisma.shopInvite.count.mockResolvedValue(1)
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.SUPER_ADMIN })
-      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
-      expect(mockedIdentity).not.toHaveBeenCalled()
+      expect(await service.claimOwnerInvites('auth0|u1', VERIFIED('a@gmail.com'))).toBe(false)
+      expect(prisma.shopInvite.findMany).not.toHaveBeenCalled()
     })
 
-    it('อีเมลยังไม่ถูก Auth0 ยืนยัน หรือถามไม่ได้ — ไม่ให้สิทธิ์ คำเชิญยังอยู่', async () => {
+    it('อีเมลยังไม่ถูก Auth0 ยืนยัน หรือถามไม่ได้ (null) — ไม่ให้สิทธิ์ คำเชิญยังอยู่', async () => {
       const { service, prisma } = makeService()
       prisma.shopInvite.count.mockResolvedValue(1)
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
-      mockedIdentity.mockResolvedValueOnce({ email: 'owner@gmail.com', emailVerified: false })
-      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
-      mockedIdentity.mockResolvedValueOnce(null)
-      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
+      expect(await service.claimOwnerInvites('auth0|u1', { email: 'owner@gmail.com', emailVerified: false })).toBe(false)
+      expect(await service.claimOwnerInvites('auth0|u1', null)).toBe(false)
       expect(prisma.shopMember.createMany).not.toHaveBeenCalled()
       expect(prisma.shopInvite.deleteMany).not.toHaveBeenCalled()
     })
@@ -75,22 +69,20 @@ describe('UsersService', () => {
       const { service, prisma } = makeService()
       prisma.shopInvite.count.mockResolvedValue(1)
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
-      mockedIdentity.mockResolvedValue({ email: 'someone@gmail.com', emailVerified: true })
       prisma.shopInvite.findMany.mockResolvedValue([])
-      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(false)
+      expect(await service.claimOwnerInvites('auth0|u1', VERIFIED('someone@gmail.com'))).toBe(false)
     })
 
     it('อีเมลยืนยันแล้วและตรงคำเชิญ (ไม่สนตัวพิมพ์) — สร้าง ShopMember ทุกร้านที่เชิญ ลบคำเชิญ บันทึก audit', async () => {
       const { service, prisma, audit } = makeService()
       prisma.shopInvite.count.mockResolvedValue(2)
       prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: Role.CUSTOMER })
-      mockedIdentity.mockResolvedValue({ email: 'Owner@Gmail.com', emailVerified: true })
       prisma.shopInvite.findMany.mockResolvedValue([
         { id: 'i1', shopId: 'shopA', email: 'owner@gmail.com' },
         { id: 'i2', shopId: 'shopB', email: 'owner@gmail.com' },
       ])
 
-      expect(await service.claimOwnerInvites('auth0|u1', 'Bearer t')).toBe(true)
+      expect(await service.claimOwnerInvites('auth0|u1', VERIFIED('Owner@Gmail.com'))).toBe(true)
 
       expect(prisma.shopInvite.findMany).toHaveBeenCalledWith({ where: { email: 'owner@gmail.com' } })
       expect(prisma.shopMember.createMany).toHaveBeenCalledWith({
@@ -298,6 +290,64 @@ describe('UsersService', () => {
     })
   })
 
+  it('syncProfile: มีอีเมลที่ Auth0 ยืนยันแล้ว — ใช้ค่านั้นบันทึก ไม่ใช้ค่าใน body (ถ้าต่างกัน)', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue(null)
+    prisma.user.create.mockResolvedValue({ id: 'u1' })
+
+    await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'A', email: 'spoof@x.com' }, 'real@gmail.com')
+
+    expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ email: 'real@gmail.com' }) }))
+  })
+
+  it('syncProfile: [ช่องโหว่] ส่งอีเมลของ super admin มาใน body แต่ Auth0 ไม่ได้ยืนยัน (ถามไม่ได้/คนละอีเมล) — ห้ามได้เป็น SUPER_ADMIN', async () => {
+    const prevEnv = process.env.SUPER_ADMIN_EMAILS
+    process.env.SUPER_ADMIN_EMAILS = 'boss@example.com'
+    try {
+      for (const verified of [null, undefined, 'attacker@gmail.com']) {
+        const { service, prisma } = makeService()
+        prisma.user.findUnique.mockResolvedValue(null)
+        prisma.user.create.mockResolvedValue({ id: 'u1' })
+
+        await service.syncProfile('auth0|evil', Role.CUSTOMER, { name: 'Evil', email: 'boss@example.com' }, verified)
+
+        expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ role: Role.CUSTOMER }) }))
+      }
+    } finally {
+      process.env.SUPER_ADMIN_EMAILS = prevEnv
+    }
+  })
+
+  it('syncProfile: ผู้ใช้เดิม — อีเมลใน body ที่ไม่ผ่านการยืนยัน ไม่เขียนทับอีเมลเดิมใน DB (กันปลอมอีเมลคนอื่น)', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', name: 'ก', surname: 'ข', email: 'mine@gmail.com' })
+    prisma.user.update.mockResolvedValue({ id: 'u1' })
+
+    await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'x', email: 'victim@gmail.com' })
+
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ email: 'mine@gmail.com' }) }))
+  })
+
+  it('syncProfile: ผู้ใช้เดิมที่อีเมลว่าง (สร้างผ่านการจองก่อน) และถามอีเมลยืนยันไม่ได้ — เติมจาก body ให้ (fallback)', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', name: 'ก', surname: 'ข', email: '' })
+    prisma.user.update.mockResolvedValue({ id: 'u1' })
+
+    await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'x', email: 'me@gmail.com' })
+
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ email: 'me@gmail.com' }) }))
+  })
+
+  it('syncProfile: ผู้ใช้เดิม — มีอีเมลที่ยืนยันแล้ว อัปเดตตามค่านั้น', async () => {
+    const { service, prisma } = makeService()
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1', name: 'ก', surname: 'ข', email: 'old@gmail.com' })
+    prisma.user.update.mockResolvedValue({ id: 'u1' })
+
+    await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'x', email: 'whatever@x.com' }, 'new@gmail.com')
+
+    expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ email: 'new@gmail.com' }) }))
+  })
+
   it('syncProfile: อีเมลอยู่ใน SUPER_ADMIN_EMAILS — ตั้งเป็น SUPER_ADMIN แม้ role ที่ส่งมาจะเป็น CUSTOMER', async () => {
     const prevEnv = process.env.SUPER_ADMIN_EMAILS
     process.env.SUPER_ADMIN_EMAILS = 'Boss@Example.com, other@shop.com'
@@ -306,7 +356,7 @@ describe('UsersService', () => {
       prisma.user.findUnique.mockResolvedValue(null)
       prisma.user.create.mockResolvedValue({ id: 'u1' })
 
-      await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'Boss', surname: '', email: 'boss@example.com' })
+      await service.syncProfile('auth0|1', Role.CUSTOMER, { name: 'Boss', surname: '', email: 'boss@example.com' }, 'boss@example.com')
 
       expect(prisma.user.create).toHaveBeenCalledWith({
         data: { auth0Sub: 'auth0|1', role: Role.SUPER_ADMIN, name: 'Boss', surname: '', email: 'boss@example.com', avatar: '' },

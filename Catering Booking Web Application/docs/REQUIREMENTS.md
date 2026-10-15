@@ -76,7 +76,7 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 - **บทบาทที่ backend ใช้จริงมาจากฐานข้อมูลเสมอ ไม่ใช่ claim ใน token** — `RolesGuard` เรียก `resolveShopContext` ทุก request (cache 5 วินาที) เพื่อกัน token เก่า/ถูกปลอมอ้างสิทธิ์ผิด claim ของ Auth0 ใช้เป็นแค่คำใบ้ฝั่ง UI (`roleFromAuth0User()` ใน `src/auth.ts`)
 - **สิทธิ์ต่อร้าน:** `User.role` ระดับระบบมีแค่ `CUSTOMER` หรือ `SUPER_ADMIN` ส่วนการเป็น owner เก็บที่ตาราง `ShopMember(userId, shopId)` — บัญชีเดียวเป็น owner ได้หลายร้านและเป็นลูกค้าของร้านที่ไม่ได้เป็น owner ได้
 - **ร้านที่กำลังใช้งาน** ส่งไปกับทุกคำขอด้วย header `X-Shop-Id` backend ดูว่าผู้เรียกมี `ShopMember` ของร้านนั้นหรือไม่ — มี = OWNER ของร้านนั้น, ไม่มี = CUSTOMER, `SUPER_ADMIN` = ข้ามร้านเสมอ ส่ง header ปลอมไม่ได้สิทธิ์เพิ่ม
-- **Super Admin คนแรก:** อีเมลใน `SUPER_ADMIN_EMAILS` ถูกตั้งเป็น SUPER_ADMIN ตอน login ครั้งแรก
+- **Super Admin คนแรก:** อีเมลใน `SUPER_ADMIN_EMAILS` ถูกตั้งเป็น SUPER_ADMIN ตอน login ครั้งแรก — ตัดสินจาก **อีเมลที่ Auth0 ยืนยันแล้ว** (ถามจาก `/userinfo` ด้วย token ของผู้เรียก) ไม่ใช่อีเมลที่หน้าเว็บส่งมาใน body (ปลอมได้) ถ้าถามอีเมลที่ยืนยันแล้วไม่ได้ (Auth0 ขัดข้อง/token ไม่มี scope `openid`) จะไม่ให้สิทธิ์ super admin หรือคำเชิญ และไม่เขียนทับอีเมลเดิมใน DB
 - **เพิ่มเจ้าของร้านด้วยอีเมล (แม้ยังไม่เคย login):** Super Admin ใส่อีเมลตอนสร้างร้าน/เพิ่ม owner — ถ้าอีเมลนั้นเคย login แล้ว ผูก `ShopMember` ทันที ถ้ายังไม่เคย ระบบเก็บเป็น **คำเชิญล่วงหน้า** (`ShopInvite` มีแค่อีเมลกับร้าน) แล้วให้สิทธิ์อัตโนมัติตอนเจ้าของ login ครั้งแรก — ตรวจอีเมลจาก Auth0 `/userinfo` ด้วย token ของผู้เรียกเอง (ไม่เชื่ออีเมลที่หน้าเว็บส่งมา) และต้อง `email_verified = true` เท่านั้น เจ้าของร้านเข้าด้วย Google (ปุ่มเดียวกับลูกค้า) หรือ username/password ก็ได้ เพราะบทบาทตัดสินจาก DB
 - **ข้อมูลโปรไฟล์ของ owner:** owner กรอกหน้า "ข้อมูลเพิ่มเติม" (ชื่อ นามสกุล เบอร์ Line ID) ตอน login ครั้งแรกเหมือนลูกค้า ข้อมูลที่กรอกเป็นข้อมูลหลัก ส่วนชื่อ/รูป/อีเมลจาก Google เป็นข้อมูลสำรอง (ชื่อจาก Google ใช้เมื่อช่องนั้นว่างเท่านั้น)
 - ข้อมูลโปรไฟล์ที่ Auth0 ไม่มีให้ (เบอร์โทร, Line ID) ขอครั้งแรกผ่านหน้า **CompleteProfile** แล้วบันทึกที่ backend (`PATCH /users/me`)
@@ -136,7 +136,7 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 | `GET /users/search?email=`, `GET /users/owners`, `PATCH /users/:id/role` | ❌ | ✅ (ร้านตัวเอง: CUSTOMER ↔ OWNER) | ✅ (CUSTOMER ↔ SUPER_ADMIN เท่านั้น) | ตั้ง/ถอด owner ของร้านโดย super admin ทำผ่าน `/shops/:id/owners` |
 | `GET /bookings` | ✅ ของตัวเองใน `?shopId=` | ✅ ทั้งร้าน | | รองรับ `?page=&limit=` |
 | `GET /bookings/availability` | ✅ | ✅ | | คิวไม่มีข้อมูลส่วนตัว |
-| `POST /bookings` | ✅ | ❌ | | คำนวณราคา/ค่าขนส่ง/โซนที่ backend, กันวันย้อนหลัง/วันซ้ำ/วันปิดร้าน, 10/นาที |
+| `POST /bookings` | ✅ | ❌ | | คำนวณราคา/ค่าขนส่ง/โซนที่ backend (ต้องส่ง `locationDetail` เสมอ), กันวันย้อนหลัง/วันซ้ำ/วันปิดร้าน, 10/นาที |
 | `PATCH /bookings/:id` | ❌ | ✅ | | บังคับกฎเปลี่ยนสถานะ, บันทึก `lastEditedBy` |
 | `PATCH /bookings/:id/payment-slip` | ✅ ของตัวเอง | ❌ | | ตรวจ SlipOK + เทียบผู้รับ |
 | `GET /bookings/:id/payment-slip` | ✅ ของตัวเอง | ✅ ร้านเดียวกัน | | สลิปไม่เป็นไฟล์สาธารณะ ตรวจสิทธิ์รายใบ |
@@ -147,7 +147,7 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 | `POST /settings/slipok/test` | ❌ | ✅ | | ทดสอบ API key + Branch ID |
 | `GET /settings/public` | ไม่ต้อง login | | | ชื่อร้าน โลโก้ สีแบรนด์ คำโปรย |
 | `GET /audit-log` | ❌ | ✅ ร้านตัวเอง | ✅ ข้ามร้าน | แบ่งหน้า |
-| `POST /uploads/menu-image`, `shop-logo`, `content-image` | ❌ | ✅ | | 10/นาที |
+| `POST /uploads/menu-image`, `shop-logo`, `content-image` | ❌ | ✅ | | 10/นาที ตรวจเนื้อไฟล์จริงด้วย `sharp` (ต้องเป็น PNG/JPEG/WEBP ตรงกับที่ระบุ ไม่เกิน 40 ล้านพิกเซล) |
 | `POST /uploads/payment-slip` | ✅ | ❌ | | |
 | `GET /geo/resolve-maps-link` | ✅ | ✅ | | 20/นาที, whitelist โดเมนลิงก์ย่อ Google |
 | `GET /realtime/bookings`, `GET /realtime/app` | ✅ | ✅ | ✅ | SSE แจ้งว่ามีการเปลี่ยนแปลง (ไม่ส่งข้อมูลจริง) |

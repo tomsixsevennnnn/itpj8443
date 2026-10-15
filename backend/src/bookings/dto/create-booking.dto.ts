@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer'
-import { IsArray, IsInt, IsISO8601, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator'
+import { IsArray, IsDefined, IsInt, IsISO8601, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator'
 import { LINE_ID_MESSAGE, LINE_ID_PATTERN, MAX_NUMBER, lineIdCleanTruncate } from '../../common/input-rules'
 import { LocationDetailDto } from './location-detail.dto'
 
@@ -24,7 +24,8 @@ export class CreateBookingDto {
 
   /** ที่อยู่เต็มที่หน้าจอประกอบจากที่อยู่ในแผนที่ + บ้านเลขที่/อาคาร/หมู่บ้าน/จุดสังเกต (รวมได้เกิน 1,000 ตัว) — เพดานกว้างกว่าช่องย่อยเพื่อไม่ปฏิเสธจองที่กรอกถูกต้อง */
   @IsString() @MaxLength(1500) location!: string
-  @IsOptional() @ValidateNested() @Type(() => LocationDetailDto) locationDetail?: LocationDetailDto
+  /** บังคับ — ใช้คำนวณโซนและค่าขนส่งที่ backend (ไม่ส่งมา = ค่าขนส่งเป็น 0 ได้ จึงห้ามเว้น) */
+  @IsDefined() @ValidateNested() @Type(() => LocationDetailDto) locationDetail!: LocationDetailDto
 
   @IsArray() @IsString({ each: true }) menus!: string[]
 

@@ -11,6 +11,7 @@ const validPayload = {
   // ราคา/ชื่อแพ็กเกจไม่รับจาก client แล้ว (backend คำนวณเองจาก packageId กันปลอมราคา — ดู BookingsService.create)
   packageId: 'pkg_test123',
   location: 'ทดสอบ',
+  locationDetail: { lat: 13.82, lng: 100.06, province: 'นครปฐม' },
   menus: ['เมนู 1'],
 }
 
@@ -19,6 +20,12 @@ describe('CreateBookingDto', () => {
     const dto = plainToInstance(CreateBookingDto, validPayload)
     const errors = await validate(dto)
     expect(errors).toHaveLength(0)
+  })
+
+  it('ไม่ส่ง locationDetail — ไม่ผ่าน (กันข้ามค่าขนส่งด้วยการเว้นสถานที่)', async () => {
+    const { locationDetail: _l, ...rest } = validPayload
+    const errors = await validate(plainToInstance(CreateBookingDto, rest))
+    expect(errors.some((e) => e.property === 'locationDetail')).toBe(true)
   })
 
   it('ไม่ผ่านถ้าขาดฟิลด์จำเป็น', async () => {

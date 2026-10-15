@@ -150,7 +150,7 @@ export default function Home({ homeContent }: Readonly<HomeProps>) {
         <div className="max-w-7xl mx-auto grid gap-8 sm:grid-cols-3 text-center sm:text-left">
           <div>
             <p className="font-bold text-white text-lg mb-1">{shopInfo.name}</p>
-            <p className="text-sm text-gray-500">{shopInfo.nameEn}</p>
+            {shopInfo.nameEn && <p className="text-sm text-gray-500">{shopInfo.nameEn}</p>}
           </div>
 
           {(shopInfo.phone || shopInfo.line) && (

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -35,6 +35,19 @@ describe('UploadsService', () => {
     expect(url).toMatch(/^\/uploads\/menus\/[0-9a-f-]+\.png$/)
     const saved = readFileSync(join(tempDir, url.replace('/uploads/', '')))
     expect(saved.length).toBeGreaterThan(0)
+  })
+
+  it('saveDataUrl: เนื้อไฟล์ไม่ใช่รูป (ข้อความ/โปรแกรมที่อ้างว่าเป็น png) throw BadRequestException และไม่เขียนไฟล์ลง disk', async () => {
+    const service = new UploadsService()
+    const fake = `data:image/png;base64,${Buffer.from('<html><script>alert(1)</script></html>').toString('base64')}`
+    await expect(service.saveDataUrl('slips', fake)).rejects.toThrow('ไฟล์ไม่ใช่รูปภาพที่ถูกต้อง')
+    expect(existsSync(join(tempDir, 'slips'))).toBe(false)
+  })
+
+  it('saveDataUrl: เนื้อไฟล์เป็น PNG แต่อ้างว่าเป็น JPEG throw BadRequestException (ชนิดไม่ตรง)', async () => {
+    const service = new UploadsService()
+    const mislabeled = PNG_1PX.replace('data:image/png', 'data:image/jpeg')
+    await expect(service.saveDataUrl('menus', mislabeled)).rejects.toThrow('เนื้อไฟล์ไม่ตรงกับชนิดรูป')
   })
 
   it('saveDataUrl: kind ที่ไม่รู้จัก throw BadRequestException', async () => {

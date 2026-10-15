@@ -5,6 +5,7 @@ import { LocationDetailDto } from '../bookings/dto/location-detail.dto'
 import { CreateMenuItemDto } from '../menus/dto/create-menu-item.dto'
 import { CreatePackageDto } from '../packages/dto/create-package.dto'
 import { UpdateSettingsDto } from '../settings/dto/update-settings.dto'
+import { SyncProfileDto } from '../users/dto/sync-profile.dto'
 import { UpdateProfileDto } from '../users/dto/update-profile.dto'
 import { MAX_NUMBER } from './input-rules'
 
@@ -56,6 +57,7 @@ describe('CreateBookingDto / LocationDetailDto', () => {
     guestCount: 100,
     packageId: 'p1',
     location: 'นครปฐม',
+    locationDetail: { lat: 13.82, lng: 100.06 },
     menus: ['m1'],
   }
 
@@ -147,5 +149,21 @@ describe('UpdateSettingsDto — เพดาน ความยาว และ�
     expect((await errorsOf(UpdateSettingsDto, { ...base, closedDates: ['2030-02-31'] })).fields).toContain('closedDates')
     expect((await errorsOf(UpdateSettingsDto, { ...base, closedDates: ['2030-13-45'] })).fields).toContain('closedDates')
     expect((await errorsOf(UpdateSettingsDto, { ...base, closedDates: ['20300520'] })).fields).toContain('closedDates')
+  })
+})
+
+describe('SyncProfileDto — ข้อมูลจากบัญชี Google ตอน login', () => {
+  it('ข้อความยาวเกินถูกตัดแทนการปฏิเสธ (ไม่ให้ login ไม่ได้) และไม่ error', async () => {
+    const { dto, fields } = await errorsOf(SyncProfileDto, {
+      name: 'ก'.repeat(300),
+      surname: 'ข'.repeat(300),
+      email: `${'a'.repeat(400)}@x.com`,
+      avatar: 'https://x.com/' + 'p'.repeat(900),
+    })
+    expect(fields).toEqual([])
+    expect((dto.name as string).length).toBe(100)
+    expect((dto.surname as string).length).toBe(100)
+    expect((dto.email as string).length).toBe(254)
+    expect((dto.avatar as string).length).toBe(500)
   })
 })
