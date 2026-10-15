@@ -30,7 +30,6 @@ export default function SelectTable({ tables, onSetTables, date, timeSlot, deliv
         <div className="mb-8">
           <p className="text-orange-500 font-semibold text-sm mb-1">ขั้นตอนที่ 2</p>
           <h1 className="text-2xl font-bold text-gray-900">เลือกจำนวนโต๊ะ</h1>
-          <p className="text-gray-500 text-sm mt-1">1 โต๊ะ รองรับ 10 ที่นั่ง</p>
         </div>
 
         {/* Booking summary so far */}

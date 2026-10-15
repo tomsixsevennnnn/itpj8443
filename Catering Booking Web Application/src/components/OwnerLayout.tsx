@@ -150,11 +150,11 @@ export default function OwnerLayout({ currentScreen, bookings, children }: Reado
           <div className="flex items-center gap-3 px-3 py-2">
             <Avatar
               src={user?.avatar}
-              name={user?.name || 'เจ้าของร้านพิพัฒน์โภชนา'}
+              name={user?.name || 'เจ้าของร้าน'}
               className="w-9 h-9 rounded-full text-sm"
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{user?.name || 'เจ้าของร้านพิพัฒน์โภชนา'}</p>
+              <p className="text-sm font-medium text-white truncate">{user?.name || 'เจ้าของร้าน'}</p>
               <p className="text-[10px] text-gray-400 truncate">{user?.email || '—'}</p>
             </div>
             <button
