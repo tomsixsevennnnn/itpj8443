@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, FileText, Printer, Search } from 'lucide-react'
+import { Eye, FileText, Printer, Search, X } from 'lucide-react'
 import BookingDocument from '../../components/BookingDocument'
 import { DOC_LABEL, bookingCustomerName, docNumber, type DocType } from '../../documents'
 import { bookingCostSummary } from '../../costing'
@@ -128,10 +128,16 @@ export default function Documents({ bookings, menus, settings }: Readonly<Docume
         </div>
       </div>
 
-      {/* Preview panel */}
-      <div>
+      {/* Preview panel — มือถือ: เปิดเต็มจอทับรายการ (กดปิดกลับ) แทนที่จะต่อท้ายรายการให้ต้องเลื่อนไกล; จอใหญ่: อยู่ข้างรายการ */}
+      <div
+        className={
+          previewBooking
+            ? 'fixed inset-0 z-50 overflow-y-auto bg-gray-50 p-3 lg:static lg:z-auto lg:overflow-visible lg:bg-transparent lg:p-0'
+            : ''
+        }
+      >
         {previewBooking ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden sticky top-0 print-area">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden lg:sticky lg:top-0 print-area">
             {/* Preview toolbar */}
             <div className="no-print flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
               <p className="font-semibold text-gray-800 text-sm flex items-center gap-2">
@@ -139,16 +145,25 @@ export default function Documents({ bookings, menus, settings }: Readonly<Docume
                 ตัวอย่าง {docLabel}
                 <span className="font-mono text-xs text-gray-400">{docNumber(previewBooking, activeTab)}</span>
               </p>
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-1 text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition-colors"
-              >
-                <Printer size={12} />
-                พิมพ์ / บันทึก PDF
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1 text-xs bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg transition-colors"
+                >
+                  <Printer size={12} />
+                  พิมพ์ / บันทึก PDF
+                </button>
+                <button
+                  onClick={() => setPreviewBooking(null)}
+                  aria-label="ปิดตัวอย่าง"
+                  className="lg:hidden flex h-8 w-8 items-center justify-center rounded-lg bg-gray-200 text-gray-600"
+                >
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
-            <div className="max-h-[75vh] overflow-y-auto">
+            <div className="lg:max-h-[75vh] lg:overflow-y-auto">
               <BookingDocument
                 booking={previewBooking}
                 type={activeTab}
@@ -195,7 +210,7 @@ export default function Documents({ bookings, menus, settings }: Readonly<Docume
             })()}
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-200 flex items-center justify-center h-64">
+          <div className="bg-white rounded-2xl border border-dashed border-gray-200 hidden lg:flex items-center justify-center h-64">
             <div className="text-center text-gray-400">
               <FileText size={32} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">เลือกรายการเพื่อดูตัวอย่างเอกสาร</p>
