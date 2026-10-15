@@ -1,4 +1,4 @@
-import { Bell, Calendar, ChefHat, Home, LogOut, User } from 'lucide-react'
+import { Bell, Calendar, ChefHat, Home, LogOut } from 'lucide-react'
 import Avatar from './Avatar'
 import { useNav } from '../NavContext'
 import type { Screen } from '../types'
@@ -96,7 +96,6 @@ export default function Navbar({ currentScreen }: Readonly<NavbarProps>) {
             { label: 'หน้าแรก', screen: 'home' as Screen, icon: Home },
             { label: 'ประวัติ', screen: 'history' as Screen, icon: Calendar },
             { label: 'แจ้งเตือน', screen: 'notifications' as Screen, icon: Bell },
-            { label: 'โปรไฟล์', screen: 'home' as Screen, icon: User },
           ].map(({ label, screen, icon: Icon }) => (
             <button
               key={label}
