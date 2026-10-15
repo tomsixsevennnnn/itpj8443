@@ -1,4 +1,5 @@
-import { Check, ChevronLeft, ChevronRight, Crown, Sparkles, Star } from 'lucide-react'
+import { useState } from 'react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Crown, Sparkles, Star } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import { useNav } from '../NavContext'
 import type { Package } from '../types'
@@ -20,6 +21,8 @@ const PKG_COLORS = [
 
 export default function SelectPackage({ packages, tables, selectedPackageId, onSelectPackage }: Readonly<SelectPackageProps>) {
   const { navigate, categoryMap } = useNav()
+  /** มือถือ: รายการอาหาร 9 ข้อพับไว้ก่อน (จอเล็กการ์ดยาวมาก) กดดูเฉพาะแพ็กเกจที่สนใจ — จอใหญ่แสดงเสมอ */
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar currentScreen="select-package" />
@@ -61,16 +64,16 @@ export default function SelectPackage({ packages, tables, selectedPackageId, onS
                   </div>
                 )}
 
-                <div className="p-6 pt-7">
-                  <div className={`inline-flex items-center justify-center w-14 h-14 ${colors.bg} rounded-2xl mb-4`}>
+                <div className="p-5 sm:p-6 pt-7">
+                  <div className={`hidden md:inline-flex items-center justify-center w-14 h-14 ${colors.bg} rounded-2xl mb-4`}>
                     <Icon size={24} className={colors.accent} />
                   </div>
 
                   <h3 className="font-bold text-gray-900 text-lg mb-1">{pkg.name}</h3>
-                  <p className="text-gray-500 text-xs mb-5">{pkg.description}</p>
+                  <p className="text-gray-500 text-xs mb-4 sm:mb-5">{pkg.description}</p>
 
                   <div className="mb-5">
-                    <p className="text-3xl font-bold text-gray-900">
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-900">
                       {pkg.pricePerTable.toLocaleString()}
                       <span className="text-base font-normal text-gray-400 ml-1">บาท/โต๊ะ</span>
                     </p>
@@ -80,7 +83,7 @@ export default function SelectPackage({ packages, tables, selectedPackageId, onS
                     </p>
                   </div>
 
-                  <div className="space-y-2 mb-5">
+                  <div className="hidden md:block space-y-2 mb-5">
                     {pkg.features.map((feat) => (
                       <div key={feat} className="flex items-start gap-2.5">
                         <div className="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -93,8 +96,29 @@ export default function SelectPackage({ packages, tables, selectedPackageId, onS
 
                   {/* รายการอาหาร 9 ข้อ */}
                   <div className="border-t border-gray-100 pt-4 mb-4">
-                    <p className="text-xs font-semibold text-gray-500 mb-2.5">รายการอาหาร {pkg.courses.length} อย่าง</p>
-                    <div className="space-y-1.5">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={e => {
+                        e.stopPropagation()
+                        setExpandedId(expandedId === pkg.id ? null : pkg.id)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setExpandedId(expandedId === pkg.id ? null : pkg.id)
+                        }
+                      }}
+                      className="flex items-center justify-between text-xs font-semibold text-gray-500 md:cursor-default"
+                    >
+                      รายการอาหาร {pkg.courses.length} อย่าง
+                      <span className="md:hidden flex items-center gap-1 text-orange-600">
+                        {expandedId === pkg.id ? 'ซ่อน' : 'ดูรายการ'}
+                        <ChevronDown size={14} className={expandedId === pkg.id ? 'rotate-180' : ''} />
+                      </span>
+                    </span>
+                    <div className={`space-y-1.5 mt-2.5 ${expandedId === pkg.id ? '' : 'hidden md:block'}`}>
                       {pkg.courses.map((course) => (
                         <div key={course.no} className="flex items-start gap-2">
                           <span className="w-4 h-4 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5">
