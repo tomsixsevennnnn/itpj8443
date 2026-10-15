@@ -81,6 +81,15 @@ const SHOP_FIELD_MAX: Record<ShopInfoTextKey, number> = {
 /** จำนวนเงื่อนไขเพิ่มเติมสูงสุดต่อเอกสาร (ต้องตรงกับ ArrayMaxSize ใน backend) */
 const MAX_TERMS = 20
 
+/** ตัด "-" หัว/ท้ายด้วยลูป (เวลาเป็นเส้นตรง) — regex แบบ /-+$/ ใช้เวลากำลังสองกับสตริงที่มี "-" ติดกันยาวๆ (ReDoS) */
+const trimHyphens = (s: string): string => {
+  let start = 0
+  let end = s.length
+  while (start < end && s[start] === '-') start++
+  while (end > start && s[end - 1] === '-') end--
+  return s.slice(start, end)
+}
+
 const WAGE_FIELDS: { key: 'wageChef' | 'wageAssistant' | 'wageServerPerTable' | 'wageDishwasher'; label: string; unit: string }[] = [
   { key: 'wageChef', label: 'ค่าแรงพ่อครัว', unit: 'บาท/คน/งาน' },
   { key: 'wageAssistant', label: 'ค่าแรงผู้ช่วยพ่อครัว', unit: 'บาท/คน/งาน' },
@@ -1771,9 +1780,8 @@ export default function Settings({ settings, onUpdateSettings, onResolveMapsLink
       .trim()
       .toLowerCase()
       .replace(/[^\p{L}\p{N}]+/gu, '-')
-      .replace(/^-+/, '')
-      .replace(/-+$/, '')
-    return base || `category-${Date.now()}`
+    const trimmed = trimHyphens(base)
+    return trimmed || `category-${Date.now()}`
   }
 
   /** เพิ่มประเภทอาหารใหม่ — id สร้างอัตโนมัติจากชื่อ (กันชนกับ id เดิมด้วยเลขต่อท้าย) */

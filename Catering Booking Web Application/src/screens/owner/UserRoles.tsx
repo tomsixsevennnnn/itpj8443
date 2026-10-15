@@ -111,7 +111,7 @@ export default function UserRoles({
       })
   }
 
-  const emailLooksValid = /^\S+@\S+\.\S+$/.test(inviteEmail.trim())
+  const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail.trim())
 
   const handleInvite = async () => {
     const value = inviteEmail.trim().toLowerCase()

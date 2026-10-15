@@ -13,15 +13,22 @@ import { UpdateShopDto } from './dto/update-shop.dto'
  * สมัยใหม่แสดง Unicode ใน URL ได้ปกติ (IRI) ไม่จำเป็นต้องบังคับ ASCII-only เหมือนเดิม ถ้าพิมพ์มาแล้วไม่เหลือ
  * อักขระที่ใช้ได้เลย fallback เป็น "shop" กันได้ slug ว่างเปล่า
  */
+/** ตัด "-" หัว/ท้ายด้วยลูป (เวลาเป็นเส้นตรง) — regex แบบ /-+$/ ใช้เวลากำลังสองกับสตริงที่มี "-" ติดกันยาวๆ (ReDoS) */
+const trimHyphens = (s: string): string => {
+  let start = 0
+  let end = s.length
+  while (start < end && s[start] === '-') start++
+  while (end > start && s[end - 1] === '-') end--
+  return s.slice(start, end)
+}
+
 const slugify = (name: string): string => {
   const base = name
     .trim()
     .toLowerCase()
     .replace(/[\s/?#&=%+]+/gu, '-')
     .replace(/[^\p{L}\p{N}-]+/gu, '')
-    .replace(/^-+/, '')
-    .replace(/-+$/, '')
-  return base || 'shop'
+  return trimHyphens(base) || 'shop'
 }
 
 @Injectable()

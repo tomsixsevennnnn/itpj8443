@@ -20,6 +20,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 )
@@ -56,6 +58,29 @@ METRIC_TH_LABEL = {
     "security_rating": "Security Rating",
     "sqale_rating": "Maintainability Rating",
 }
+
+# ฟอนต์ที่รองรับภาษาไทย (ฟอนต์ค่าเริ่มต้นของ reportlab ไม่มีอักษรไทย) — ลองตามลำดับ ใช้ตัวแรกที่เจอในเครื่อง
+THAI_FONT_CANDIDATES = [
+    ("C:/Windows/Fonts/tahoma.ttf", "C:/Windows/Fonts/tahomabd.ttf"),
+    ("C:/Windows/Fonts/LeelawUI.ttf", "C:/Windows/Fonts/LeelaUIb.ttf"),
+    ("/usr/share/fonts/truetype/tlwg/Loma.ttf", "/usr/share/fonts/truetype/tlwg/Loma-Bold.ttf"),
+    ("/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf", "/usr/share/fonts/truetype/noto/NotoSansThai-Bold.ttf"),
+]
+FONT, FONT_BOLD = "Helvetica", "Helvetica-Bold"
+
+
+def register_thai_font():
+    """ลงทะเบียนฟอนต์ไทยถ้าเจอในเครื่อง ไม่เจอก็ใช้ Helvetica (ข้อความไทยจะไม่แสดง)"""
+    global FONT, FONT_BOLD
+    import os
+    for regular, bold in THAI_FONT_CANDIDATES:
+        if os.path.exists(regular):
+            pdfmetrics.registerFont(TTFont("ThaiFont", regular))
+            pdfmetrics.registerFont(TTFont("ThaiFont-Bold", bold if os.path.exists(bold) else regular))
+            FONT, FONT_BOLD = "ThaiFont", "ThaiFont-Bold"
+            return
+    print("คำเตือน: ไม่พบฟอนต์ไทยในเครื่อง ข้อความภาษาไทยใน PDF จะแสดงไม่ได้", file=sys.stderr)
+
 
 SEVERITY_ORDER = ["BLOCKER", "CRITICAL", "MAJOR", "MINOR", "INFO"]
 
@@ -123,6 +148,8 @@ def build_pdf(output_path, project_name, project_key, host, measures, sev_counts
         leftMargin=1.5 * cm, rightMargin=1.5 * cm,
     )
     styles = getSampleStyleSheet()
+    for st in (x for x in styles.byName.values() if hasattr(x, "fontName")):
+        st.fontName = FONT_BOLD if "Bold" in st.fontName else FONT
     title_style = ParagraphStyle("TitleTH", parent=styles["Title"], fontSize=20)
     h2_style = ParagraphStyle("H2", parent=styles["Heading2"], spaceBefore=14, spaceAfter=6)
     normal = styles["Normal"]
@@ -145,6 +172,7 @@ def build_pdf(output_path, project_name, project_key, host, measures, sev_counts
     gate_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), gate_color),
         ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), FONT_BOLD),
         ("FONTSIZE", (0, 0), (-1, -1), 14),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("TOPPADDING", (0, 0), (-1, -1), 10),
@@ -170,6 +198,7 @@ def build_pdf(output_path, project_name, project_key, host, measures, sev_counts
     metric_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3b3e99")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f2f2f2")]),
@@ -188,6 +217,7 @@ def build_pdf(output_path, project_name, project_key, host, measures, sev_counts
     sev_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3b3e99")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f2f2f2")]),
@@ -216,6 +246,7 @@ def build_pdf(output_path, project_name, project_key, host, measures, sev_counts
     issue_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#3b3e99")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, -1), FONT),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f2f2f2")]),
@@ -247,6 +278,7 @@ def main():
     parser.add_argument("--top", type=int, default=15, help="จำนวนตัวอย่าง issues ที่จะแสดง (default 15)")
     args = parser.parse_args()
 
+    register_thai_font()
     host = args.host.rstrip("/")
     output = args.output or f"{args.project}_report.pdf"
 

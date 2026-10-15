@@ -47,7 +47,15 @@ const BOOKING_FLOW_SCREENS: Set<Screen> = new Set([
 /** ตัด "/" นำหน้า/ตามหลังออก (เช่น "/pipat-catering/" -> "pipat-catering") — แยกเป็น 2 regex เดี่ยวๆ
  *  (แทน alternation เดียว /^\/+|\/+$/g) ให้ SonarQube วิเคราะห์ได้ตรงไปตรงมาว่าไม่มี backtracking ซับซ้อน
  *  (regex เดี่ยวมี quantifier เดียว ไม่มีทางกำกวม) ผลลัพธ์เหมือนเดิมทุกกรณี */
-const trimSlashes = (s: string): string => s.replace(/^\/+/, '').replace(/\/+$/, '')
+/** ตัดตัวอักษร ch ที่ซ้ำอยู่หัว/ท้ายสตริงด้วยลูปเดียว (เวลาเป็นเส้นตรง) — regex แบบ /x+$/ ใช้เวลากำลังสองกับสตริงยาวที่มี x เยอะๆ (ReDoS) */
+const trimChar = (s: string, ch: string): string => {
+  let start = 0
+  let end = s.length
+  while (start < end && s[start] === ch) start++
+  while (end > start && s[end - 1] === ch) end--
+  return s.slice(start, end)
+}
+const trimSlashes = (s: string): string => trimChar(s, '/')
 
 /**
  * URL ต่อจากไฟล์นี้ทั้งหมด — แอปไม่มี router (แค่ useState<Screen> ตัวเดียว) เก็บ path mapping ไว้เป็นตารางเดียว
