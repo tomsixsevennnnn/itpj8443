@@ -1,4 +1,4 @@
-import { clearRouteCache, outsideDeliveryFeeFor, routeDistanceKm, zoneFor } from './geo.util'
+import { HOME_ZONE_MAX_KM, METRO_ZONE_MAX_KM, clearRouteCache, haversineKm, outsideDeliveryFeeFor, routeDistanceKm, zoneFor } from './geo.util'
 
 /** ต้องให้ผลตรงกับ zoneFor ใน frontend src/geo.ts เป๊ะ (เทสต์เคสเดียวกับ src/geo.test.ts) — ค่าเริ่มต้นจาก DEFAULT_METRO_PROVINCES/DEFAULT_HOME_PROVINCE ที่นั่น */
 const METRO_PROVINCES = [
@@ -78,5 +78,23 @@ describe('routeDistanceKm cache', () => {
     await expect(routeDistanceKm(from, to)).rejects.toThrow()
     expect(await routeDistanceKm(from, to)).toBe(50)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('haversineKm', () => {
+  it('จุดเดียวกัน = 0 กม.', () => {
+    expect(haversineKm({ lat: 13.82, lng: 100.06 }, { lat: 13.82, lng: 100.06 })).toBe(0)
+  })
+
+  it('นครปฐม → เชียงใหม่ ประมาณ 600 กม. (เกินเพดานโซนทั้งสองแบบ)', () => {
+    const km = haversineKm({ lat: 13.8196, lng: 100.0603 }, { lat: 18.79, lng: 98.98 })
+    expect(km).toBeGreaterThan(500)
+    expect(km).toBeLessThan(700)
+    expect(km).toBeGreaterThan(METRO_ZONE_MAX_KM)
+  })
+
+  it('นครปฐม → กรุงเทพฯ ใกล้ (อยู่ในเพดานโซนร้านสบาย)', () => {
+    const km = haversineKm({ lat: 13.8196, lng: 100.0603 }, { lat: 13.7563, lng: 100.5018 })
+    expect(km).toBeLessThan(HOME_ZONE_MAX_KM)
   })
 })

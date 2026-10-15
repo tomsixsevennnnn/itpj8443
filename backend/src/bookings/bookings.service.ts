@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { BookingStatus, Prisma, SlipVerifyStatus } from '@prisma/client'
 import { AuditService } from '../audit/audit.service'
 import { Paginated, pageArgsFor } from '../common/pagination'
@@ -9,8 +9,8 @@ import { SlipVerifyService } from '../slip-verify/slip-verify.service'
 import { UploadsService } from '../uploads/uploads.service'
 import { CreateBookingDto } from './dto/create-booking.dto'
 import { UpdateBookingDto } from './dto/update-booking.dto'
-import { outsideDeliveryFeeFor, routeDistanceKm, zoneFor, ServiceZone } from './geo.util'
-import { isPastEventDate, isStatusTransitionAllowed } from './booking-rules'
+import { HOME_ZONE_MAX_KM, METRO_ZONE_MAX_KM, ServiceZone, haversineKm, outsideDeliveryFeeFor, routeDistanceKm, zoneFor } from './geo.util'
+import { SLIP_RESUBMIT_COOLDOWN_MS, isPastEventDate, isStatusTransitionAllowed, menuQuotaViolation } from './booking-rules'
 import { evaluateChannel, matchReceiver, type ExpectedChannel, type ExpectedReceiver, type SlipReceiver } from '../slip-verify/receiver-match'
 
 /** สถานะที่ยังกินคิวอยู่ — ต้องตรงกับ OCCUPIES_QUEUE ใน frontend src/availability.ts */
@@ -97,7 +97,16 @@ export class BookingsService {
 
     const province = typeof loc.province === 'string' ? loc.province : ''
     const address = typeof loc.address === 'string' ? loc.address : ''
-    const zone = zoneFor(province, settings.metroProvinces, settings.homeProvince, address)
+    let zone = zoneFor(province, settings.metroProvinces, settings.homeProvince, address)
+
+    const lat = typeof loc.lat === 'number' ? loc.lat : Number.NaN
+    const lng = typeof loc.lng === 'number' ? loc.lng : Number.NaN
+    // โซนจากข้อความ (ปลอมได้) ต้องไม่ขัดกับตำแหน่งหมุดจริง — หมุดไกลจากร้านเกินเพดานของโซนที่อ้าง ถือเป็นนอกพื้นที่
+    if (zone !== 'outside' && Number.isFinite(lat) && Number.isFinite(lng)) {
+      const straightKm = haversineKm({ lat: settings.shopLocationLat, lng: settings.shopLocationLng }, { lat, lng })
+      if (straightKm > (zone === 'home' ? HOME_ZONE_MAX_KM : METRO_ZONE_MAX_KM)) zone = 'outside'
+    }
+
     if (zone === 'home') return { fee: 0, zone }
     if (zone === 'metro') {
       const fee = tables < settings.freeDeliveryMinTables ? settings.deliveryFee : 0
@@ -105,8 +114,6 @@ export class BookingsService {
     }
 
     // zone === 'outside' — ต้อง verify ระยะทางจริงเอง ห้าม fallback ไปเชื่อ distanceKm จาก client
-    const lat = typeof loc.lat === 'number' ? loc.lat : Number.NaN
-    const lng = typeof loc.lng === 'number' ? loc.lng : Number.NaN
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       throw new BadRequestException('ไม่พบพิกัดสถานที่จัดงาน กรุณาเลือกตำแหน่งบนแผนที่ใหม่')
     }
@@ -150,6 +157,10 @@ export class BookingsService {
     if (invalidMenus.length > 0) {
       throw new BadRequestException(`เมนูต่อไปนี้ไม่ได้อยู่ในแพ็กเกจที่เลือก: ${invalidMenus.join(', ')}`)
     }
+
+    // ไม่ให้เลือกเมนูเกินโควตาของแพ็กเกจ (เรียก API ตรงเลือกครบทุกเมนูในราคาเดิมได้ถ้าไม่ตรวจ)
+    const quotaProblem = menuQuotaViolation(pkg.courses, dto.menus)
+    if (quotaProblem) throw new BadRequestException(quotaProblem)
 
     const settings = await this.settingsService.get(dto.shopId, true)
     if (isPastEventDate(dto.date)) {
@@ -276,6 +287,11 @@ export class BookingsService {
     // มาทับหลังผ่านการตรวจแล้ว (เช็คฝั่ง backend ด้วย ไม่ไว้ใจแค่ซ่อนปุ่มฝั่ง frontend เพราะเรียก API ตรงๆ ข้าม UI ได้)
     if (booking.paymentSlipVerifyStatus === SlipVerifyStatus.VERIFIED) {
       throw new ConflictException('สลิปนี้ตรวจสอบแล้วว่าชื่อและยอดโอนถูกต้อง ไม่สามารถเปลี่ยนสลิปได้')
+    }
+
+    // แนบซ้ำถี่เกินไป = กันเผาโควตา SlipOK ของร้าน (ทุกครั้งที่แนบเรียก SlipOK)
+    if (booking.paymentSlipUploadedAt && Date.now() - booking.paymentSlipUploadedAt.getTime() < SLIP_RESUBMIT_COOLDOWN_MS) {
+      throw new HttpException('แนบสลิปถี่เกินไป กรุณารอสักครู่แล้วลองใหม่', HttpStatus.TOO_MANY_REQUESTS)
     }
 
     // ตรวจสอบสลิปกับ SlipOK ก่อนบันทึก (ถ้าร้านนี้ตั้งค่าไว้) — ทำก่อน update ให้เสร็จในคำขอเดียว ลูกค้าเห็นผล

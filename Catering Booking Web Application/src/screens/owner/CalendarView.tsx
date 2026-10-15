@@ -8,7 +8,7 @@ import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
-import { bookingPhase } from '../../bookingPhase'
+import { PHASE_INFO, bookingPhase, type BookingPhase } from '../../bookingPhase'
 import { STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 import {
   BASE_SLOTS,
@@ -36,6 +36,14 @@ const MONTHS_TH = [
 const DAYS_TH = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัส','ศุกร์','เสาร์']
 
 const SLOT_LABEL = Object.fromEntries(TIME_SLOTS.map(s => [s.id, s.label])) as Record<string, string>
+
+/** ป้าย/สีของใบจองในปฏิทิน — ใช้ "ขั้นตอน" 5 แบบ (รอโอนมัดจำ/รอร้านยืนยัน/…) ให้ตรงกับหน้ารายการจองและแดชบอร์ด */
+const phaseStyle = (b: Parameters<typeof bookingPhase>[0]) => {
+  const p = PHASE_INFO[bookingPhase(b)]
+  return { label: p.label, dot: p.dot, chip: `${p.bg} ${p.text}`, border: p.border }
+}
+
+const LEGEND_PHASES: BookingPhase[] = ['awaiting-deposit', 'awaiting-review', 'confirmed', 'completed', 'cancelled']
 
 export default function CalendarView({ bookings, onUpdateBooking, onFetchPaymentSlip }: Readonly<CalendarViewProps>) {
   const { pending: statusPending, feedback: statusFeedback, run: updateStatus } = useStatusUpdate(
@@ -122,10 +130,10 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
       {/* คำอธิบายสี */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-5 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
         <span className="text-xs font-semibold text-gray-400">สถานะงาน</span>
-        {(['pending', 'confirmed', 'completed', 'cancelled'] as const).map(s => (
-          <div key={s} className="flex items-center gap-2">
-            <span className={`w-3 h-3 rounded-full ${BOOKING_STATUS_INFO[s].dot}`} />
-            <span className="text-sm text-gray-600">{BOOKING_STATUS_INFO[s].label}</span>
+        {LEGEND_PHASES.map(phase => (
+          <div key={phase} className="flex items-center gap-2">
+            <span className={`w-3 h-3 rounded-full ${PHASE_INFO[phase].dot}`} />
+            <span className="text-sm text-gray-600">{PHASE_INFO[phase].label}</span>
           </div>
         ))}
         <span className="text-xs font-semibold text-gray-400 ml-auto">คิวรับงาน</span>
@@ -224,7 +232,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
 
                     <div className="space-y-1">
                       {events.slice(0, 3).map(ev => {
-                        const info = BOOKING_STATUS_INFO[ev.status]
+                        const info = phaseStyle(ev)
                         return (
                           <button
                             key={ev.id}
@@ -291,7 +299,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
 
             <div className="p-3 space-y-1.5 max-h-[65vh] overflow-y-auto">
               {dayEvents.map(ev => {
-                const info = BOOKING_STATUS_INFO[ev.status]
+                const info = phaseStyle(ev)
                 return (
                   <button
                     key={ev.id}
@@ -327,7 +335,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
             onClick={e => e.stopPropagation()}
             onKeyDown={e => e.stopPropagation()}
           >
-            <div className={`p-5 flex items-start justify-between ${BOOKING_STATUS_INFO[popup.status].chip}`}>
+            <div className={`p-5 flex items-start justify-between ${phaseStyle(popup).chip}`}>
               <div className="flex items-center gap-2 min-w-0">
                 {dayPopupDate && (
                   <button

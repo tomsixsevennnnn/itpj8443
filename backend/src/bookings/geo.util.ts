@@ -34,6 +34,23 @@ export const zoneFor = (
 export const outsideDeliveryFeeFor = (distanceKm: number, fuelCostPerKm: number): number =>
   Math.round(distanceKm * 2 * fuelCostPerKm)
 
+/** ระยะทางเส้นตรง (กม.) ระหว่างสองพิกัด (haversine) */
+export const haversineKm = (a: { lat: number; lng: number }, b: { lat: number; lng: number }): number => {
+  const rad = (d: number) => (d * Math.PI) / 180
+  const dLat = rad(b.lat - a.lat)
+  const dLng = rad(b.lng - a.lng)
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2
+  return 2 * 6371 * Math.asin(Math.sqrt(h))
+}
+
+/**
+ * โซนที่ลูกค้าอ้าง (จากข้อความจังหวัด/ที่อยู่ที่ส่งมา ปลอมได้) ต้องสอดคล้องกับพิกัดหมุดจริงด้วย — ถ้าหมุดอยู่ไกลจากร้านเกินเพดานนี้
+ * ถือเป็น "นอกพื้นที่" แม้ข้อความจะเขียนว่าอยู่จังหวัดของร้าน (กันปลอมจังหวัดเพื่อไม่เสียค่าขนส่ง) เพดานตั้งกว้างไว้ (ระยะเส้นตรง)
+ * ไม่ให้ลูกค้าที่กรอกตามจริงโดนเก็บผิด — จังหวัดที่ใหญ่ที่สุดยังไม่เกินค่านี้จากตัวเมือง
+ */
+export const HOME_ZONE_MAX_KM = 150
+export const METRO_ZONE_MAX_KM = 300
+
 const OSRM = 'https://router.project-osrm.org'
 
 /** เซิร์ฟเวอร์ OSRM สาธารณะมีข้อกำหนดการใช้งาน — ระบุตัวตนแอปด้วย User-Agent และจำผลไว้ ไม่ยิงซ้ำเส้นทางเดิม */

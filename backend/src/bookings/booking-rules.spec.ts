@@ -1,5 +1,5 @@
 import { BookingStatus } from '@prisma/client'
-import { isPastEventDate, isStatusTransitionAllowed, todayInBangkok } from './booking-rules'
+import { isPastEventDate, isStatusTransitionAllowed, menuQuotaViolation, todayInBangkok } from './booking-rules'
 
 describe('isStatusTransitionAllowed', () => {
   it('สถานะเดิม — ไม่ถือว่าเปลี่ยน ผ่านเสมอ', () => {
@@ -40,5 +40,34 @@ describe('วันที่จัดงาน', () => {
     expect(isPastEventDate('2026-10-09', now)).toBe(true)
     expect(isPastEventDate('2026-10-10', now)).toBe(false)
     expect(isPastEventDate('2026-10-11', now)).toBe(false)
+  })
+})
+
+describe('menuQuotaViolation', () => {
+  const courses = [
+    { title: 'ของหวาน', choose: 0, items: [{ name: 'มะพร้าวอ่อน' }] }, // รวมมาให้
+    { title: 'จานหลัก', choose: 2, items: [{ name: 'ปลานึ่ง' }, { name: 'ไก่ทอด' }, { name: 'กุ้งอบ' }] },
+    { title: 'ซุป', choose: 1, items: [{ name: 'ต้มยำ' }, { name: 'ต้มจืด' }] },
+  ]
+
+  it('เลือกตามโควตา (รวมของที่แพ็กเกจให้มา) — ผ่าน', () => {
+    expect(menuQuotaViolation(courses, ['มะพร้าวอ่อน', 'ปลานึ่ง', 'ไก่ทอด', 'ต้มยำ'])).toBeNull()
+  })
+
+  it('เลือกน้อยกว่าโควตา ไม่ปฏิเสธ', () => {
+    expect(menuQuotaViolation(courses, ['ปลานึ่ง'])).toBeNull()
+    expect(menuQuotaViolation(courses, [])).toBeNull()
+  })
+
+  it('เลือกเมนูในข้อเดียวเกินที่กำหนด — ไม่ผ่าน (ต้มยำ+ต้มจืด เกิน 1 อย่าง)', () => {
+    expect(menuQuotaViolation(courses, ['ต้มยำ', 'ต้มจืด'])).toContain('ซุป')
+  })
+
+  it('เลือกครบทุกเมนูในแพ็กเกจ (เรียก API ตรง) — ไม่ผ่านเพราะเกินจำนวนรวม', () => {
+    expect(menuQuotaViolation(courses, ['มะพร้าวอ่อน', 'ปลานึ่ง', 'ไก่ทอด', 'กุ้งอบ', 'ต้มยำ', 'ต้มจืด'])).toContain('เกินจำนวนที่แพ็กเกจกำหนด')
+  })
+
+  it('เมนูซ้ำชื่อไม่นับซ้ำ และเมนูที่รวมมาให้ไม่กินโควตาการเลือก', () => {
+    expect(menuQuotaViolation(courses, ['ปลานึ่ง', 'ปลานึ่ง', 'มะพร้าวอ่อน', 'มะพร้าวอ่อน'])).toBeNull()
   })
 })

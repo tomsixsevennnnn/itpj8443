@@ -63,6 +63,8 @@ export class BookingsController {
     return this.bookings.updateAsOwner(id, dto, jwtUser.sub, ctx.shopId)
   }
 
+  // แนบสลิปแต่ละครั้งเรียก SlipOK (กินโควตาร้าน) — จำกัดถี่กว่า default ของทั้ง API
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Patch(':id/payment-slip')
   @Roles('customer')
   async uploadSlip(

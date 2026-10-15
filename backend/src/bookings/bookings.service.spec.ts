@@ -20,7 +20,8 @@ const PACKAGE = {
   shopId: 'shop1',
   name: 'แพ็กเกจทดสอบ',
   pricePerTable: 1000,
-  courses: [{ items: [{ name: 'ข้าวผัด' }, { name: 'ต้มยำ' }] }],
+  // ข้อเดียว เลือกได้ 2 อย่างจาก 2 เมนู (ในฐานข้อมูลจริง choose เป็นตัวเลขเสมอ)
+  courses: [{ title: 'ข้อ 1', choose: 2, items: [{ name: 'ข้าวผัด' }, { name: 'ต้มยำ' }] }],
 }
 
 const makeService = () => {
@@ -89,6 +90,56 @@ describe('BookingsService.create', () => {
       'ไม่สามารถจองวันที่ผ่านมาแล้ว',
     )
     expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('เลือกเมนูเกินโควตาแพ็กเกจ — throw BadRequestException ไม่สร้างใบจอง', async () => {
+    const { service, prisma, settingsService } = makeService()
+    prisma.package.findUnique.mockResolvedValue({
+      ...PACKAGE,
+      courses: [{ title: 'ข้อ 1', choose: 1, items: [{ name: 'ข้าวผัด' }, { name: 'ต้มยำ' }] }],
+    })
+    settingsService.get.mockResolvedValue(SETTINGS)
+
+    await expect(service.create('c1', 'ลูกค้า', '0800000000', baseDto({ menus: ['ข้าวผัด', 'ต้มยำ'] }))).rejects.toThrow(
+      'เลือกเมนูเกินจำนวนที่แพ็กเกจกำหนด',
+    )
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('หมุดอยู่ไกลจากร้านมาก แต่เขียนจังหวัดเป็นพื้นที่ร้าน — ถือเป็นนอกพื้นที่ (คิดค่าขนส่งตามระยะทางจริง ไม่ใช่ 0)', async () => {
+    const { service, prisma, settingsService } = makeService()
+    prisma.package.findUnique.mockResolvedValue(PACKAGE)
+    settingsService.get.mockResolvedValue({ ...SETTINGS, homeProvince: 'นครปฐม', shopLocationLat: 13.8196, shopLocationLng: 100.0603 })
+    prisma.booking.findFirst.mockResolvedValue(null)
+    prisma.bookingCounter.upsert.mockResolvedValue({ lastNo: 1 })
+    prisma.booking.create = jest.fn().mockResolvedValue({ id: 'b1' })
+    ;(global.fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => ({ code: 'Ok', routes: [{ distance: 700_000 }] }) })
+
+    // หมุดที่เชียงใหม่ (~600 กม.จากนครปฐม) แต่ข้อความอ้างว่าอยู่นครปฐม
+    await service.create(
+      'c1',
+      'ลูกค้า',
+      '0800000000',
+      baseDto({ locationDetail: { province: 'นครปฐม', address: 'นครปฐม', lat: 18.79, lng: 98.98 } }),
+    )
+
+    expect(global.fetch).toHaveBeenCalledTimes(1) // ต้องเรียก OSRM คำนวณจริง ไม่ใช่ข้ามเป็นโซนร้าน
+    const data = (prisma.booking.create as jest.Mock).mock.calls[0][0].data
+    expect(data.deliveryFee).toBeGreaterThan(0)
+  })
+
+  it('หมุดอยู่ในพื้นที่ร้านจริง และเขียนจังหวัดตรง — ยังเป็นโซนร้าน ค่าขนส่ง 0 (ไม่ถูกเก็บผิด)', async () => {
+    const { service, prisma, settingsService } = makeService()
+    prisma.package.findUnique.mockResolvedValue(PACKAGE)
+    settingsService.get.mockResolvedValue({ ...SETTINGS, homeProvince: 'นครปฐม', shopLocationLat: 13.8196, shopLocationLng: 100.0603 })
+    prisma.booking.findFirst.mockResolvedValue(null)
+    prisma.bookingCounter.upsert.mockResolvedValue({ lastNo: 1 })
+    prisma.booking.create = jest.fn().mockResolvedValue({ id: 'b1' })
+
+    await service.create('c1', 'ลูกค้า', '0800000000', baseDto({ locationDetail: { province: 'นครปฐม', address: '', lat: 13.9, lng: 100.1 } }))
+
+    expect(global.fetch).not.toHaveBeenCalled()
+    expect((prisma.booking.create as jest.Mock).mock.calls[0][0].data.deliveryFee).toBe(0)
   })
 
   it('ไม่มี locationDetail — throw BadRequestException (ห้ามคิดค่าขนส่งเป็น 0 แล้วจองผ่านไปได้) ไม่สร้างใบจอง', async () => {
@@ -302,6 +353,29 @@ describe('BookingsService.findAllForCustomer', () => {
 })
 
 describe('BookingsService.updatePaymentSlipAsCustomer', () => {
+  it('แนบสลิปซ้ำถี่เกินไป (ภายใน 10 วินาทีหลังแนบครั้งก่อน) — 429 ไม่เรียก SlipOK ไม่แตะ DB (กันเผาโควตา SlipOK ของร้าน)', async () => {
+    const { service, prisma, settingsService } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'c1', paymentSlipUploadedAt: new Date() })
+
+    await expect(service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')).rejects.toThrow('แนบสลิปถี่เกินไป')
+    expect(settingsService.getSlipOkConfig).not.toHaveBeenCalled()
+    expect(prisma.booking.update).not.toHaveBeenCalled()
+  })
+
+  it('แนบซ้ำหลังพ้น 10 วินาทีแล้ว — ทำได้ตามปกติ', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({
+      id: 'b1',
+      customerId: 'c1',
+      shopId: 'shop1',
+      paymentSlipUrl: '/uploads/slips/old.jpg',
+      paymentSlipUploadedAt: new Date(Date.now() - 60_000),
+    })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', paymentSlipUrl: '/uploads/slips/new.jpg' })
+
+    await expect(service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')).resolves.toBeDefined()
+  })
+
   it('ไม่ใช่เจ้าของใบจองนี้ — throw ForbiddenException', async () => {
     const { service, prisma } = makeService()
     prisma.booking.findUnique.mockResolvedValue({ id: 'b1', customerId: 'owner-of-booking' })

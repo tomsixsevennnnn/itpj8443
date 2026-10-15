@@ -136,9 +136,9 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 | `GET /users/search?email=`, `GET /users/owners`, `PATCH /users/:id/role` | ❌ | ✅ (ร้านตัวเอง: CUSTOMER ↔ OWNER) | ✅ (CUSTOMER ↔ SUPER_ADMIN เท่านั้น) | ตั้ง/ถอด owner ของร้านโดย super admin ทำผ่าน `/shops/:id/owners` |
 | `GET /bookings` | ✅ ของตัวเองใน `?shopId=` | ✅ ทั้งร้าน | | รองรับ `?page=&limit=` |
 | `GET /bookings/availability` | ✅ | ✅ | | คิวไม่มีข้อมูลส่วนตัว |
-| `POST /bookings` | ✅ | ❌ | | คำนวณราคา/ค่าขนส่ง/โซนที่ backend (ต้องส่ง `locationDetail` เสมอ), กันวันย้อนหลัง/วันซ้ำ/วันปิดร้าน, 10/นาที |
+| `POST /bookings` | ✅ | ❌ | | คำนวณราคา/ค่าขนส่ง/โซนที่ backend (ต้องส่ง `locationDetail` เสมอ), กันวันย้อนหลัง/วันซ้ำ/วันปิดร้าน, ตรวจเมนูที่เลือกไม่เกินโควตาแพ็กเกจ, 10/นาที |
 | `PATCH /bookings/:id` | ❌ | ✅ | | บังคับกฎเปลี่ยนสถานะ, บันทึก `lastEditedBy` |
-| `PATCH /bookings/:id/payment-slip` | ✅ ของตัวเอง | ❌ | | ตรวจ SlipOK + เทียบผู้รับ |
+| `PATCH /bookings/:id/payment-slip` | ✅ ของตัวเอง | ❌ | | ตรวจ SlipOK + เทียบผู้รับ; 5/นาที และแนบซ้ำในใบเดิมได้ไม่ถี่กว่า 10 วินาที (กันเผาโควตา SlipOK ของร้าน) |
 | `GET /bookings/:id/payment-slip` | ✅ ของตัวเอง | ✅ ร้านเดียวกัน | | สลิปไม่เป็นไฟล์สาธารณะ ตรวจสิทธิ์รายใบ |
 | `GET /menus`, `GET /packages` | ✅ ไม่เห็น `costPrice` | ✅ | | pagination แบบ opt-in |
 | `POST/PATCH/DELETE /menus`, `/packages`, `/packages/:id/courses…`, `PATCH /packages/reorder` | ❌ | ✅ | | |
@@ -284,7 +284,7 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 | ปริมณฑล/จังหวัดใกล้เคียง (`metroProvinces`) | รับทุกจำนวน | ต่ำกว่า `freeDeliveryMinTables` คิด `deliveryFee`, ถึงขั้นต่ำฟรี |
 | นอกพื้นที่ | ไม่มีขั้นต่ำ | ระยะทางถนนจริงไป-กลับ × `fuelCostPerKm` |
 
-**backend คำนวณโซน ระยะทาง (เรียก OSRM เอง ไม่เชื่อ `distanceKm`/`zone` จาก client) และราคาทั้งหมด** ผลระยะทางถูกแคชไว้ 24 ชั่วโมง ถ้าเรียก OSRM ไม่สำเร็จ ตอบ 503 (ไม่ fallback ไปเชื่อค่าจาก client)
+**backend คำนวณโซน ระยะทาง (เรียก OSRM เอง ไม่เชื่อ `distanceKm`/`zone` จาก client) และราคาทั้งหมด** โซนที่อ้างจากข้อความจังหวัด/ที่อยู่ต้องสอดคล้องกับพิกัดหมุดด้วย: หมุดไกลจากร้านเกิน 150 กม. (โซนร้าน) หรือ 300 กม. (ปริมณฑล) เป็นเส้นตรง ถือเป็นนอกพื้นที่ (ค่าคงที่ `HOME_ZONE_MAX_KM`/`METRO_ZONE_MAX_KM` ใน `geo.util.ts`) ผลระยะทางถูกแคชไว้ 24 ชั่วโมง ถ้าเรียก OSRM ไม่สำเร็จ ตอบ 503 (ไม่ fallback ไปเชื่อค่าจาก client)
 
 ### 6.4 เอกสาร: ใบเสนอราคา vs ใบจอง (`src/documents.ts`, `BookingDocument.tsx`)
 
