@@ -114,9 +114,15 @@ export default function Login({ shopId, onChangeShop }: Readonly<LoginProps>) {
             <span className="group-hover:text-orange-700">เข้าสู่ระบบด้วย Google</span>
           </button>
 
-          <p className="text-center text-xs text-gray-400 mt-6">
-            โดยการเข้าสู่ระบบ คุณยอมรับ{' '}
-            <span className="text-orange-500 cursor-pointer hover:underline">เงื่อนไขการใช้งาน</span>
+          <p className="text-center text-xs leading-relaxed text-gray-400 mt-6">
+            การเข้าสู่ระบบถือว่าคุณรับทราบ{' '}
+            <a href="/terms.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">
+              เงื่อนไขการใช้งาน
+            </a>{' '}
+            และ{' '}
+            <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">
+              นโยบายความเป็นส่วนตัว
+            </a>
           </p>
 
           <div className="relative my-6">
@@ -135,10 +141,6 @@ export default function Login({ shopId, onChangeShop }: Readonly<LoginProps>) {
           </button>
           <p className="text-center text-[11px] text-gray-400 mt-1">
             เจ้าของร้านที่ได้รับเชิญด้วยอีเมล Google กดปุ่ม "เข้าสู่ระบบด้วย Google" ด้านบนได้เลย
-          </p>
-
-          <p className="mt-4 text-center text-[11px] leading-relaxed text-gray-400">
-            การเข้าสู่ระบบถือว่าคุณรับทราบ <a href="/terms.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">เงื่อนไขการใช้งาน</a> และ <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">นโยบายความเป็นส่วนตัว</a>
           </p>
 
           {/* เลือกร้านผิด — กลับไปหน้ารายชื่อร้านใหม่ */}
