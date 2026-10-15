@@ -260,7 +260,14 @@ Frontend: `VITE_API_BASE_URL` (URL ของ backend — ฝังตอน buil
 2. **Variables:** ตามตารางด้านบน และต่อ Postgres ของ Railway
 3. **Volume:** เพิ่ม Volume (mount `/data`) แล้วตั้ง `UPLOADS_DIR=/data/uploads` — ไม่ตั้งแล้ว redeploy รูป/สลิปจะหาย และต้องรัน backend **ตัวเดียว** (volume ต่อกับหลายตัวไม่ได้ ไฟล์จะแยกกัน)
 4. **Migration:** `prisma migrate deploy` รันตอน deploy — **สำรอง DB ก่อนทุกครั้งที่มี migration ที่ลบ/แก้คอลัมน์**
-5. **Frontend service:** Root Directory = `Catering Booking Web Application`, ตั้ง `VITE_API_BASE_URL` เป็น URL ของ backend ก่อน build แล้วเพิ่มโดเมนฟรอนต์ใน `FRONTEND_ORIGIN` ของ backend และใน Auth0 (Callback / Logout / Web Origins)
+5. **Frontend บน Vercel:**
+   1. vercel.com → Add New → Project → เลือก repo นี้ → **Root Directory = `Catering Booking Web Application`** (Framework Vite ตรวจเอง ค่า build ตั้งไว้แล้วใน `vercel.json`)
+   2. Environment Variables (ฝังตอน build เปลี่ยนแล้วต้อง redeploy): `VITE_API_BASE_URL` (URL backend บน Railway), `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`
+   3. Deploy แล้วได้ URL เช่น `https://xxx.vercel.app` (push เข้า `main` ครั้งต่อไป Vercel deploy ให้เอง)
+   4. **Auth0** (Applications → Settings): ใส่ URL ของ Vercel ใน Allowed Callback URLs, Allowed Logout URLs, Allowed Web Origins
+   5. **Railway** (backend → Variables): เพิ่ม URL ของ Vercel ใน `FRONTEND_ORIGIN` (คั่นหลายค่าด้วย `,` เก็บ `http://localhost:8443` ไว้ได้) ไม่งั้น CORS บล็อก
+   - `vercel.json` ทำให้ทุก path (เช่น `/{slug}`, `/owner/orders`) โหลดหน้าเดียวกัน รีเฟรชแล้วไม่ 404
+   - URL ของ Preview deployment (branch/PR) ไม่อยู่ใน Auth0/CORS จึง login ไม่ได้ ใช้ทดสอบหน้าตาเท่านั้น
 6. **Deploy ด้วยมือ:** `railway up` ที่รากโปรเจกต์ (ถ้าขึ้น "Snapshot code timeout" รอสักครู่แล้วรันใหม่) ดู log `railway logs` ดูไฟล์ใน volume `railway ssh -- ls -la /data/uploads/slips`
 7. **ตรวจสุขภาพ:** `GET /health` (โปรเซสทำงาน) และ `GET /health/ready` (เชื่อมฐานข้อมูลได้) ไม่ต้อง login
 
@@ -348,6 +355,6 @@ cd "Catering Booking Web Application"
 
 - **รูปเมนู โลโก้ และสลิป** เก็บเป็นไฟล์บนดิสก์ของ backend (Volume บน Railway) ยังไม่ได้แยกไปเก็บที่ object storage (เช่น Cloudflare R2) — ใช้ได้เมื่อรัน backend ตัวเดียว ถ้าจะขยายเป็นหลายตัวหรือมีผู้ใช้จำนวนมากควรย้าย
 - **การชำระเงินมัดจำ** ลูกค้าโอนเข้าบัญชี/พร้อมเพย์ของร้านเองแล้วแนบสลิป ระบบตรวจกับธนาคารผ่าน SlipOK ไม่ใช่ payment gateway จริง (ไม่มีบัตรเครดิต ไม่มีการคืนเงินในระบบ)
-- **Backend deploy บน Railway แล้ว** (ดูหัวข้อ Deploy production) ส่วน frontend ยังต้องตั้ง service/โฮสต์แยกต่างหาก
+- **Backend deploy บน Railway แล้ว** (ดูหัวข้อ Deploy production) ส่วน frontend ขึ้น Vercel (ดูหัวข้อ Deploy production ข้อ 5)
 - **การพิมพ์เอกสาร** ใช้ระบบพิมพ์ของเบราว์เซอร์ เลือก "Save as PDF" เพื่อบันทึกเป็นไฟล์ได้
 - **Automated test** มี unit test แล้ว (Vitest ฝั่ง frontend ครอบกติกาธุรกิจ, Jest ฝั่ง backend ครอบ guard/service/DTO) แต่ยังไม่มี integration/e2e test ที่ยิง API จริงหรือ component test ของหน้าจอ และ lint ฝั่ง frontend รันด้วย `pnpm lint` และฝั่ง backend `pnpm lint` เช่นกัน (ผลลัพธ์สะอาด ไม่มี warning ใน src)
