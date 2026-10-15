@@ -215,7 +215,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                       }
                     : undefined
                 }
-                className={`min-h-[118px] p-2 border-b border-r border-gray-50 ${cellClass}`}
+                className={`min-h-[84px] sm:min-h-[118px] p-1 sm:p-2 border-b border-r border-gray-50 ${cellClass}`}
               >
                 {day && (
                   <>
@@ -241,7 +241,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                               e.stopPropagation()
                               setPopupId(ev.id)
                             }}
-                            className={`w-full text-left text-[10px] font-medium px-1.5 py-1 rounded-lg border truncate transition-all hover:opacity-80 ${info.chip} ${info.border}`}
+                            className={`w-full text-left text-[9px] sm:text-[10px] font-medium px-1 sm:px-1.5 py-0.5 sm:py-1 rounded-lg border truncate transition-all hover:opacity-80 ${info.chip} ${info.border}`}
                             title={`${bookingCustomerName(ev)} · ${SLOT_LABEL[slotIdOf(ev.timeSlot)]} · ${ev.tables} โต๊ะ · ${info.label}`}
                           >
                             {bookingCustomerName(ev)} · {ev.tables} โต๊ะ
@@ -254,7 +254,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                         </p>
                       )}
                       {usage && events.length > 0 && (
-                        <p className="text-[9px] text-gray-400 pl-1.5">
+                        <p className="hidden sm:block text-[9px] text-gray-400 pl-1.5">
                           จอง {BASE_SLOTS.reduce((max, s) => Math.max(max, usage[s]), 0)}/{SLOT_CAPACITY} โต๊ะ
                         </p>
                       )}

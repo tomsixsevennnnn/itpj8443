@@ -170,7 +170,7 @@ export default function Documents({ bookings, menus, settings }: Readonly<Docume
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
                     ต้นทุน / กำไร (ไม่แสดงในเอกสาร)
                   </p>
-                  <div className="grid grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div className="bg-white rounded-lg p-2 border border-gray-100">
                       <p className="text-[10px] text-gray-400">ต้นทุนเมนู</p>
                       <p className="text-sm font-bold text-gray-800">฿{cost.menuCost.toLocaleString()}</p>
