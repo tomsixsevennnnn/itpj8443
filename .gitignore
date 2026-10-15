@@ -27,3 +27,6 @@ coverage/
 
 # ไฟล์ที่อัปโหลด (รูปเมนู/โลโก้/QR/สลิป) — เก็บบน disk ของ server จริง ไม่ commit เข้า repo
 backend/uploads/
+
+# Vercel CLI (ผูกโปรเจกต์ในเครื่อง — ไม่ต้อง commit)
+.vercel/
