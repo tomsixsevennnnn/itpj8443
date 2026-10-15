@@ -361,7 +361,7 @@ export default function SelectLocation({
 
         {/* Map + details */}
         <div
-          className="flex-1 flex flex-col lg:flex-row overflow-hidden"
+          className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden"
           onClick={() => setShowResults(false)}
           onKeyDown={e => {
             if (e.key === 'Escape') setShowResults(false)
@@ -373,11 +373,11 @@ export default function SelectLocation({
             onPinChange={applyPin}
             onLocate={handleLocate}
             locating={locating}
-            className="h-64 sm:h-80 lg:h-auto lg:flex-1 z-0"
+            className="h-72 sm:h-80 shrink-0 lg:shrink lg:h-auto lg:flex-1 z-0"
           />
 
-          <aside className="lg:w-[26rem] flex-shrink-0 bg-white border-t lg:border-t-0 lg:border-l border-gray-100 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <aside className="lg:w-[26rem] flex-shrink-0 bg-white border-t lg:border-t-0 lg:border-l border-gray-100 flex flex-col lg:overflow-hidden">
+            <div className="flex-1 lg:overflow-y-auto p-4 space-y-4">
               {/* สถานที่ที่เลือก */}
               <div className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-start gap-3">
@@ -491,7 +491,7 @@ export default function SelectLocation({
             </div>
 
             {/* ปุ่ม */}
-            <div className="border-t border-gray-100 p-4 flex gap-3 flex-shrink-0">
+            <div className="border-t border-gray-100 p-4 flex gap-3 flex-shrink-0 sticky bottom-0 bg-white z-10">
               <button
                 onClick={() => navigate('select-table')}
                 className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded-2xl py-3.5 font-semibold transition-colors"
