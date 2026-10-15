@@ -188,7 +188,7 @@ export default function Orders({
       <div className="flex gap-5 flex-1">
         {/* Table */}
         <div className={`flex-1 min-w-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden overflow-x-auto transition-all ${selected ? 'hidden' : ''}`}>
-          <table className="w-full">
+          <table className="hidden md:table w-full">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
                 {['ชื่อลูกค้า', 'วันที่', 'ช่วงเวลา', 'โต๊ะ', 'พนักงาน', 'แพ็กเกจ', 'ราคารวม', 'สถานะ'].map(col => (
@@ -247,6 +247,44 @@ export default function Orders({
               })}
             </tbody>
           </table>
+
+          {/* มือถือ: การ์ดแทนตาราง 8 คอลัมน์ (ตารางกว้างเกินจอ ต้องเลื่อนข้าง) */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {paginated.map(booking => {
+              const sc = PHASE_INFO[bookingPhase(booking)]
+              return (
+                <button
+                  key={booking.id}
+                  type="button"
+                  onClick={() => openBooking(booking)}
+                  className={`block w-full p-4 text-left transition-colors ${selected?.id === booking.id ? 'bg-orange-50' : 'active:bg-orange-50/50'}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-gray-800">{bookingCustomerName(booking)}</p>
+                      <p className="text-xs text-gray-400">{booking.phone}</p>
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-medium ${sc.bg} ${sc.text}`}>
+                        <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${sc.dot}`} />
+                        {sc.label}
+                      </span>
+                      {phaseNote(booking) && <span className="mt-1 block text-[10px] text-red-500">{phaseNote(booking)}</span>}
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-xs text-gray-500">
+                    <span>
+                      {new Date(booking.date + 'T00:00:00').toLocaleDateString('th-TH', { month: 'short', day: 'numeric' })} · {booking.timeSlot}
+                    </span>
+                    <span className="text-sm font-bold text-orange-600">{booking.totalPrice.toLocaleString()} ฿</span>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-gray-400">
+                    {booking.tables} โต๊ะ · พนักงาน {staffTotalOf(booking)} คน · {booking.packageName}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
 
           {filtered.length === 0 && (
             <div className="text-center py-10 text-gray-400 text-sm">ไม่พบรายการจอง</div>

@@ -214,10 +214,10 @@ export default function Packages({
       </div>
 
       {packages.length > 1 && (
-        <p className="text-xs text-gray-400 mb-2">ลากแถวเพื่อจัดลำดับแพ็กเกจที่ลูกค้าจะเห็น</p>
+        <p className="hidden md:block text-xs text-gray-400 mb-2">ลากแถวเพื่อจัดลำดับแพ็กเกจที่ลูกค้าจะเห็น (บนมือถือจัดลำดับไม่ได้ ใช้คอมพิวเตอร์)</p>
       )}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full">
+        <table className="hidden md:table w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
               <th className="w-10 px-3 py-4" />
@@ -285,6 +285,50 @@ export default function Packages({
             ))}
           </tbody>
         </table>
+
+        {/* มือถือ: การ์ดแทนตาราง 7 คอลัมน์ */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {packages.map(pkg => (
+            <div key={pkg.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800">{pkg.name}</p>
+                  {pkg.description && <p className="mt-0.5 text-xs text-gray-400">{pkg.description}</p>}
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <span className="font-bold text-orange-600">{pkg.pricePerTable.toLocaleString()}</span>
+                  <span className="ml-1 text-xs text-gray-400">฿/โต๊ะ</span>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span>
+                  {pkg.courses.length || pkg.menuLimit} อย่าง · เลือกเองได้ {requiredCourses(pkg).length} ข้อ
+                </span>
+                {pkg.badge && <span className="rounded-full bg-orange-100 px-2.5 py-0.5 font-medium text-orange-600">{pkg.badge}</span>}
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 font-medium text-green-700">
+                  <Check size={10} />
+                  เปิดใช้งาน
+                </span>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => openEdit(pkg)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gray-100 py-2 text-xs font-semibold text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                >
+                  <Edit2 size={13} />
+                  แก้ไข
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(pkg)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-50 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
+                >
+                  <Trash2 size={13} />
+                  ลบ
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Modal */}

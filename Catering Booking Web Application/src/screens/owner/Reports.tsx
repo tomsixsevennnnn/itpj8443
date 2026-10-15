@@ -30,6 +30,9 @@ const MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ
 
 const emptyRow = (key: string, label: string): PeriodRow => ({ key, label, count: 0, tables: 0, revenue: 0, cost: 0, profit: 0 })
 
+/** คอลัมน์รองที่ซ่อนบนจอเล็ก (ต่ำกว่า sm) ให้ตารางพอดีจอ — เหลือ เดือน/ปี, จำนวนงาน, รายได้, กำไร */
+const HIDE_ON_MOBILE = new Set(['จำนวนโต๊ะ', 'ต้นทุน'])
+
 export default function Reports({ bookings, menus, settings }: Readonly<ReportsProps>) {
   const [mode, setMode] = useState<Mode>('month')
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear())
@@ -184,19 +187,24 @@ export default function Reports({ bookings, menus, settings }: Readonly<ReportsP
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
               {[mode === 'month' ? 'เดือน' : 'ปี', 'จำนวนงาน', 'จำนวนโต๊ะ', 'รายได้', 'ต้นทุน', 'กำไร'].map(col => (
-                <th key={col} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{col}</th>
+                <th
+                  key={col}
+                  className={`px-2 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap ${HIDE_ON_MOBILE.has(col) ? 'hidden sm:table-cell' : ''}`}
+                >
+                  {col}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {rows.map(r => (
               <tr key={r.key} className={`hover:bg-orange-50/30 transition-colors ${r.count === 0 ? 'opacity-40' : ''}`}>
-                <td className="px-4 py-3.5 text-sm font-semibold text-gray-800 whitespace-nowrap">{r.label}</td>
-                <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.count} งาน</td>
-                <td className="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.tables.toLocaleString()} โต๊ะ</td>
-                <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.revenue.toLocaleString()}</td>
-                <td className="px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.cost.toLocaleString()}</td>
-                <td className={`px-4 py-3.5 text-sm font-bold whitespace-nowrap ${r.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <td className="px-2 sm:px-4 py-3.5 text-sm font-semibold text-gray-800 whitespace-nowrap">{r.label}</td>
+                <td className="px-2 sm:px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.count} งาน</td>
+                <td className="hidden sm:table-cell px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{r.tables.toLocaleString()} โต๊ะ</td>
+                <td className="px-2 sm:px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.revenue.toLocaleString()}</td>
+                <td className="hidden sm:table-cell px-4 py-3.5 text-sm text-gray-700 whitespace-nowrap">฿{r.cost.toLocaleString()}</td>
+                <td className={`px-2 sm:px-4 py-3.5 text-sm font-bold whitespace-nowrap ${r.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                   ฿{r.profit.toLocaleString()}
                 </td>
               </tr>
@@ -204,12 +212,12 @@ export default function Reports({ bookings, menus, settings }: Readonly<ReportsP
           </tbody>
           <tfoot>
             <tr className="bg-gray-50 border-t border-gray-100 font-bold text-gray-900">
-              <td className="px-4 py-3.5 text-sm whitespace-nowrap">รวมทั้งหมด</td>
-              <td className="px-4 py-3.5 text-sm whitespace-nowrap">{totals.count} งาน</td>
-              <td className="px-4 py-3.5 text-sm whitespace-nowrap">{totals.tables.toLocaleString()} โต๊ะ</td>
-              <td className="px-4 py-3.5 text-sm whitespace-nowrap">฿{totals.revenue.toLocaleString()}</td>
-              <td className="px-4 py-3.5 text-sm whitespace-nowrap">฿{totals.cost.toLocaleString()}</td>
-              <td className={`px-4 py-3.5 text-sm whitespace-nowrap ${totals.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              <td className="px-2 sm:px-4 py-3.5 text-sm whitespace-nowrap">รวมทั้งหมด</td>
+              <td className="px-2 sm:px-4 py-3.5 text-sm whitespace-nowrap">{totals.count} งาน</td>
+              <td className="hidden sm:table-cell px-4 py-3.5 text-sm whitespace-nowrap">{totals.tables.toLocaleString()} โต๊ะ</td>
+              <td className="px-2 sm:px-4 py-3.5 text-sm whitespace-nowrap">฿{totals.revenue.toLocaleString()}</td>
+              <td className="hidden sm:table-cell px-4 py-3.5 text-sm whitespace-nowrap">฿{totals.cost.toLocaleString()}</td>
+              <td className={`px-2 sm:px-4 py-3.5 text-sm whitespace-nowrap ${totals.profit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                 ฿{totals.profit.toLocaleString()}
               </td>
             </tr>
