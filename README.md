@@ -263,13 +263,36 @@ Frontend: `VITE_API_BASE_URL` (URL ของ backend — ฝังตอน buil
 5. **Frontend บน Vercel:**
    1. vercel.com → Add New → Project → เลือก repo นี้ → **Root Directory = `Catering Booking Web Application`** (Framework Vite ตรวจเอง ค่า build ตั้งไว้แล้วใน `vercel.json`)
    2. Environment Variables (ฝังตอน build เปลี่ยนแล้วต้อง redeploy): `VITE_API_BASE_URL` (URL backend บน Railway), `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, `VITE_AUTH0_AUDIENCE`
-   3. Deploy แล้วได้ URL เช่น `https://xxx.vercel.app` (push เข้า `main` ครั้งต่อไป Vercel deploy ให้เอง)
+   3. Deploy แล้วได้ URL เช่น `https://xxx.vercel.app` (ถ้า import ด้วยลิงก์ repo โดยไม่ได้เชื่อม GitHub การ push **ไม่** deploy ให้เอง ต้อง deploy เองตามหัวข้อ "Deploy frontend ซ้ำด้วย Vercel CLI" ด้านล่าง)
    4. **Auth0** (Applications → Settings): ใส่ URL ของ Vercel ใน Allowed Callback URLs, Allowed Logout URLs, Allowed Web Origins
    5. **Railway** (backend → Variables): เพิ่ม URL ของ Vercel ใน `FRONTEND_ORIGIN` (คั่นหลายค่าด้วย `,` เก็บ `http://localhost:8443` ไว้ได้) ไม่งั้น CORS บล็อก
    - `vercel.json` ทำให้ทุก path (เช่น `/{slug}`, `/owner/orders`) โหลดหน้าเดียวกัน รีเฟรชแล้วไม่ 404
    - URL ของ Preview deployment (branch/PR) ไม่อยู่ใน Auth0/CORS จึง login ไม่ได้ ใช้ทดสอบหน้าตาเท่านั้น
 6. **Deploy ด้วยมือ:** `railway up` ที่รากโปรเจกต์ (ถ้าขึ้น "Snapshot code timeout" รอสักครู่แล้วรันใหม่) ดู log `railway logs` ดูไฟล์ใน volume `railway ssh -- ls -la /data/uploads/slips`
 7. **ตรวจสุขภาพ:** `GET /health` (โปรเซสทำงาน) และ `GET /health/ready` (เชื่อมฐานข้อมูลได้) ไม่ต้อง login
+
+### Deploy frontend ซ้ำด้วย Vercel CLI
+
+สถานะปัจจุบัน (ต.ค. 2569): โปรเจกต์ Vercel ชื่อ `itpj8443` (ทีม `topsixseven3-9882`) ตั้งค่า Root Directory เป็น `Catering Booking Web Application` และใส่ตัวแปร `VITE_*` ครบแล้ว **ยังไม่ได้เชื่อม GitHub** — push เข้า `main` จึงไม่ทำให้เว็บอัปเดต
+
+ลิงก์ที่ใช้งานจริง: `https://cateringbooking.vercel.app` (ลิงก์หลัก ผ่าน CORS ของ backend แล้ว) และ `https://itpj8443.vercel.app` (**backend ยังไม่อนุญาต CORS ลิงก์นี้** — ถ้าจะใช้ ต้องเพิ่มใน `FRONTEND_ORIGIN` ของ Railway และใน Auth0 ด้วย)
+
+**อัปเดตเว็บหลังแก้โค้ด** (รันที่ **โฟลเดอร์รากของโปรเจกต์** `itproject` ไม่ใช่ในโฟลเดอร์ frontend):
+```
+vercel login        # ครั้งแรก/เมื่อ token หมดอายุ (เปิดเบราว์เซอร์ให้ยืนยัน)
+vercel link --yes --project itpj8443   # ครั้งแรกบนเครื่องใหม่เท่านั้น
+vercel --prod
+```
+- ห้ามรัน `vercel` ในโฟลเดอร์ `Catering Booking Web Application` — โปรเจกต์ตั้ง Root Directory ไว้แล้ว CLI จะต่อชื่อโฟลเดอร์ซ้ำเป็น `...\Catering Booking Web Application\Catering Booking Web Application` แล้ว error ว่าไม่พบ path
+- **เก็บกวาดหลัง `vercel link`:** CLI เติมบรรทัด `.vercel` และ `.env*` ลงในไฟล์ `.gitignore` และสร้าง `.env.local` (มี token ชั่วคราว) — ให้ย้อน `.gitignore` (`git checkout -- .gitignore`) เพราะ `.env*` จะซ่อน `.env.example` ไปด้วย และลบ `.env.local` โฟลเดอร์ `.vercel/` เก็บไว้ได้ (ถูก ignore อยู่แล้ว ใช้ผูกโปรเจกต์ครั้งต่อไป)
+- ค่า `VITE_*` ฝังตอน build — แก้ค่าใน Vercel แล้วต้อง deploy ใหม่ถึงมีผล
+- ตรวจหลัง deploy: `https://<ลิงก์>/`, `/{slug ร้าน}`, `/owner/orders` ต้องตอบ 200 (รีเฟรชแล้วไม่ 404) และ `/privacy.html`, `/terms.html` เปิดได้
+- ทางเลือก: เชื่อม GitHub (Vercel → Settings → Git) ให้ push เข้า `main` แล้ว deploy เอง — ต้องให้สิทธิ์ Vercel GitHub App กับ repo และอีเมลผู้เขียน commit ต้องตรงกับบัญชี GitHub ที่เชื่อม (แพ็กเกจ Hobby อาจบล็อกถ้าไม่ตรง)
+- Backend บน Railway ก็ **ไม่ deploy เองเมื่อ push** เช่นกัน ใช้ `railway up` ที่รากโปรเจกต์ และต้องรัน `pnpm exec prisma migrate deploy` (ในโฟลเดอร์ `backend`) เมื่อมี migration ใหม่ก่อน/หลัง deploy ถ้ายังไม่ได้ตั้ง Pre-deploy command ใน Railway
+
+### ข้อมูลส่วนบุคคลและคำขอลบข้อมูล
+
+หน้า `/privacy.html` และ `/terms.html` (ในโฟลเดอร์ `public/`) ระบุผู้ให้บริการ (พีรณัฐ ทุ่งศรีแก้ว) และ **ไม่ได้สัญญาระยะเวลาลบข้อมูลอัตโนมัติ** — ระบบไม่มีงานลบข้อมูลตามเวลา และไม่มีปุ่มให้ลูกค้าลบข้อมูลตัวเอง เมื่อลูกค้าขอให้ลบ ต้องลบเองในฐานข้อมูล: ข้อมูลบัญชี (`User`), ใบจองของเขา (ชื่อ `customerName`, `phone`, `lineId`, `location`/`locationDetail`) และไฟล์สลิปใน `UPLOADS_DIR/slips` (เก็บยอดรวม วันที่ จำนวนโต๊ะไว้ได้เพื่อรายงานของร้าน) ถ้าจะใช้งานจริงจัง ควรให้ผู้ที่มีความรู้ด้านกฎหมายตรวจเนื้อหาสองหน้านี้ก่อน
 
 ความปลอดภัยที่ backend เปิดไว้: `helmet` (security headers), ตัวจำกัดอัตราเรียก 60 ครั้ง/นาที/IP (ใช้ `trust proxy` ให้นับ IP ผู้ใช้จริง), รับ token ทาง query string เฉพาะ `/realtime/*` (SSE) ส่วน route อื่นต้องใช้ header
 
