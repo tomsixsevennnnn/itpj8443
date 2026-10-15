@@ -137,6 +137,10 @@ export default function Login({ shopId, onChangeShop }: Readonly<LoginProps>) {
             เจ้าของร้านที่ได้รับเชิญด้วยอีเมล Google กดปุ่ม "เข้าสู่ระบบด้วย Google" ด้านบนได้เลย
           </p>
 
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-gray-400">
+            การเข้าสู่ระบบถือว่าคุณรับทราบ <a href="/terms.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">เงื่อนไขการใช้งาน</a> และ <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">นโยบายความเป็นส่วนตัว</a>
+          </p>
+
           {/* เลือกร้านผิด — กลับไปหน้ารายชื่อร้านใหม่ */}
           <button
             onClick={onChangeShop}

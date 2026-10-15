@@ -44,6 +44,8 @@ export default function CompleteProfile({ name, surname, phone, lineId, onComple
     lineId: FILTERS.lineId(lineId),
   })
   const [touched, setTouched] = useState<Partial<Record<FormKey, boolean>>>({})
+  /** ต้องติ๊กยอมรับเงื่อนไขและนโยบายความเป็นส่วนตัวก่อนบันทึกข้อมูลติดต่อ (ยังไม่เก็บบันทึกเวลายอมรับลงฐานข้อมูล) */
+  const [accepted, setAccepted] = useState(false)
 
   /** ข้อความแจ้งใต้ช่อง — ขึ้นเมื่อผู้ใช้แตะช่องนั้นแล้วออกไป (ไม่ขึ้นระหว่างยังพิมพ์ไม่เสร็จ) */
   const errors: Partial<Record<FormKey, string>> = {
@@ -52,9 +54,10 @@ export default function CompleteProfile({ name, surname, phone, lineId, onComple
     phone: isValidPhone(form.phone) ? '' : 'เบอร์โทรต้องเป็นตัวเลข 9–10 หลัก ขึ้นต้นด้วย 0',
   }
   const isValid = !errors.name && !errors.surname && !errors.phone
+  const canSave = isValid && accepted
 
   const handleSave = () => {
-    if (!isValid) {
+    if (!canSave) {
       setTouched({ name: true, surname: true, phone: true })
       return
     }
@@ -113,10 +116,22 @@ export default function CompleteProfile({ name, surname, phone, lineId, onComple
           })}
         </div>
 
+        <label className="mt-5 flex items-start gap-2.5 text-xs leading-relaxed text-gray-600">
+          <input
+            type="checkbox"
+            checked={accepted}
+            onChange={(e) => setAccepted(e.target.checked)}
+            className="mt-0.5 h-4 w-4 flex-shrink-0 accent-orange-500"
+          />
+          <span>
+            ฉันได้อ่านและยอมรับ <a href="/terms.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">เงื่อนไขการใช้งาน</a> และ <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-orange-600 underline">นโยบายความเป็นส่วนตัว</a> รวมถึงยินยอมให้เก็บและใช้ข้อมูลติดต่อนี้เพื่อการจอง
+          </span>
+        </label>
+
         <button
           onClick={handleSave}
-          disabled={!isValid}
-          className="mt-6 w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl py-3.5 font-semibold transition-colors"
+          disabled={!canSave}
+          className="mt-4 w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-2xl py-3.5 font-semibold transition-colors"
         >
           บันทึกและเริ่มใช้งาน
         </button>
