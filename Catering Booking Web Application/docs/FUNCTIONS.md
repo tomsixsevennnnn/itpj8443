@@ -223,7 +223,7 @@ derive จาก `bookings` จริงผ่าน `buildNotifications()` (`sr
 
 ### 3.8 `UserRoles.tsx`
 
-จัดการ owner ของร้านที่เปิดอยู่: โหลดรายชื่อ owner (`GET /users/owners`), ค้นหาผู้ใช้ด้วยอีเมล (`GET /users/search`) อัตโนมัติเมื่อพิมพ์ ≥ 3 ตัวอักษร (debounce 300 ms), แต่งตั้ง/ถอดด้วย `PATCH /users/:id/role` (`OWNER`/`CUSTOMER`) กันถอดตัวเอง (`currentAuth0Sub`) — backend กันเคสถอด owner คนสุดท้าย รายชื่อรีโหลดเงียบๆ เมื่อได้สัญญาณ SSE หัวข้อ `users`
+จัดการ owner ของร้านที่เปิดอยู่ (มีการ์ด "เชิญเจ้าของร้านด้วยอีเมล" — ใส่อีเมลแล้วเชิญได้แม้ยังไม่เคย login แสดงคำเชิญที่ยังไม่มีคนรับพร้อมปุ่มยกเลิก ผ่าน `/users/owner-invites`): โหลดรายชื่อ owner (`GET /users/owners`), ค้นหาผู้ใช้ด้วยอีเมล (`GET /users/search`) อัตโนมัติเมื่อพิมพ์ ≥ 3 ตัวอักษร (debounce 300 ms), แต่งตั้ง/ถอดด้วย `PATCH /users/:id/role` (`OWNER`/`CUSTOMER`) กันถอดตัวเอง (`currentAuth0Sub`) — backend กันเคสถอด owner คนสุดท้าย รายชื่อรีโหลดเงียบๆ เมื่อได้สัญญาณ SSE หัวข้อ `users`
 
 ### 3.9 `AuditLog.tsx`
 
@@ -395,6 +395,9 @@ endpoint ส่วนใหญ่อยู่หลัง `@UseGuards(JwtAuthGua
 | `PATCH /users/me` | login แล้ว | แก้โปรไฟล์ตัวเอง (ชื่อ/นามสกุล/เบอร์/Line ID) |
 | `GET /users/search?email=` | owner, super_admin | ค้นหาผู้ใช้ที่เคย login แล้วด้วยอีเมล (ไม่ต้องพิมพ์ครบ, สูงสุด 20 คน) |
 | `GET /users/owners` | owner, super_admin | owner ของร้านที่เปิดอยู่ (owner) / owner ข้ามทุกร้าน 1 แถวต่อ 1 สมาชิกภาพ (super admin) |
+| `GET /users/owner-invites` | owner | คำเชิญเจ้าของร้านที่ยังไม่มีคนรับ ของร้านตัวเอง |
+| `POST /users/owner-invites` | owner (10/นาที) | เชิญเจ้าของร้านด้วยอีเมล ใช้ `ShopsService.addOwner` เดียวกับที่ super admin ใช้ แต่จำกัดที่ร้านตัวเองเสมอ — เคย login แล้วเพิ่ม `ShopMember` ทันที ยังไม่เคย login สร้าง `ShopInvite` (คืน `invited: true`) |
+| `DELETE /users/owner-invites/:inviteId` | owner | ยกเลิกคำเชิญของร้านตัวเอง (ร้านอื่นหาไม่เจอ) |
 | `PATCH /users/:id/role` | owner, super_admin | **owner:** เปลี่ยน CUSTOMER ↔ OWNER ในร้านตัวเองเท่านั้น (เพิ่ม/ลบ `ShopMember`, ต้องเหลืออย่างน้อย 1 คน, แตะ super admin ไม่ได้); **super admin:** เปลี่ยน CUSTOMER ↔ SUPER_ADMIN เท่านั้น (ตั้ง/ถอด owner ต้องทำผ่าน `/shops/:id/owners`); บันทึก audit log `user.setRole` และแจ้ง SSE หัวข้อ `users` |
 
 ### 6.1b `ShopsController` (`/shops`)
@@ -418,7 +421,7 @@ endpoint ส่วนใหญ่อยู่หลัง `@UseGuards(JwtAuthGua
 | `GET /bookings/availability` | login แล้ว | คิวรับงานไม่มีข้อมูลส่วนตัว (`select` เฉพาะ date/timeSlot/tables/status) |
 | `POST /bookings` | `@Roles('customer')`, throttle 10/นาที | **ปฏิเสธวันที่ย้อนหลัง (Asia/Bangkok), วันปิดร้าน, วันที่มีงานอยู่แล้ว (409);** ดึง `Package` จริงจาก `packageId` (ร้านตาม `shopId`), validate `menus` ต้องอยู่ใน courses ของแพ็กเกจนั้น, คำนวณ `pricePerTable`/`deliveryFee`/`totalPrice` เองจาก settings จริง (ไม่รับจาก client), รันใน transaction ระดับ `Serializable` + retry กันจองซ้อนวันเดียวกัน, ออกเลขที่ใบจองแบบ atomic |
 | `PATCH /bookings/:id` | `@Roles('owner')` | อัปเดตสถานะ/แผนกำลังคน + บันทึก `lastEditedBy` — **ตรวจกฎเปลี่ยนสถานะ** (`isStatusTransitionAllowed` ใน `booking-rules.ts`, ผิดกฎตอบ 400) |
-| `PATCH /bookings/:id/payment-slip` | `@Roles('customer')` | รับ path จาก `POST /uploads/payment-slip` (`/uploads/slips/<id>.png\|jpg\|jpeg\|webp`) + `paymentChannelKey?` (`bank:<เลข>`/`pp:<เลข>`), เช็คเจ้าของใบจอง (403), ถ้าสลิปเดิมตรวจผ่านแล้ว → 409; ร้านที่ตั้ง SlipOK: ส่งรูปตรวจ (ยอดมัดจำ, สลิปซ้ำ) เก็บผล/transRef/ผู้รับ แล้วเทียบผู้รับกับช่องทางที่เลือก (`receiver-match.ts`) |
+| `PATCH /bookings/:id/payment-slip` | `@Roles('customer')` | รับ path จาก `POST /uploads/payment-slip` (`/uploads/slips/<id>.png\|jpg\|jpeg\|webp`) + `paymentChannelKey?` (`bank:<เลข>`/`pp:<เลข>`), เช็คเจ้าของใบจอง (403), ถ้าสลิปเดิมตรวจผ่านแล้ว → 409; **แนบครบ 10 ครั้ง (`paymentSlipAttempts`, `MAX_SLIP_ATTEMPTS`) → 409** และแนบซ้ำถี่กว่า 10 วินาที → 429; ร้านที่ตั้ง SlipOK: ส่งรูปตรวจ (ยอดมัดจำ, สลิปซ้ำ) เก็บผล/transRef/ผู้รับ แล้วเทียบผู้รับกับช่องทางที่เลือก (`receiver-match.ts`) |
 | `GET /bookings/:id/payment-slip` | ไม่มี `@Roles` (ตรวจใน service) | ส่งไฟล์สลิป เฉพาะเจ้าของใบจองหรือ owner ร้านเดียวกัน (สลิปไม่ใช่ไฟล์สาธารณะ) |
 
 ### 6.3 `MenusController` (`/menus`)

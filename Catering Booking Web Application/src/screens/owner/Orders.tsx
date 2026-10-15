@@ -10,7 +10,7 @@ import { bookingCustomerName, docNumber } from '../../documents'
 import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
-import { STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
+import { STATUS_BUTTON_LABEL, STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 import { PHASE_FILTER_ORDER, PHASE_INFO, bookingPhase, phaseNote, type BookingPhase } from '../../bookingPhase'
 
 const PAGE_SIZE = 20
@@ -104,7 +104,7 @@ export default function Orders({
 
   const { pending: statusPending, feedback: statusFeedback, run: updateStatus } = useStatusUpdate(
     onUpdateBooking,
-    status => STATUS_CONFIG[status].label,
+    status => STATUS_BUTTON_LABEL[status],
   )
 
   /* --- แผนกำลังคน ------------------------------------------------- */
@@ -604,7 +604,7 @@ export default function Orders({
                         >
                           {isPending && <Loader2 size={12} className="animate-spin" />}
                           {!isPending && isActive && <Check size={12} />}
-                          {isPending ? 'กำลังเปลี่ยน...' : sc.label}
+                          {isPending ? 'กำลังเปลี่ยน...' : STATUS_BUTTON_LABEL[s]}
                         </button>
                       )
                     })}

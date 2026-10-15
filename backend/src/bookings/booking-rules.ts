@@ -53,6 +53,9 @@ export const menuQuotaViolation = (courses: CourseForQuota[], selectedNames: str
 /** แนบสลิปซ้ำในใบจองเดิมได้ไม่ถี่กว่านี้ — ทุกครั้งที่แนบเรียก SlipOK ซึ่งกินโควตาที่ร้านจ่ายเงิน กันกดรัวๆ เผาโควตา */
 export const SLIP_RESUBMIT_COOLDOWN_MS = 10_000
 
+/** จำนวนครั้งสูงสุดที่แนบสลิปในใบจองเดียว (นับทุกครั้งที่แนบ) — เกินนี้ต้องติดต่อร้าน กันเผาโควตา SlipOK ที่ร้านจ่ายเงิน */
+export const MAX_SLIP_ATTEMPTS = 10
+
 export const todayInBangkok = (now: Date = new Date()): string =>
   new Intl.DateTimeFormat('en-CA', { timeZone: BANGKOK, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
 

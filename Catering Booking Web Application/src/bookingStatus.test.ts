@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canChangeStatus } from './bookingStatus'
+import { STATUS_BUTTON_LABEL, canChangeStatus } from './bookingStatus'
 
 describe('canChangeStatus (ตรงกับกฎของ backend)', () => {
   it('สถานะเดิม — ผ่านเสมอ', () => {
@@ -21,5 +21,12 @@ describe('canChangeStatus (ตรงกับกฎของ backend)', () => {
 
   it('ยกเลิกแล้ว — เปลี่ยนต่อไม่ได้', () => {
     for (const to of ['pending', 'confirmed', 'completed'] as const) expect(canChangeStatus('cancelled', to)).toBe(false)
+  })
+})
+
+describe('STATUS_BUTTON_LABEL', () => {
+  it('ครบทุกสถานะจริง และ pending ไม่ใช้คำว่า "รอยืนยัน" (กันสับสนกับป้ายรอร้านยืนยัน)', () => {
+    expect(Object.keys(STATUS_BUTTON_LABEL).sort()).toEqual(['cancelled', 'completed', 'confirmed', 'pending'])
+    expect(STATUS_BUTTON_LABEL.pending).toBe('ยังไม่ยืนยัน')
   })
 })

@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Loader2, Search, Shield, ShieldOff, Users } from 'lucide-react'
-import type { BackendUser } from '../../api'
+import { AlertTriangle, Check, Loader2, Mail, Search, Shield, ShieldOff, UserMinus, Users } from 'lucide-react'
+import type { BackendUser, OwnerInvite } from '../../api'
 
 interface UserRolesProps {
   onSearchUser: (email: string) => Promise<BackendUser[]>
   onSetRole: (userId: string, role: 'OWNER' | 'CUSTOMER') => Promise<void>
   onListOwners: () => Promise<BackendUser[]>
+  /** คำเชิญเจ้าของร้านที่ยังไม่มีคนรับ (อีเมลที่ยังไม่เคย login) */
+  onListInvites: () => Promise<OwnerInvite[]>
+  /** เชิญด้วยอีเมล — คืน invited: true ถ้ายังไม่เคย login (เป็นคำเชิญรอ) false ถ้าเพิ่มเป็นเจ้าของร้านทันที */
+  onInviteOwner: (email: string) => Promise<{ invited: boolean }>
+  onRemoveInvite: (inviteId: string) => Promise<void>
   /** auth0Sub ของ owner ที่ login อยู่ตอนนี้ — กันเผลอถอดสิทธิ์ owner ตัวเอง (backend กันแค่เคส "คนสุดท้าย"
    *  แต่เคสนี้ยังทำได้ถ้ามี owner คนอื่นเหลืออยู่ ซึ่งอาจไม่ตั้งใจ) */
   currentAuth0Sub?: string
@@ -69,7 +74,16 @@ function UserRow({ user, isSelf, busy, onPromote, onDemote }: Readonly<UserRowPr
   )
 }
 
-export default function UserRoles({ onSearchUser, onSetRole, onListOwners, currentAuth0Sub, refreshSignal }: Readonly<UserRolesProps>) {
+export default function UserRoles({
+  onSearchUser,
+  onSetRole,
+  onListOwners,
+  onListInvites,
+  onInviteOwner,
+  onRemoveInvite,
+  currentAuth0Sub,
+  refreshSignal,
+}: Readonly<UserRolesProps>) {
   const [owners, setOwners] = useState<BackendUser[] | null>(null)
   const [loadingOwners, setLoadingOwners] = useState(true)
   const [ownersError, setOwnersError] = useState<string | null>(null)
@@ -82,6 +96,58 @@ export default function UserRoles({ onSearchUser, onSetRole, onListOwners, curre
 
   const [actioningId, setActioningId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  const [invites, setInvites] = useState<OwnerInvite[]>([])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [inviteMessage, setInviteMessage] = useState<{ ok: boolean; text: string } | null>(null)
+  const [removingInviteId, setRemovingInviteId] = useState<string | null>(null)
+
+  const loadInvites = () => {
+    onListInvites()
+      .then(setInvites)
+      .catch(() => {
+        // โหลดคำเชิญไม่ได้ (เครือข่าย) — ปล่อยรายการเดิมไว้ ไม่บล็อกส่วนอื่นของหน้านี้
+      })
+  }
+
+  const emailLooksValid = /^\S+@\S+\.\S+$/.test(inviteEmail.trim())
+
+  const handleInvite = async () => {
+    const value = inviteEmail.trim().toLowerCase()
+    if (!emailLooksValid || inviting) return
+    setInviting(true)
+    setInviteMessage(null)
+    try {
+      const result = await onInviteOwner(value)
+      setInviteEmail('')
+      setInviteMessage({
+        ok: true,
+        text: result.invited
+          ? `เชิญ ${value} แล้ว — เมื่อเขา login ครั้งแรกด้วยอีเมลนี้ (เช่น ปุ่ม "เข้าสู่ระบบด้วย Google") จะได้สิทธิ์เจ้าของร้านเอง`
+          : `เพิ่ม ${value} เป็นเจ้าของร้านแล้ว (เขาเคย login มาก่อน)`,
+      })
+      loadInvites()
+      loadOwners({ silent: true })
+    } catch (err) {
+      setInviteMessage({ ok: false, text: err instanceof Error ? err.message : 'เชิญไม่สำเร็จ' })
+    } finally {
+      setInviting(false)
+    }
+  }
+
+  const handleRemoveInvite = async (invite: OwnerInvite) => {
+    setRemovingInviteId(invite.id)
+    setInviteMessage(null)
+    try {
+      await onRemoveInvite(invite.id)
+      setInvites(prev => prev.filter(i => i.id !== invite.id))
+    } catch (err) {
+      setInviteMessage({ ok: false, text: err instanceof Error ? err.message : 'ยกเลิกคำเชิญไม่สำเร็จ' })
+    } finally {
+      setRemovingInviteId(null)
+    }
+  }
 
   const loadOwners = (opts: { silent?: boolean } = {}) => {
     if (!opts.silent) setLoadingOwners(true)
@@ -98,6 +164,7 @@ export default function UserRoles({ onSearchUser, onSetRole, onListOwners, curre
 
   useEffect(() => {
     loadOwners()
+    loadInvites()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -106,6 +173,7 @@ export default function UserRoles({ onSearchUser, onSetRole, onListOwners, curre
   useEffect(() => {
     if (!refreshSignal) return
     loadOwners({ silent: true })
+    loadInvites()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshSignal])
 
@@ -191,6 +259,69 @@ export default function UserRoles({ onSearchUser, onSetRole, onListOwners, curre
         )}
       </div>
 
+      {/* เชิญด้วยอีเมล — ยังไม่เคย login ก็เชิญได้ */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Mail size={18} className="text-orange-500" />
+          <h2 className="font-bold text-gray-900">เชิญเจ้าของร้านด้วยอีเมล</h2>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          ใส่อีเมลของคนที่จะให้เป็นเจ้าของร้านร่วมกัน แม้ยังไม่เคย login ก็เชิญได้ — เมื่อเขาเข้าสู่ระบบด้วยอีเมลนั้นครั้งแรก
+          (แนะนำให้ใช้ปุ่ม "เข้าสู่ระบบด้วย Google" กับอีเมล Gmail) ระบบให้สิทธิ์เจ้าของร้านเอง
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={inviteEmail}
+            maxLength={254}
+            onChange={e => setInviteEmail(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleInvite()}
+            placeholder="อีเมลที่จะเชิญ เช่น name@gmail.com"
+            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          <button
+            onClick={handleInvite}
+            disabled={inviting || !emailLooksValid}
+            className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+          >
+            {inviting ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+            เชิญ
+          </button>
+        </div>
+
+        {inviteMessage && (
+          <p className={`flex items-start gap-1.5 text-xs mt-3 ${inviteMessage.ok ? 'text-green-700' : 'text-red-600'}`}>
+            {inviteMessage.ok ? <Check size={12} className="mt-0.5 flex-shrink-0" /> : <AlertTriangle size={12} className="mt-0.5 flex-shrink-0" />}
+            {inviteMessage.text}
+          </p>
+        )}
+
+        {invites.length > 0 && (
+          <div className="mt-4 space-y-1.5">
+            <p className="text-xs font-semibold text-gray-500">คำเชิญที่ยังไม่มีคนรับ ({invites.length})</p>
+            {invites.map(invite => (
+              <div
+                key={invite.id}
+                className="flex items-center justify-between gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-700 truncate">{invite.email}</p>
+                  <p className="text-[11px] text-amber-600">รอ login ครั้งแรกเพื่อรับสิทธิ์เจ้าของร้าน</p>
+                </div>
+                <button
+                  onClick={() => handleRemoveInvite(invite)}
+                  disabled={removingInviteId === invite.id}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-red-500 hover:text-red-600 disabled:opacity-50 flex-shrink-0"
+                >
+                  {removingInviteId === invite.id ? <Loader2 size={11} className="animate-spin" /> : <UserMinus size={11} />}
+                  ยกเลิกคำเชิญ
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ค้นหาเพื่อเลื่อนคนใหม่เป็น owner */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
         <div className="flex items-center gap-2 mb-2">
@@ -198,7 +329,7 @@ export default function UserRoles({ onSearchUser, onSetRole, onListOwners, curre
           <h2 className="font-bold text-gray-900">เพิ่ม/ถอดสิทธิ์เจ้าของร้าน</h2>
         </div>
         <p className="text-xs text-gray-400 mb-4">
-          พิมพ์อีเมล (ไม่ต้องครบก็ค้นได้) ของผู้ใช้ที่เคย login เข้าระบบมาก่อนอย่างน้อย 1 ครั้ง เพื่อเลื่อน/ถอดสิทธิ์เจ้าของร้าน
+          ค้นหาผู้ใช้ที่เคย login เข้าระบบแล้ว (พิมพ์อีเมลไม่ต้องครบก็ค้นได้) เพื่อเลื่อน/ถอดสิทธิ์เจ้าของร้าน — ถ้ายังไม่เคย login ให้ใช้ "เชิญเจ้าของร้านด้วยอีเมล" ด้านบน
         </p>
 
         <div className="flex gap-2 mb-2">
@@ -237,7 +368,7 @@ export default function UserRoles({ onSearchUser, onSetRole, onListOwners, curre
           <div className="mt-4 space-y-2">
             {results.length === 0 ? (
               <p className="text-sm text-gray-400 text-center py-6">
-                ไม่พบผู้ใช้อีเมลนี้ — ต้องเคย login เข้าระบบมาก่อนอย่างน้อย 1 ครั้ง
+                ไม่พบผู้ใช้อีเมลนี้ — ยังไม่เคย login ใช่ไหม? ลองเชิญด้วยอีเมลในการ์ดด้านบน
               </p>
             ) : (
               results.map(user => (

@@ -169,6 +169,15 @@ export class ShopsService {
     return { ...user, role: Role.OWNER, shopId, invited: false as const }
   }
 
+  /** คำเชิญเป็นเจ้าของร้านที่ยังไม่มีคนรับของร้านนี้ — ให้เจ้าของร้านดูและยกเลิกได้ */
+  listInvites(shopId: string) {
+    return this.prisma.shopInvite.findMany({
+      where: { shopId },
+      select: { id: true, email: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+
   /** ยกเลิกคำเชิญที่ยังไม่มีคนรับ (เชิญผิดอีเมล) */
   async removeInvite(shopId: string, inviteId: string, editorAuth0Sub: string) {
     const invite = await this.prisma.shopInvite.findFirst({ where: { id: inviteId, shopId } })

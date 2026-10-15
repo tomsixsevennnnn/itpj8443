@@ -9,7 +9,7 @@ import { useAuthedSlipUrl } from '../../useAuthedSlipUrl'
 import SlipLoadStatus from '../../components/SlipLoadStatus'
 import { StatusFeedbackNote, useStatusUpdate } from './useStatusUpdate'
 import { PHASE_INFO, bookingPhase, type BookingPhase } from '../../bookingPhase'
-import { STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
+import { STATUS_BUTTON_LABEL, STATUS_LOCKED_HINT, canChangeStatus } from '../../bookingStatus'
 import {
   BASE_SLOTS,
   BOOKING_STATUS_INFO,
@@ -48,7 +48,7 @@ const LEGEND_PHASES: BookingPhase[] = ['awaiting-deposit', 'awaiting-review', 'c
 export default function CalendarView({ bookings, onUpdateBooking, onFetchPaymentSlip }: Readonly<CalendarViewProps>) {
   const { pending: statusPending, feedback: statusFeedback, run: updateStatus } = useStatusUpdate(
     onUpdateBooking,
-    status => BOOKING_STATUS_INFO[status].label,
+    status => STATUS_BUTTON_LABEL[status],
   )
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
@@ -462,7 +462,7 @@ export default function CalendarView({ bookings, onUpdateBooking, onFetchPayment
                       >
                         {isPending && <Loader2 size={11} className="animate-spin" />}
                         {!isPending && isActive && <Check size={11} />}
-                        {isPending ? 'กำลังเปลี่ยน...' : info.label}
+                        {isPending ? 'กำลังเปลี่ยน...' : STATUS_BUTTON_LABEL[s]}
                       </button>
                     )
                   })}

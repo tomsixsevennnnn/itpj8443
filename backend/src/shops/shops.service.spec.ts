@@ -236,6 +236,22 @@ describe('ShopsService', () => {
     })
   })
 
+  describe('listInvites', () => {
+    it('คืนเฉพาะคำเชิญของร้านนี้ (เรียงเก่าก่อน) ไม่รวมร้านอื่น', async () => {
+      const { service, prisma } = makeService()
+      prisma.shopInvite.findMany = jest.fn().mockResolvedValue([{ id: 'i1', email: 'a@x.com', createdAt: new Date() }])
+
+      const result = await service.listInvites('shop1')
+
+      expect(prisma.shopInvite.findMany).toHaveBeenCalledWith({
+        where: { shopId: 'shop1' },
+        select: { id: true, email: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      })
+      expect(result).toHaveLength(1)
+    })
+  })
+
   describe('removeInvite', () => {
     it('ไม่พบคำเชิญของร้านนี้ — throw NotFoundException', async () => {
       const { service, prisma } = makeService()

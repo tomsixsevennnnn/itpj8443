@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Logger, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, ForbiddenException, Get, Logger, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
 import type { Request } from 'express'
 import { Throttle } from '@nestjs/throttler'
 import { Role } from '@prisma/client'
@@ -7,6 +7,8 @@ import { fetchVerifiedIdentity } from '../auth/userinfo'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { Roles } from '../auth/roles.decorator'
 import { RolesGuard } from '../auth/roles.guard'
+import { AddOwnerDto } from '../shops/dto/add-owner.dto'
+import { ShopsService } from '../shops/shops.service'
 import { SearchUsersDto } from './dto/search-users.dto'
 import { SetRoleDto } from './dto/set-role.dto'
 import { SyncProfileDto } from './dto/sync-profile.dto'
@@ -18,7 +20,10 @@ import { UsersService } from './users.service'
 export class UsersController {
   private readonly logger = new Logger(UsersController.name)
 
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly shops: ShopsService,
+  ) {}
 
   /**
    * frontend เรียกทันทีหลัง login สำเร็จ — ส่ง profile จาก ID token มาเอง (access token ไม่มี
@@ -70,6 +75,39 @@ export class UsersController {
     if (editor?.role === Role.SUPER_ADMIN) return this.users.listAllOwners()
     if (!editor?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
     return this.users.listOwnersForShop(editor.shopId)
+  }
+
+  /** ร้านของ owner ที่เรียก (ตาม X-Shop-Id) — ใช้กับ endpoint คำเชิญด้านล่าง ไม่มีร้าน = ไม่มีสิทธิ์ */
+  private async ownShopId(jwtUser: JwtUser): Promise<string> {
+    const editor = await this.users.shopContextFor(jwtUser.sub, jwtUser.requestedShopId)
+    if (!editor?.shopId) throw new ForbiddenException('บัญชีนี้ยังไม่ผูกกับร้านใด')
+    return editor.shopId
+  }
+
+  /** คำเชิญเป็นเจ้าของร้านที่ยังไม่มีคนรับ ของร้านตัวเอง (อีเมลที่ยังไม่เคย login) */
+  @UseGuards(RolesGuard)
+  @Roles('owner')
+  @Get('owner-invites')
+  async ownerInvites(@CurrentUser() jwtUser: JwtUser) {
+    return this.shops.listInvites(await this.ownShopId(jwtUser))
+  }
+
+  /** เชิญเจ้าของร้านคนใหม่ด้วยอีเมล — เคย login แล้วเพิ่มเป็น owner ทันที ยังไม่เคย login สร้างเป็นคำเชิญล่วงหน้า (ได้สิทธิ์เองตอน login ครั้งแรก
+   *  ด้วยอีเมลที่ Auth0 ยืนยัน) ใช้ตรรกะเดียวกับที่ super admin เพิ่ม owner ให้ร้าน แต่จำกัดที่ร้านของตัวเองเสมอ */
+  @UseGuards(RolesGuard)
+  @Roles('owner')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('owner-invites')
+  async inviteOwner(@CurrentUser() jwtUser: JwtUser, @Body() dto: AddOwnerDto) {
+    return this.shops.addOwner(await this.ownShopId(jwtUser), dto.email, jwtUser.sub)
+  }
+
+  /** ยกเลิกคำเชิญที่ยังไม่มีคนรับ (เฉพาะของร้านตัวเอง — ร้านอื่นหาไม่เจอ) */
+  @UseGuards(RolesGuard)
+  @Roles('owner')
+  @Delete('owner-invites/:inviteId')
+  async removeOwnerInvite(@CurrentUser() jwtUser: JwtUser, @Param('inviteId') inviteId: string) {
+    return this.shops.removeInvite(await this.ownShopId(jwtUser), inviteId, jwtUser.sub)
   }
 
   /** เลื่อน/ถอดสิทธิ์ผู้ใช้ — ขอบเขตแยกตาม role ของผู้แก้ไข (ดูรายละเอียดที่ UsersService.setRole) */

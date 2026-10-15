@@ -10,7 +10,7 @@ import { UploadsService } from '../uploads/uploads.service'
 import { CreateBookingDto } from './dto/create-booking.dto'
 import { UpdateBookingDto } from './dto/update-booking.dto'
 import { HOME_ZONE_MAX_KM, METRO_ZONE_MAX_KM, ServiceZone, haversineKm, outsideDeliveryFeeFor, routeDistanceKm, zoneFor } from './geo.util'
-import { SLIP_RESUBMIT_COOLDOWN_MS, isPastEventDate, isStatusTransitionAllowed, menuQuotaViolation } from './booking-rules'
+import { MAX_SLIP_ATTEMPTS, SLIP_RESUBMIT_COOLDOWN_MS, isPastEventDate, isStatusTransitionAllowed, menuQuotaViolation } from './booking-rules'
 import { evaluateChannel, matchReceiver, type ExpectedChannel, type ExpectedReceiver, type SlipReceiver } from '../slip-verify/receiver-match'
 
 /** สถานะที่ยังกินคิวอยู่ — ต้องตรงกับ OCCUPIES_QUEUE ใน frontend src/availability.ts */
@@ -289,6 +289,10 @@ export class BookingsService {
       throw new ConflictException('สลิปนี้ตรวจสอบแล้วว่าชื่อและยอดโอนถูกต้อง ไม่สามารถเปลี่ยนสลิปได้')
     }
 
+    // แนบครบจำนวนครั้งสูงสุดแล้ว — กันเผาโควตา SlipOK ของร้านแบบช้าๆ (ลูกค้าต้องติดต่อร้านให้ตรวจ/ยืนยันเอง)
+    if ((booking.paymentSlipAttempts ?? 0) >= MAX_SLIP_ATTEMPTS) {
+      throw new ConflictException(`แนบสลิปครบ ${MAX_SLIP_ATTEMPTS} ครั้งแล้ว กรุณาติดต่อร้านเพื่อให้ช่วยตรวจสอบการโอนเงิน`)
+    }
     // แนบซ้ำถี่เกินไป = กันเผาโควตา SlipOK ของร้าน (ทุกครั้งที่แนบเรียก SlipOK)
     if (booking.paymentSlipUploadedAt && Date.now() - booking.paymentSlipUploadedAt.getTime() < SLIP_RESUBMIT_COOLDOWN_MS) {
       throw new HttpException('แนบสลิปถี่เกินไป กรุณารอสักครู่แล้วลองใหม่', HttpStatus.TOO_MANY_REQUESTS)
@@ -324,6 +328,7 @@ export class BookingsService {
       data: {
         paymentSlipUrl,
         paymentSlipUploadedAt: new Date(),
+        paymentSlipAttempts: { increment: 1 },
         // เคลียร์ผลตรวจของสลิปเก่าทิ้งเสมอตอนอัปโหลดใหม่ทับ — ไม่งั้นสลิปใหม่ที่ยังไม่ผ่านตรวจ (หรือร้านเพิ่งปิด
         // SlipOK ไป) จะโชว์ผลตรวจของสลิปเก่าค้างอยู่ ทำให้ owner เข้าใจผิดว่าใบนี้ตรวจสอบแล้ว
         paymentSlipVerifyStatus: verify?.status ?? null,

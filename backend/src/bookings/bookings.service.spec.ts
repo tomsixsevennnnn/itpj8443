@@ -362,6 +362,38 @@ describe('BookingsService.updatePaymentSlipAsCustomer', () => {
     expect(prisma.booking.update).not.toHaveBeenCalled()
   })
 
+  it('แนบสลิปครบ 10 ครั้งแล้ว — 409 ไม่เรียก SlipOK ไม่แตะ DB (กันเผาโควตา SlipOK แบบช้าๆ)', async () => {
+    const { service, prisma, settingsService } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({
+      id: 'b1',
+      customerId: 'c1',
+      paymentSlipAttempts: 10,
+      paymentSlipUploadedAt: new Date(Date.now() - 3_600_000),
+    })
+
+    await expect(service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')).rejects.toThrow('แนบสลิปครบ 10 ครั้งแล้ว')
+    expect(settingsService.getSlipOkConfig).not.toHaveBeenCalled()
+    expect(prisma.booking.update).not.toHaveBeenCalled()
+  })
+
+  it('แนบสลิปสำเร็จ — เพิ่มตัวนับจำนวนครั้ง (ครั้งที่ 9 ยังแนบได้)', async () => {
+    const { service, prisma } = makeService()
+    prisma.booking.findUnique.mockResolvedValue({
+      id: 'b1',
+      customerId: 'c1',
+      shopId: 'shop1',
+      paymentSlipAttempts: 9,
+      paymentSlipUploadedAt: new Date(Date.now() - 3_600_000),
+    })
+    prisma.booking.update.mockResolvedValue({ id: 'b1', paymentSlipUrl: '/uploads/slips/new.jpg' })
+
+    await service.updatePaymentSlipAsCustomer('b1', 'c1', '/uploads/slips/new.jpg')
+
+    expect(prisma.booking.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentSlipAttempts: { increment: 1 } }) }),
+    )
+  })
+
   it('แนบซ้ำหลังพ้น 10 วินาทีแล้ว — ทำได้ตามปกติ', async () => {
     const { service, prisma } = makeService()
     prisma.booking.findUnique.mockResolvedValue({

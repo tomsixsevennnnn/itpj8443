@@ -113,7 +113,7 @@ title: "Requirement Specification — ระบบจองแคทเธอร
 - **เมนูอาหาร** — CRUD, อัปโหลด/ครอปรูป (`imagePosition`/`imageScale`), เปิด/ปิด, เตือนก่อนลบเมนูที่ถูกใช้ในแพ็กเกจ, ราคาทุนต่อจาน
 - **เอกสาร** — ออก/พิมพ์ใบเสนอราคาและใบจอง
 - **รายงาน** — สรุปรายเดือน/รายปี
-- **สิทธิ์การเข้าถึง** — ค้นหาผู้ใช้ด้วยอีเมล แต่งตั้ง/ถอด owner ของร้านตัวเอง (ต้องเหลือ owner อย่างน้อย 1 คน และกันถอดตัวเอง)
+- **สิทธิ์การเข้าถึง** — ค้นหาผู้ใช้ที่เคย login ด้วยอีเมลแล้วแต่งตั้ง/ถอด owner ของร้านตัวเอง (ต้องเหลือ owner อย่างน้อย 1 คน และกันถอดตัวเอง) และ **เชิญเจ้าของร้านด้วยอีเมลล่วงหน้า** แม้ยังไม่เคย login (เป็นคำเชิญรอ ได้สิทธิ์เองตอน login ครั้งแรกด้วยอีเมลที่ Auth0 ยืนยัน) ดูและยกเลิกคำเชิญที่ยังไม่มีคนรับได้
 - **ประวัติการแก้ไข (Audit Log)** — ใคร แก้อะไร เมื่อไร พร้อมค่าก่อน/หลัง แบ่งหน้า และอัปเดตทันทีผ่าน SSE
 - **แก้ไขหน้าเว็บ** — เนื้อหาหน้าแรก (Hero/ขั้นตอน/แกลเลอรี/CTA) พร้อมอัปโหลดรูป
 - **ตั้งค่า** — ดูหัวข้อ 5
@@ -133,12 +133,13 @@ owner ของร้านหนึ่งสลับเปิดร้าน�
 | `POST /shops/:id/owners`, `DELETE /shops/:id/owners/:userId` | ❌ | ❌ | ✅ | อีเมลที่ยังไม่เคย login → สร้างคำเชิญล่วงหน้า (`invited: true`) |
 | `DELETE /shops/:id/invites/:inviteId` | ❌ | ❌ | ✅ | ยกเลิกคำเชิญที่ยังไม่มีคนรับ |
 | `POST /users/me`, `PATCH /users/me` | ✅ | ✅ | ✅ | sync/แก้โปรไฟล์ตัวเอง; `POST` ยังรับสิทธิ์ owner จากคำเชิญ (ถ้ามี) |
+| `GET/POST /users/owner-invites`, `DELETE /users/owner-invites/:inviteId` | ❌ | ✅ (ร้านตัวเอง) | | ดูรายการ/เชิญด้วยอีเมล (เคย login แล้ว = เพิ่มเป็น owner ทันที, ยังไม่เคย = คำเชิญรอ)/ยกเลิกคำเชิญ; POST 10/นาที |
 | `GET /users/search?email=`, `GET /users/owners`, `PATCH /users/:id/role` | ❌ | ✅ (ร้านตัวเอง: CUSTOMER ↔ OWNER) | ✅ (CUSTOMER ↔ SUPER_ADMIN เท่านั้น) | ตั้ง/ถอด owner ของร้านโดย super admin ทำผ่าน `/shops/:id/owners` |
 | `GET /bookings` | ✅ ของตัวเองใน `?shopId=` | ✅ ทั้งร้าน | | รองรับ `?page=&limit=` |
 | `GET /bookings/availability` | ✅ | ✅ | | คิวไม่มีข้อมูลส่วนตัว |
 | `POST /bookings` | ✅ | ❌ | | คำนวณราคา/ค่าขนส่ง/โซนที่ backend (ต้องส่ง `locationDetail` เสมอ), กันวันย้อนหลัง/วันซ้ำ/วันปิดร้าน, ตรวจเมนูที่เลือกไม่เกินโควตาแพ็กเกจ, 10/นาที |
 | `PATCH /bookings/:id` | ❌ | ✅ | | บังคับกฎเปลี่ยนสถานะ, บันทึก `lastEditedBy` |
-| `PATCH /bookings/:id/payment-slip` | ✅ ของตัวเอง | ❌ | | ตรวจ SlipOK + เทียบผู้รับ; 5/นาที และแนบซ้ำในใบเดิมได้ไม่ถี่กว่า 10 วินาที (กันเผาโควตา SlipOK ของร้าน) |
+| `PATCH /bookings/:id/payment-slip` | ✅ ของตัวเอง | ❌ | | ตรวจ SlipOK + เทียบผู้รับ; 5/นาที, แนบซ้ำในใบเดิมได้ไม่ถี่กว่า 10 วินาที และ **แนบได้ไม่เกิน 10 ครั้งต่อใบจอง** (กันเผาโควตา SlipOK ของร้าน — เกินแล้วต้องติดต่อร้าน) |
 | `GET /bookings/:id/payment-slip` | ✅ ของตัวเอง | ✅ ร้านเดียวกัน | | สลิปไม่เป็นไฟล์สาธารณะ ตรวจสิทธิ์รายใบ |
 | `GET /menus`, `GET /packages` | ✅ ไม่เห็น `costPrice` | ✅ | | pagination แบบ opt-in |
 | `POST/PATCH/DELETE /menus`, `/packages`, `/packages/:id/courses…`, `PATCH /packages/reorder` | ❌ | ✅ | | |
@@ -338,7 +339,7 @@ DB เก็บสถานะจริง 4 แบบ (`pending / confirmed / c
 | **เสร็จสิ้น** | `completed` | – |
 | **ยกเลิก** | `cancelled` (เปลี่ยนต่อไม่ได้) | – |
 
-ใช้ป้ายนี้ในหน้าประวัติการจองของลูกค้า (ป้ายและปุ่มกรอง), รายการจองของเจ้าของร้าน (ป้าย + ปุ่มกรองพร้อมจำนวนต่อขั้นตอน), การ์ดสรุปในปฏิทินและแดชบอร์ด ("รอร้านยืนยัน" นับเฉพาะใบที่เจ้าของร้านต้องลงมือ) และข้อความแจ้งเตือน ส่วนปุ่ม "อัปเดตสถานะ" ของเจ้าของร้านยังเป็นสถานะจริง (รอยืนยัน/ยืนยันแล้ว/เสร็จสิ้น/ยกเลิก)
+ใช้ป้ายนี้ในหน้าประวัติการจองของลูกค้า (ป้ายและปุ่มกรอง), รายการจองของเจ้าของร้าน (ป้าย + ปุ่มกรองพร้อมจำนวนต่อขั้นตอน), การ์ดสรุปในปฏิทินและแดชบอร์ด ("รอร้านยืนยัน" นับเฉพาะใบที่เจ้าของร้านต้องลงมือ) และข้อความแจ้งเตือน ส่วนปุ่ม "อัปเดตสถานะ" ของเจ้าของร้านเป็นสถานะจริง เขียนว่า **ยังไม่ยืนยัน** / ยืนยันแล้ว / เสร็จสิ้น / ยกเลิก (ไม่ใช้คำว่า "รอยืนยัน" เพื่อไม่ให้สับสนกับป้าย "รอโอนมัดจำ"/"รอร้านยืนยัน" ในรายการ)
 
 ---
 
@@ -351,7 +352,7 @@ DB เก็บสถานะจริง 4 แบบ (`pending / confirmed / c
 - **MenuItem** — `shopId, name, category, description, image?, imagePosition?, imageScale?, costPrice?, active, updatedAt, lastEditedBy?` เชื่อม `PackageCourse` (many-to-many)
 - **Package** — `shopId, name, pricePerTable, menuLimit, description, features[], badge?, sortOrder, deletedAt?, updatedAt, lastEditedBy?` → `PackageCourse`
 - **PackageCourse** — `packageId, no, title, icon?, category, choose (0 = รวมมาให้, >0 = เลือกกี่อย่าง), items[]`
-- **Booking** — `shopId, customerId?, customerName, bookingYear, bookingNo, date, timeSlot, tables, guestCount, packageName, totalPrice, pricePerTable?, deliveryFee?, status(PENDING|CONFIRMED|COMPLETED|CANCELLED), location, locationDetail(json)?, menus[], phone, lineId?, staffAuto/staffActual(json)?, staffNote?, staffSavedAt?, paymentSlipUrl?, paymentSlipUploadedAt?, paymentSlipVerifyStatus?, paymentSlipVerifyMessage?, paymentSlipTransRef?, paymentSlipVerifiedAt?, paymentSlipReceiverName/Account/ReceivingBank?, paymentChannelKey?, paymentChannelLabel?, createdAt, updatedAt, lastEditedBy?` — unique `(shopId, bookingYear, bookingNo)`, index `(shopId, date)`
+- **Booking** — `shopId, customerId?, customerName, bookingYear, bookingNo, date, timeSlot, tables, guestCount, packageName, totalPrice, pricePerTable?, deliveryFee?, status(PENDING|CONFIRMED|COMPLETED|CANCELLED), location, locationDetail(json)?, menus[], phone, lineId?, staffAuto/staffActual(json)?, staffNote?, staffSavedAt?, paymentSlipUrl?, paymentSlipUploadedAt?, paymentSlipVerifyStatus?, paymentSlipVerifyMessage?, paymentSlipTransRef?, paymentSlipVerifiedAt?, paymentSlipReceiverName/Account/ReceivingBank?, paymentSlipAttempts (จำนวนครั้งที่แนบสลิป), paymentChannelKey?, paymentChannelLabel?, createdAt, updatedAt, lastEditedBy?` — unique `(shopId, bookingYear, bookingNo)`, index `(shopId, date)`
 - **BookingCounter** — `(shopId, year)` คีย์, `lastNo` ออกเลขที่ใบจองแบบ atomic
 - **Settings** — แถวเดียวต่อร้าน (`shopId` unique): ข้อมูลร้าน/โลโก้, บัญชีรับเงิน (+ `extraBankAccounts`/`extraPromptPays` JSON), SlipOK (`slipOkApiKey` เข้ารหัส, `slipOkBranchId`, ข้อมูลผู้รับล่าสุด, `slipOkTestedHash`), `depositRate`, ค่าขนส่ง/โซน/ตำแหน่งร้าน, `brandColor`, ค่าแรง/สัดส่วนกำลังคน, ช่วงเวลา, `closedDates`, เอกสาร, `categories`/`categoryOrder`, `homeContent`, `version` (optimistic locking)
 - **AuditLog** — `shopId?, actorUserId, actorRole, actorEmail, action, entityType, entityId, before?, after?, createdAt`

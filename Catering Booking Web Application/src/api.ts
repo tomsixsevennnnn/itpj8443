@@ -358,6 +358,13 @@ export interface BackendUser {
 
 /** ร้านที่ super admin มองเห็น — มีจำนวน owner/booking และยอดขายรวม (ไม่รวมใบจองที่ยกเลิก) กำกับด้วย
  *  ให้เทียบภาพรวมแต่ละร้านได้ในหน้าเดียว */
+/** คำเชิญเป็นเจ้าของร้านที่ยังไม่มีคนรับ */
+export interface OwnerInvite {
+  id: string
+  email: string
+  createdAt: string
+}
+
 export interface ShopAdmin {
   id: string
   name: string
@@ -426,6 +433,16 @@ export const api = {
     request<BackendUser[]>(token, `/users/search?email=${encodeURIComponent(email)}`),
 
   listOwners: (token: string) => request<BackendUser[]>(token, '/users/owners'),
+
+  /** คำเชิญเป็นเจ้าของร้านที่ยังไม่มีคนรับ ของร้านที่เปิดอยู่ (owner เท่านั้น ดูหน้า UserRoles.tsx) */
+  listOwnerInvites: (token: string) => request<OwnerInvite[]>(token, '/users/owner-invites'),
+
+  /** เชิญเจ้าของร้านคนใหม่ด้วยอีเมล — เคย login แล้วได้สิทธิ์ทันที (`invited: false`) ยังไม่เคย login เป็นคำเชิญ (`invited: true`) */
+  inviteOwner: (token: string, email: string) =>
+    request<{ invited: boolean }>(token, '/users/owner-invites', { method: 'POST', body: JSON.stringify({ email }) }),
+
+  removeOwnerInvite: (token: string, inviteId: string) =>
+    request<{ id: string }>(token, `/users/owner-invites/${inviteId}`, { method: 'DELETE' }),
 
   setUserRole: (token: string, userId: string, role: 'OWNER' | 'CUSTOMER' | 'SUPER_ADMIN') =>
     request<BackendUser>(token, `/users/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),

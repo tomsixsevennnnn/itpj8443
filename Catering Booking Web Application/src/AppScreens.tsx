@@ -238,6 +238,13 @@ export function OwnerScreens({
                 .then(() => {})
             }
             onListOwners={() => withToken().then(token => api.listOwners(token))}
+            onListInvites={() => withToken().then(token => api.listOwnerInvites(token))}
+            onInviteOwner={(email) => withToken().then(token => api.inviteOwner(token, email))}
+            onRemoveInvite={(inviteId) =>
+              withToken()
+                .then(token => api.removeOwnerInvite(token, inviteId))
+                .then(() => {})
+            }
             currentAuth0Sub={auth0UserSub}
             refreshSignal={usersRefreshSignal}
           />
